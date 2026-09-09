@@ -296,7 +296,15 @@ export default function LeadsPage() {
                   <tr key={l.id}>
                     <td style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{l.file_no}</td>
                     <td style={{ fontWeight: 600 }}>{l.full_name}</td>
-                    <td dir="ltr" style={{ textAlign: 'right', fontSize: 12.5 }}>{l.phone}</td>
+                    <td>
+                      <div className="phone-cell">
+                        <span dir="ltr">{l.phone ?? '—'}</span>
+                        {l.phone && (
+                          <button className="icon-btn" title="نسخ الرقم"
+                            onClick={() => navigator.clipboard?.writeText(l.phone)}>⧉</button>
+                        )}
+                      </div>
+                    </td>
                     <td>{l.stages?.name_ar ?? '—'}</td>
                     <td>{l.owner?.full_name ?? '—'}</td>
                     <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
