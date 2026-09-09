@@ -1013,3 +1013,45 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
   .modal-actions { bottom: -20px; }
   .modal-actions .btn { flex: 1; }
 }
+
+/* ===================== خلية الهاتف في الجداول ===================== */
+.phone-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.phone-cell > span {
+  font-size: 12.5px;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+/* أزرار أيقونات صغيرة — للاتصال والواتساب والنسخ */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .15s;
+}
+.icon-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--surface);
+}
+.icon-btn:active { transform: scale(.94); }
+
+@media (max-width: 900px) {
+  .icon-btn { width: 32px; height: 32px; }
+}
