@@ -155,7 +155,7 @@ export default function PrpPage() {
         {!canEditAll && (
           <button className={'chip' + (mineOnly ? ' on' : '')}
             onClick={() => setMineOnly(v => !v)}>
-            مرضاي فقط ({mineCount.toLocaleString('ar-EG')})
+            مرضاي فقط ({mineCount.toLocaleString('en-US')})
           </button>
         )}
       </div>

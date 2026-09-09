@@ -28,7 +28,7 @@ const HEADERS = [
 const BOARD_AR = { sales: 'مبيعات', coordinator: 'منسقات' }
 const INTEREST_AR = { hair: 'زراعة شعر', beard: 'لحية', eyebrows: 'حواجب', prp: 'بلازما' }
 
-const d = (v) => (v ? new Date(v).toLocaleString('ar-EG') : '')
+const d = (v) => (v ? new Date(v).toLocaleString('en-US') : '')
 
 function toRow(l) {
   return [
@@ -185,7 +185,7 @@ export default function ExportLeadsModal({ boardStageIds, board, filters, onClos
 
         {busy && (
           <div className="alert alert-ok">
-            جارٍ التحضير… تم جلب {done.toLocaleString('ar-EG')} ليد
+            جارٍ التحضير… تم جلب {done.toLocaleString('en-US')} ليد
           </div>
         )}
 

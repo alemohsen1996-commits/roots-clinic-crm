@@ -200,9 +200,9 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
     const oldPrice = lead.offered_price ? Number(lead.offered_price) : null
     const newPrice = offer.offered_price ? Number(offer.offered_price) : null
     const priceLine = oldPrice && newPrice && oldPrice !== newPrice
-      ? `تعديل السعر من ${oldPrice.toLocaleString('ar-EG')} إلى ${newPrice.toLocaleString('ar-EG')} ر.س`
+      ? `تعديل السعر من ${oldPrice.toLocaleString('en-US')} إلى ${newPrice.toLocaleString('en-US')} ر.س`
       : newPrice
-        ? `السعر: ${newPrice.toLocaleString('ar-EG')} ر.س`
+        ? `السعر: ${newPrice.toLocaleString('en-US')} ر.س`
         : 'بدون سعر'
 
     await supabase.from('activities').insert({
@@ -509,7 +509,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
             <div className="offer-box">
               <div className="offer-price">
                 {lead.offered_price
-                  ? `${Number(lead.offered_price).toLocaleString('ar-EG')} ر.س`
+                  ? `${Number(lead.offered_price).toLocaleString('en-US')} ر.س`
                   : 'السعر غير محدّد'}
               </div>
 

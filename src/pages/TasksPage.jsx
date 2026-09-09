@@ -151,7 +151,7 @@ export default function TasksPage() {
     return (
       <div className="card" style={{ marginBottom: 18, borderColor: tone, borderWidth: 1.5 }}>
         <div style={{ padding: '14px 16px 0' }}>
-          <h2 style={{ fontSize: 15, color: tone }}>{title} ({list.length.toLocaleString('ar-EG')})</h2>
+          <h2 style={{ fontSize: 15, color: tone }}>{title} ({list.length.toLocaleString('en-US')})</h2>
         </div>
         <table className="table" style={{ marginTop: 10 }}>
           <thead>
@@ -174,10 +174,10 @@ export default function TasksPage() {
         <div>
           <h1>مهامي اليوم</h1>
           <div className="hint">
-            {tasks.length.toLocaleString('ar-EG')} متابعة مستحقة
+            {tasks.length.toLocaleString('en-US')} متابعة مستحقة
             {overdue.length > 0 && (
               <span style={{ color: 'var(--danger)', fontWeight: 700 }}>
-                {' '}— منها {overdue.length.toLocaleString('ar-EG')} متأخرة
+                {' '}— منها {overdue.length.toLocaleString('en-US')} متأخرة
               </span>
             )}
           </div>

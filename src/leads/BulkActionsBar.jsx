@@ -97,7 +97,7 @@ export default function BulkActionsBar({ ids, stages, agents, onDone, onClear })
   return (
     <div className="card bulk-bar">
       <div className="bulk-count">
-        <b>{count.toLocaleString('ar-EG')}</b> ليد محدد
+        <b>{count.toLocaleString('en-US')}</b> ليد محدد
       </div>
 
       <select value={action} onChange={e => { setAction(e.target.value); setMsg(null) }}

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 
-const fmt = (n) => Number(n ?? 0).toLocaleString('ar-EG')
+const fmt = (n) => Number(n ?? 0).toLocaleString('en-US')
 
 const monthKey = (d) => {
   const x = new Date(d)

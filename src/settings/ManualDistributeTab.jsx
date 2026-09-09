@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 
-const fmt = (n) => Number(n ?? 0).toLocaleString('ar-EG')
+const fmt = (n) => Number(n ?? 0).toLocaleString('en-US')
 
 export default function ManualDistributeTab() {
   const { profile } = useAuth()
@@ -378,7 +378,7 @@ export default function ManualDistributeTab() {
               {batches.map(b => (
                 <tr key={b.id} style={{ opacity: b.undone_at ? .5 : 1 }}>
                   <td>{b.id}</td>
-                  <td>{new Date(b.created_at).toLocaleString('ar-EG')}</td>
+                  <td>{new Date(b.created_at).toLocaleString('en-US')}</td>
                   <td style={{ fontWeight: 600 }}>{fmt(b.leads_count)}</td>
                   <td>
                     {b.undone_at

@@ -153,7 +153,7 @@ export default function LeadsPage() {
             {board === 'sales'
               ? 'بورد المبيعات'
               : (roleCode === 'agent' ? 'مرضاك المحوّلون — للمتابعة فقط' : 'بورد المنسقات')}
-            {view === 'table' && ` — ${(view === 'table' ? tableRows.length : total).toLocaleString('ar-EG')} ظاهر`}
+            {view === 'table' && ` — ${(view === 'table' ? tableRows.length : total).toLocaleString('en-US')} ظاهر`}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -375,7 +375,7 @@ export default function LeadsPage() {
                 <button className="btn btn-ghost" disabled={page === 0}
                   onClick={() => setPage(p => Math.max(0, p - 1))}>← السابق</button>
                 <span className="pager-info">
-                  صفحة {(page + 1).toLocaleString('ar-EG')} من {totalPages.toLocaleString('ar-EG')}
+                  صفحة {(page + 1).toLocaleString('en-US')} من {totalPages.toLocaleString('en-US')}
                 </span>
                 <button className="btn btn-ghost" disabled={page + 1 >= totalPages}
                   onClick={() => setPage(p => p + 1)}>التالي →</button>

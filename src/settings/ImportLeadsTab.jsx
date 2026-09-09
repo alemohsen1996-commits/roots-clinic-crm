@@ -214,7 +214,7 @@ export default function ImportLeadsTab() {
         <input type="file" accept=".xlsx,.xls,.csv" onChange={onFile} disabled={busy} />
         {fileName && (
           <div style={{ marginTop: 10, fontSize: 13 }}>
-            <b>{fileName}</b> — {rows.length.toLocaleString('ar-EG')} صف
+            <b>{fileName}</b> — {rows.length.toLocaleString('en-US')} صف
             <button className="btn btn-ghost btn-sm" style={{ marginInlineStart: 10 }}
               onClick={reset} disabled={busy}>تغيير الملف</button>
           </div>
@@ -294,17 +294,17 @@ export default function ImportLeadsTab() {
 
             <div className="fin-grid" style={{ marginBottom: 14 }}>
               <div className="fin-gold">
-                <span>سيُستورد</span>{analysis.valid.length.toLocaleString('ar-EG')} ليد
+                <span>سيُستورد</span>{analysis.valid.length.toLocaleString('en-US')} ليد
               </div>
               <div className={analysis.bad.length ? 'fin-danger' : ''}>
-                <span>رقم مرفوض</span>{analysis.bad.length.toLocaleString('ar-EG')}
+                <span>رقم مرفوض</span>{analysis.bad.length.toLocaleString('en-US')}
               </div>
-              <div><span>مكرر داخل الملف</span>{analysis.dup.length.toLocaleString('ar-EG')}</div>
+              <div><span>مكرر داخل الملف</span>{analysis.dup.length.toLocaleString('en-US')}</div>
             </div>
 
             {analysis.branchUnmatched > 0 && (
               <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
-                {analysis.branchUnmatched.toLocaleString('ar-EG')} صف فيه اسم فرع غير موجود عندك —
+                {analysis.branchUnmatched.toLocaleString('en-US')} صف فيه اسم فرع غير موجود عندك —
                 سيأخذون الفرع الافتراضي أعلاه
               </div>
             )}
@@ -342,23 +342,23 @@ export default function ImportLeadsTab() {
 
             {busy && (
               <div className="alert alert-ok">
-                جارٍ الاستيراد… {done.toLocaleString('ar-EG')} من {analysis.valid.length.toLocaleString('ar-EG')}
+                جارٍ الاستيراد… {done.toLocaleString('en-US')} من {analysis.valid.length.toLocaleString('en-US')}
               </div>
             )}
 
             {result && (
               <div className="alert alert-ok" style={{ lineHeight: 1.9 }}>
                 <b>اكتمل الاستيراد</b><br />
-                أُضيف: {result.inserted.toLocaleString('ar-EG')} ليد<br />
-                تُخطّي (رقم موجود مسبقًا): {result.skipped.toLocaleString('ar-EG')}<br />
-                مرفوض: {result.bad.toLocaleString('ar-EG')} ·
-                مكرر داخل الملف: {result.dup.toLocaleString('ar-EG')}
+                أُضيف: {result.inserted.toLocaleString('en-US')} ليد<br />
+                تُخطّي (رقم موجود مسبقًا): {result.skipped.toLocaleString('en-US')}<br />
+                مرفوض: {result.bad.toLocaleString('en-US')} ·
+                مكرر داخل الملف: {result.dup.toLocaleString('en-US')}
               </div>
             )}
 
             <button className="btn btn-primary" onClick={run}
               disabled={busy || !analysis.valid.length || !stageId}>
-              {busy ? 'جارٍ الاستيراد…' : `استيراد ${analysis.valid.length.toLocaleString('ar-EG')} ليد`}
+              {busy ? 'جارٍ الاستيراد…' : `استيراد ${analysis.valid.length.toLocaleString('en-US')} ليد`}
             </button>
           </div>
         </>

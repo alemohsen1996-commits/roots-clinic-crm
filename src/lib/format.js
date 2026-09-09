@@ -1,5 +1,17 @@
 // دوال تنسيق مشتركة — تُستورد في أي شاشة
-export const fmtNum = (n) => Number(n ?? 0).toLocaleString('ar-EG')
+
+// الأرقام بالصيغة الغربية (0-9): أوضح وأسرع في القراءة داخل الجداول
+// المالية، وأسهل في المقارنة البصرية بين المبالغ.
+// التواريخ تبقى بالعربية لأن أسماء الشهور جزء من اللغة.
+const NUM_LOCALE = 'en-US'
+
+export const fmtNum = (n) => Number(n ?? 0).toLocaleString(NUM_LOCALE)
+
+// اختصار للاستخدام المباشر في الشاشات
+export const n = fmtNum
+
+export const fmtMoney = (v, currency = 'ر.س') =>
+  `${fmtNum(v)} ${currency}`
 
 export const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'

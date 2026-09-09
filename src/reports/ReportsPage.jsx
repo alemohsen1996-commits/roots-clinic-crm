@@ -83,7 +83,7 @@ export default function ReportsPage() {
       )
       const leads = leadsRes.rows
       if (leadsRes.truncated) {
-        setWarn(`الفترة تحتوي أكثر من ${CAP.toLocaleString('ar-EG')} ليد — التقرير يعرض جزءًا منها فقط. قلّص الفترة لنتيجة دقيقة.`)
+        setWarn(`الفترة تحتوي أكثر من ${CAP.toLocaleString('en-US')} ليد — التقرير يعرض جزءًا منها فقط. قلّص الفترة لنتيجة دقيقة.`)
       }
 
       // ---------- الديلات المنتهية في الفترة ----------
@@ -244,7 +244,7 @@ export default function ReportsPage() {
 
       {loading ? (
         <div className="empty">
-          جارٍ التحميل…{progress > 0 && ` (${progress.toLocaleString('ar-EG')} ليد)`}
+          جارٍ التحميل…{progress > 0 && ` (${progress.toLocaleString('en-US')} ليد)`}
         </div>
       ) : (
         <>

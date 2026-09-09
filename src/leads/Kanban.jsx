@@ -35,7 +35,7 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick }) {
         <span className="drag-handle" title="اسحب لإعادة الترتيب">⋮⋮</span>
         <span className="dot" />
         <span className="name">{stage.name_ar}</span>
-        <span className="count">{total.toLocaleString('ar-EG')}</span>
+        <span className="count">{total.toLocaleString('en-US')}</span>
       </div>
 
       <div className="kanban-body">
@@ -60,7 +60,7 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick }) {
         })}
         {hidden > 0 && (
           <div className="kanban-more">
-            + {hidden.toLocaleString('ar-EG')} ليد أقدم — استخدم الجدول أو الفلاتر لعرضهم
+            + {hidden.toLocaleString('en-US')} ليد أقدم — استخدم الجدول أو الفلاتر لعرضهم
           </div>
         )}
       </div>

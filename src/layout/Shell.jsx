@@ -130,7 +130,7 @@ export default function Shell() {
                     <Icon k={i.icon} />
                     <span className="nav-text">{i.label}</span>
                     {i.badge === 'tasks' && dueTasks > 0 && (
-                      <span className="nav-badge">{dueTasks.toLocaleString('ar-EG')}</span>
+                      <span className="nav-badge">{dueTasks.toLocaleString('en-US')}</span>
                     )}
                   </NavLink>
                 ))}

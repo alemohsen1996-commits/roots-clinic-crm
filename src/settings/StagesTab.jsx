@@ -91,7 +91,7 @@ export default function StagesTab() {
     // التعطيل يُخفي ليدات المرحلة من كل الشاشات — تحذير صريح
     if (s.is_active && n > 0) {
       const go = window.confirm(
-        `هذه المرحلة تحتوي ${n.toLocaleString('ar-EG')} ليد.\n\n` +
+        `هذه المرحلة تحتوي ${n.toLocaleString('en-US')} ليد.\n\n` +
         `تعطيلها سيُخفيهم من البورد والجدول تمامًا (لن يُحذفوا، لكن لن يراهم أحد).\n\n` +
         `الأفضل نقلهم لمرحلة أخرى أولًا. هل تريد المتابعة رغم ذلك؟`
       )
@@ -144,7 +144,7 @@ export default function StagesTab() {
                 </td>
                 <td style={{ fontSize: 12.5 }}>{s.board === 'coordinator' ? 'المنسقات' : 'المبيعات'}</td>
                 <td style={{ fontSize: 12.5 }}>{CATEGORIES.find(c => c.v === s.category)?.label}</td>
-                <td style={{ fontWeight: 600 }}>{(counts[s.id] ?? 0).toLocaleString('ar-EG')}</td>
+                <td style={{ fontWeight: 600 }}>{(counts[s.id] ?? 0).toLocaleString('en-US')}</td>
                 <td>{s.is_active ? 'فعالة' : 'معطلة'}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-ghost" onClick={() => startEdit(s)}>تعديل</button>
