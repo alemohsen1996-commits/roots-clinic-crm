@@ -114,7 +114,7 @@ export default function PrpPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>المريض</th><th>التقدم</th><th>الجلسة القادمة</th>
+                <th>المريض</th><th>الهاتف</th><th>التقدم</th><th>الجلسة القادمة</th>
                 <th>آخر جلسة</th><th>الحالة</th>
               </tr>
             </thead>
@@ -123,6 +123,16 @@ export default function PrpPage() {
                 <tr key={r.package_id} onClick={() => setOpenPkg(r)} style={{ cursor: 'pointer' }}>
                   <td style={{ fontWeight: 600 }}>
                     {r.full_name} <small style={{ color: 'var(--ink-soft)' }}>{r.file_no}</small>
+                  </td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div dir="ltr" style={{ textAlign: 'right', fontSize: 12.5 }}>{r.phone ?? '—'}</div>
+                    {r.phone && (
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                        <a className="btn btn-ghost btn-sm" href={`tel:${r.phone}`} title="اتصال">☎</a>
+                        <a className="btn btn-ghost btn-sm" title="واتساب" target="_blank" rel="noreferrer"
+                          href={`https://wa.me/${waNumber(r.phone)}`}>واتساب</a>
+                      </div>
+                    )}
                   </td>
                   <td>
                     <ProgressDots done={r.sessions_done} total={r.sessions_total} />

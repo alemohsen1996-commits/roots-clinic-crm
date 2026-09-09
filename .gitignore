@@ -34,3 +34,4 @@ Thumbs.db
 # ملفات مؤقتة
 *.local
 '@ | Set-Content -Encoding UTF8 .gitignore
+supabase/.temp/
