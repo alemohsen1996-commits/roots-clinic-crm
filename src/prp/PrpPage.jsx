@@ -2,6 +2,7 @@
 // + بطاقة الجلسات القادمة (٤٨ ساعة) + بطاقة المنقطعين (فرص إعادة تنشيط)
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../auth/AuthContext'
 import { fmtDate, fmtNum } from '../lib/format'
 import ProgressDots from './ProgressDots'
 import PrpDrawer from './PrpDrawer'
@@ -16,12 +17,15 @@ const STATUS_AR = {
 const waNumber = (phone) => String(phone ?? '').replace(/\D/g, '')
 
 export default function PrpPage() {
+  const { profile, isManager, roleCode } = useAuth()
   const [rows, setRows] = useState([])
   const [reminders, setReminders] = useState([])
   const [status, setStatus] = useState('active')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [openPkg, setOpenPkg] = useState(null)
+  const [owners, setOwners] = useState({})     // package_id → { coordinator, agent, coordinator_id }
+  const [mineOnly, setMineOnly] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -33,13 +37,48 @@ export default function PrpPage() {
     ])
     setRows(pr ?? [])
     setReminders(rem ?? [])
+
+    // مسؤولو كل باقة — من الديل المرتبط بها
+    const ids = (pr ?? []).map(r => r.package_id)
+    if (ids.length) {
+      const { data: pk } = await supabase
+        .from('prp_packages')
+        .select(`id, deal_id,
+                 deals(agent_id, coordinator_id,
+                       agent:profiles!deals_agent_id_fkey(full_name),
+                       coordinator:profiles!deals_coordinator_id_fkey(full_name))`)
+        .in('id', ids)
+      setOwners(Object.fromEntries((pk ?? []).map(p => [p.id, {
+        agent: p.deals?.agent?.full_name ?? null,
+        coordinator: p.deals?.coordinator?.full_name ?? null,
+        coordinator_id: p.deals?.coordinator_id ?? null,
+        agent_id: p.deals?.agent_id ?? null,
+      }])))
+    } else setOwners({})
+
     setLoading(false)
   }, [status])
 
   useEffect(() => { load() }, [load])
 
-  const visible = rows.filter(r =>
-    !search.trim() || r.full_name?.includes(search.trim()) || r.file_no?.includes(search.trim()))
+  // هل هذه الباقة تخصّني؟ (المنسقة تعدّل باقات ديلاتها فقط)
+  const isMine = (r) => {
+    const o = owners[r.package_id]
+    if (!o || !profile?.id) return false
+    return o.coordinator_id === profile.id || o.agent_id === profile.id
+  }
+
+  // من يملك صلاحية التعديل على كل الباقات
+  const canEditAll = isManager || roleCode === 'prp_officer'
+
+  const visible = rows.filter(r => {
+    const q = search.trim()
+    if (q && !(r.full_name?.includes(q) || r.file_no?.includes(q) || r.phone?.includes(q))) return false
+    if (mineOnly && !isMine(r)) return false
+    return true
+  })
+
+  const mineCount = rows.filter(isMine).length
 
   // المنقطعون فعليًا: نشطة لكن آخر جلسة من أكثر من 45 يوم
   const stale = rows.filter(r =>
@@ -101,6 +140,12 @@ export default function PrpPage() {
           <option value="dropped">المنقطعة</option>
           <option value="">الكل</option>
         </select>
+        {!canEditAll && (
+          <button className={'chip' + (mineOnly ? ' on' : '')}
+            onClick={() => setMineOnly(v => !v)}>
+            مرضاي فقط ({mineCount.toLocaleString('ar-EG')})
+          </button>
+        )}
       </div>
 
       {loading ? <div className="empty">جارٍ التحميل…</div> :
@@ -114,13 +159,18 @@ export default function PrpPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>المريض</th><th>الهاتف</th><th>التقدم</th><th>الجلسة القادمة</th>
-                <th>آخر جلسة</th><th>الحالة</th>
+                <th>المريض</th><th>الهاتف</th><th>المنسقة</th><th>السيلز</th>
+                <th>التقدم</th><th>الجلسة القادمة</th><th>آخر جلسة</th><th>الحالة</th>
               </tr>
             </thead>
             <tbody>
               {visible.map(r => (
-                <tr key={r.package_id} onClick={() => setOpenPkg(r)} style={{ cursor: 'pointer' }}>
+                <tr key={r.package_id} onClick={() => setOpenPkg(r)}
+                  style={{
+                    cursor: 'pointer',
+                    // الباقات غير المملوكة تظهر باهتة للمنسقة والسيلز
+                    opacity: canEditAll || isMine(r) ? 1 : .55,
+                  }}>
                   <td style={{ fontWeight: 600 }}>
                     {r.full_name} <small style={{ color: 'var(--ink-soft)' }}>{r.file_no}</small>
                   </td>
@@ -134,6 +184,15 @@ export default function PrpPage() {
                       </div>
                     )}
                   </td>
+                  <td style={{ fontSize: 12.5 }}>
+                    {owners[r.package_id]?.coordinator ?? '—'}
+                    {isMine(r) && !canEditAll && (
+                      <span className="badge badge-active" style={{ marginInlineStart: 6, fontSize: 11 }}>
+                        مريضي
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ fontSize: 12.5 }}>{owners[r.package_id]?.agent ?? '—'}</td>
                   <td>
                     <ProgressDots done={r.sessions_done} total={r.sessions_total} />
                     <small style={{ color: 'var(--ink-soft)', marginInlineStart: 8 }}>

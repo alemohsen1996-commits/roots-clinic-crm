@@ -16,7 +16,7 @@ const S_STATUS = {
 const today = () => new Date().toISOString().slice(0, 10)
 
 export default function PrpDrawer({ packageId, onClose, onChanged }) {
-  const { profile } = useAuth()
+  const { profile, isManager, roleCode } = useAuth()
   const [pkg, setPkg] = useState(null)
   const [sessions, setSessions] = useState([])
   const [doctors, setDoctors] = useState([])
@@ -31,7 +31,10 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
   const load = useCallback(async () => {
     const [{ data: p }, { data: s }, { data: docs }] = await Promise.all([
       supabase.from('prp_packages')
-        .select('*, leads(file_no, full_name, phone)')
+        .select(`*, leads(file_no, full_name, phone),
+                 deals(agent_id, coordinator_id,
+                       agent:profiles!deals_agent_id_fkey(full_name),
+                       coordinator:profiles!deals_coordinator_id_fkey(full_name))`)
         .eq('id', packageId).single(),
       supabase.from('prp_sessions')
         .select('*, doctors(full_name)')
@@ -125,6 +128,11 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
   if (!pkg) return null
   const doneCount = sessions.filter(s => s.status === 'done').length
 
+  // من يملك التعديل: المدير · موظف البلازما · منسقة الديل نفسها
+  const canEdit = isManager
+    || roleCode === 'prp_officer'
+    || pkg.deals?.coordinator_id === profile?.id
+
   return (
     <div className="drawer-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <aside className="drawer">
@@ -145,12 +153,28 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
         </header>
 
         {err && <div className="alert alert-error">{err}</div>}
+
+        <div className="drawer-info" style={{ marginBottom: 12 }}>
+          <div><span>المنسقة</span>{pkg.deals?.coordinator?.full_name ?? '—'}</div>
+          <div><span>موظف المبيعات</span>{pkg.deals?.agent?.full_name ?? '—'}</div>
+        </div>
+
+        {!canEdit && (
+          <div style={{
+            fontSize: 12.5, color: 'var(--ink-soft)', background: 'var(--surface)',
+            padding: '10px 14px', borderRadius: 8, marginBottom: 8, lineHeight: 1.7,
+          }}>
+            👁 هذا المريض تحت إدارة منسقة أخرى — يمكنك متابعة حالته فقط
+          </div>
+        )}
         {pkg.status === 'dropped' && (
           <div className="alert alert-error">
             باقة منقطعة — السبب: {pkg.dropped_reason ?? '—'}
-            <button className="btn btn-ghost" style={{ marginInlineStart: 10 }} onClick={reactivate}>
-              إعادة تنشيط
-            </button>
+            {canEdit && (
+              <button className="btn btn-ghost" style={{ marginInlineStart: 10 }} onClick={reactivate}>
+                إعادة تنشيط
+              </button>
+            )}
           </div>
         )}
         {pkg.status === 'completed' && (
@@ -158,7 +182,7 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
         )}
 
         {/* عدد الجلسات المتعاقد عليها */}
-        {pkg.status === 'active' && (
+        {pkg.status === 'active' && canEdit && (
           <div className="drawer-section">
             <h3>عدد جلسات الباقة</h3>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -204,16 +228,16 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
                     </>
                   ) : (
                     <>
-                      <input type="date" value={s.planned_date ?? ''}
+                      <input type="date" value={s.planned_date ?? ''} disabled={!canEdit}
                         onChange={e => updateSession(s.id, { planned_date: e.target.value })}
                         style={{ padding: '5px 8px', border: '1px solid var(--line)', borderRadius: 6, fontFamily: 'var(--font-body)' }} />
-                      <select value={s.doctor_id ?? ''}
+                      <select value={s.doctor_id ?? ''} disabled={!canEdit}
                         onChange={e => updateSession(s.id, { doctor_id: e.target.value ? Number(e.target.value) : null })}
                         style={{ padding: '5px 8px' }}>
                         <option value="">الطبيب</option>
                         {doctors.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
                       </select>
-                      {s.status === 'scheduled' && pkg.status === 'active' && (
+                      {s.status === 'scheduled' && pkg.status === 'active' && canEdit && (
                         <>
                           <button className="btn btn-primary" onClick={() => startDone(s)}>✓ تمت</button>
                           <button className="btn btn-ghost" onClick={() => updateSession(s.id, { status: 'missed' })}>
@@ -221,7 +245,7 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
                           </button>
                         </>
                       )}
-                      {s.status === 'missed' && pkg.status === 'active' && (
+                      {s.status === 'missed' && pkg.status === 'active' && canEdit && (
                         <>
                           <button className="btn btn-ghost" onClick={() => updateSession(s.id, { status: 'scheduled' })}>
                             إعادة جدولة
@@ -238,7 +262,7 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
         </div>
 
         {/* الانقطاع */}
-        {pkg.status === 'active' && (
+        {pkg.status === 'active' && canEdit && (
           <div className="drawer-section">
             <h3>انقطاع المريض</h3>
             {!dropping ? (
