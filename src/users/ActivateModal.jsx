@@ -12,6 +12,7 @@ export default function ActivateModal({ person, onClose, onSaved }) {
   const [busy, setBusy] = useState(false)
 
   const [form, setForm] = useState({
+    full_name: person.full_name ?? '',
     role_id: person.role_id ?? '',
     team_id: person.team_id ?? '',
     in_rotation: person.in_rotation ?? false,
@@ -32,11 +33,13 @@ export default function ActivateModal({ person, onClose, onSaved }) {
   const isAgent = roles.find(r => r.id === Number(form.role_id))?.code === 'agent'
 
   async function save() {
+    if (!form.full_name.trim()) { setErr('اكتب اسم الموظف'); return }
     if (!form.role_id) { setErr('اختر الدور أولًا'); return }
     setErr(''); setBusy(true)
 
     const wasPending = person.status === 'pending'
     const { error } = await supabase.from('profiles').update({
+      full_name: form.full_name.trim(),
       role_id: Number(form.role_id),
       team_id: form.team_id ? Number(form.team_id) : null,
       in_rotation: isAgent ? form.in_rotation : false,
@@ -49,7 +52,7 @@ export default function ActivateModal({ person, onClose, onSaved }) {
 
     setBusy(false)
     if (error) { setErr('تعذر الحفظ — حاول مجددًا'); return }
-    onSaved(person.full_name)
+    onSaved(form.full_name.trim())
   }
 
   return (
@@ -59,6 +62,12 @@ export default function ActivateModal({ person, onClose, onSaved }) {
         <p className="sub" dir="ltr" style={{ textAlign: 'right' }}>{person.email}</p>
 
         {err && <div className="alert alert-error">{err}</div>}
+
+        <div className="field">
+          <label>اسم الموظف</label>
+          <input value={form.full_name} onChange={e => set('full_name', e.target.value)}
+            placeholder="مثال: أحمد محمد" />
+        </div>
 
         <div className="field">
           <label>الدور</label>
