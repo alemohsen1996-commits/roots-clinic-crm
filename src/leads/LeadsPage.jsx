@@ -24,7 +24,13 @@ export default function LeadsPage() {
   const { isManager, roleCode, profile } = useAuth()
   const refs = useLeadRefs()
   const [branches, setBranches] = useState([])
-  const [view, setView] = useState('kanban')
+  // اختيار العرض يُحفظ محليًا فلا يضيع عند إعادة تحميل الصفحة
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('leads-view') || 'kanban' } catch { return 'kanban' }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('leads-view', view) } catch {}
+  }, [view])
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [showAdd, setShowAdd] = useState(false)
   const [openLead, setOpenLead] = useState(null)
