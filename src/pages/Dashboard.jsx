@@ -208,7 +208,8 @@ export default function Dashboard() {
               <div style={{ padding: '16px 16px 0' }}>
                 <h2 style={{ fontSize: 16 }}>سجل الشهور</h2>
               </div>
-              <table className="table" style={{ marginTop: 10 }}>
+              <div className="table-scroll" style={{ marginTop: 10, maxHeight: 300 }}>
+              <table className="table sticky-head">
                 <thead>
                   <tr>
                     <th>الشهر</th><th>العمليات</th><th>الإيراد</th>
@@ -236,6 +237,7 @@ export default function Dashboard() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -249,7 +251,8 @@ export default function Dashboard() {
                   لذلك مجموع الصفوف أكبر من إجمالي العيادة بالأعلى
                 </div>
               </div>
-              <table className="table" style={{ marginTop: 12 }}>
+              <div className="table-scroll" style={{ marginTop: 12 }}>
+              <table className="table sticky-head">
                 <thead>
                   <tr><th>الموظف</th><th>العمليات</th><th>الإيراد</th><th>المحصّل</th><th>الليدات</th></tr>
                 </thead>
@@ -267,6 +270,7 @@ export default function Dashboard() {
                     ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>

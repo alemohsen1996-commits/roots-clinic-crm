@@ -1124,3 +1124,31 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
   .nav-link { padding-block: 12px; font-size: 14.5px; }
   .nav-ico { width: 19px; height: 19px; }
 }
+
+/* ===================== جداول بارتفاع محدود ورأس ثابت ===================== */
+/* تمنع الصفحة من الامتداد بلا نهاية كلما زادت الصفوف */
+.table-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+}
+.table-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.table-scroll::-webkit-scrollbar-track { background: transparent; }
+.table-scroll::-webkit-scrollbar-thumb {
+  background: var(--line); border-radius: 8px;
+}
+.table-scroll::-webkit-scrollbar-thumb:hover { background: #c9d0da; }
+
+/* رأس الجدول يبقى ظاهرًا أثناء التمرير */
+.table.sticky-head thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+@media (max-width: 900px) {
+  .table-scroll { max-height: 340px; }
+}
