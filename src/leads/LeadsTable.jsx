@@ -61,7 +61,7 @@ export default function LeadsTable({ leads, onOpen, selectable, selected, onTogg
             const on = selectable && selected?.has(l.id)
             return (
               <tr key={l.id}
-                onClick={() => onOpen(l)}
+                onClick={() => onOpen(l, leads)}
                 style={{ cursor: 'pointer', background: on ? 'var(--primary-soft, #1a3a5c10)' : undefined }}>
                 {selectable && (
                   <td onClick={e => e.stopPropagation()}>

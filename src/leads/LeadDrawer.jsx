@@ -33,7 +33,7 @@ function buildNoAnswerChain(stages) {
 
 const waNumber = (phone) => String(phone ?? '').replace(/\D/g, '')
 
-export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
+export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings, onNavigate }) {
   const { profile, isManager, roleCode } = useAuth()
   const [lead, setLead] = useState(null)
   const [acts, setActs] = useState([])
@@ -50,6 +50,15 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
   const [busy, setBusy] = useState(false)
 
   const [tab, setTab] = useState('follow')     // follow | offer | info | log
+
+  // التنقّل بين الليدات المعروضة — يحترم الفلاتر والعمود الذي فُتح منه
+  const navList = Array.isArray(siblings) ? siblings : []
+  const navIndex = navList.findIndex(x => Number(x.id) === Number(leadId))
+  const hasNav = navList.length > 1 && navIndex !== -1
+  const prevLead = hasNav && navIndex > 0 ? navList[navIndex - 1] : null
+  const nextLead = hasNav && navIndex < navList.length - 1 ? navList[navIndex + 1] : null
+
+  const goTo = (l) => { if (l && onNavigate) { setTab('follow'); onNavigate(l) } }
   const [actTab, setActTab] = useState('all')
 
   // تعديل البيانات
@@ -97,6 +106,21 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
   }, [leadId])
 
   useEffect(() => { load() }, [load])
+
+  // ← و → للتنقّل، Esc للإغلاق — ما لم يكن المؤشر داخل حقل إدخال
+  useEffect(() => {
+    const onKey = (e) => {
+      const t = e.target?.tagName
+      if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return
+      if (e.key === 'Escape') { onClose(); return }
+      if (!hasNav) return
+      // في الواجهة العربية: السهم الأيسر يتقدّم للتالي
+      if (e.key === 'ArrowLeft')  goTo(nextLead)
+      if (e.key === 'ArrowRight') goTo(prevLead)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   useEffect(() => {
     supabase.from('roles').select('id').eq('code', 'coordinator').single()
@@ -408,7 +432,18 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
               )}
             </div>
           </div>
-          <button className="btn btn-ghost" onClick={onClose}>إغلاق</button>
+          <div className="head-actions">
+            {hasNav && (
+              <div className="nav-pager" title="استخدم ← و → للتنقّل">
+                <button className="icon-btn" disabled={!prevLead}
+                  onClick={() => goTo(prevLead)} title="السابق">→</button>
+                <span className="nav-pos">{navIndex + 1} من {navList.length}</span>
+                <button className="icon-btn" disabled={!nextLead}
+                  onClick={() => goTo(nextLead)} title="التالي">←</button>
+              </div>
+            )}
+            <button className="btn btn-ghost" onClick={onClose}>إغلاق</button>
+          </div>
         </header>
 
         {err && <div className="alert alert-error">{err}</div>}

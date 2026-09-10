@@ -44,7 +44,8 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick }) {
         {rows.map(l => {
           const alert = computeAlert(l)
           return (
-            <button className="lead-card" key={l.id} onClick={() => onOpen(l)}>
+            <button className="lead-card" key={l.id}
+              onClick={() => onOpen(l, rows)}>
               {alert > 0 && (
                 <span className="lead-alert" title={`متأخر ${alert} يوم`}>{alert}</span>
               )}

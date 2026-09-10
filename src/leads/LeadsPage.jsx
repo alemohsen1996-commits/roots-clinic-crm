@@ -34,6 +34,7 @@ export default function LeadsPage() {
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [showAdd, setShowAdd] = useState(false)
   const [openLead, setOpenLead] = useState(null)
+  const [navList, setNavList] = useState([])   // قائمة التنقّل: صفوف العمود أو الجدول
   const [showMore, setShowMore] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [selected, setSelected] = useState(() => new Set())
@@ -138,6 +139,12 @@ export default function LeadsPage() {
   useEffect(() => { setPage(0) }, [filters, board, pageSize])
   // التحديد يخصّ الصفحة المعروضة — يُمسح عند أي تغيير في السياق
   useEffect(() => { setSelected(new Set()) }, [filters, board, pageSize, page, view, refreshKey])
+
+  // فتح ليد مع حفظ سياقه للتنقّل بالأسهم
+  const openLeadWith = useCallback((lead, list) => {
+    setNavList(Array.isArray(list) ? list : [])
+    setOpenLead(lead)
+  }, [])
 
   const set = (k, v) => setFilters(f => ({ ...f, [k]: v }))
   const toggle = (k) => setFilters(f => ({ ...f, [k]: !f[k] }))
@@ -394,7 +401,7 @@ export default function LeadsPage() {
           board={board}
           stages={boardStages}
           filters={effectiveFilters}
-          onOpen={setOpenLead}
+          onOpen={openLeadWith}
         />
       ) : (
         <>
@@ -415,7 +422,7 @@ export default function LeadsPage() {
               )}
               <LeadsTable
                 leads={tableRows}
-                onOpen={setOpenLead}
+                onOpen={openLeadWith}
                 selectable={isManager}
                 selected={selected}
                 onToggle={toggleOne}
@@ -462,6 +469,8 @@ export default function LeadsPage() {
       )}
       {openLead && (
         <LeadDrawer leadId={openLead.id} refs={refs}
+          siblings={navList}
+          onNavigate={setOpenLead}
           onClose={() => setOpenLead(null)} onChanged={refresh} />
       )}
     </>

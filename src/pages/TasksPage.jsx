@@ -15,6 +15,7 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [openLead, setOpenLead] = useState(null)
+  const [navList, setNavList] = useState([])
   const [scope, setScope] = useState('mine')   // mine | all (للمدير)
   const [busyId, setBusyId] = useState(null)
   const [msg, setMsg] = useState('')
@@ -137,7 +138,10 @@ export default function TasksPage() {
               onClick={() => postpone(t, 1)} title="تأجيل يوم واحد">+١ يوم</button>
             <button className="btn btn-ghost btn-sm" disabled={busyId === t.id}
               onClick={() => postpone(t, 3)} title="تأجيل ٣ أيام">+٣</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setOpenLead(t.leads)}>الملف</button>
+            <button className="btn btn-ghost btn-sm"
+              onClick={() => { setNavList(late ? overdue.map(x => x.leads) : todays.map(x => x.leads)); setOpenLead(t.leads) }}>
+              الملف
+            </button>
           </div>
         </td>
       </tr>
@@ -161,7 +165,7 @@ export default function TasksPage() {
             </tr>
           </thead>
           <tbody>
-            {list.map(t => <Row key={t.id} t={t} />)}
+            {list.map(t => <Row key={t.id} t={t} late={tone === 'var(--danger)'} />)}
           </tbody>
         </table>
       </div>
@@ -210,6 +214,8 @@ export default function TasksPage() {
         <LeadDrawer
           leadId={openLead.id}
           refs={refs}
+          siblings={navList}
+          onNavigate={setOpenLead}
           onClose={() => setOpenLead(null)}
           onChanged={load}
         />
