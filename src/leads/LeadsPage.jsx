@@ -314,7 +314,7 @@ export default function LeadsPage() {
                     <td>{l.stages?.name_ar ?? '—'}</td>
                     <td>{l.owner?.full_name ?? '—'}</td>
                     <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-                      {new Date(l.archived_at).toLocaleDateString('ar-EG')}
+                      {new Date(l.archived_at).toLocaleDateString('ar-EG-u-nu-latn')}
                     </td>
                     <td>
                       <button className="btn btn-primary" onClick={() => restore(l.id)}>استرجاع</button>

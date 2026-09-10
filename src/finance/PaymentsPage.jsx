@@ -9,8 +9,8 @@ import { fmtNum, fmtDateTime } from '../lib/format'
 const shortDT = (d) => {
   if (!d) return '—'
   const x = new Date(d)
-  return x.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })
-       + ' · ' + x.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+  return x.toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'short' })
+       + ' · ' + x.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })
 }
 import AddPaymentModal from './AddPaymentModal'
 

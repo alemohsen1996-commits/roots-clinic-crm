@@ -5,6 +5,10 @@
 // التواريخ تبقى بالعربية لأن أسماء الشهور جزء من اللغة.
 const NUM_LOCALE = 'en-US'
 
+// التواريخ: أسماء شهور عربية بأرقام غربية (10 سبتمبر 2026)
+// لاتساقها مع بقية أرقام النظام دون فقدان عروبة الواجهة
+const DATE_LOCALE = 'ar-EG-u-nu-latn'
+
 export const fmtNum = (n) => Number(n ?? 0).toLocaleString(NUM_LOCALE)
 
 // اختصار للاستخدام المباشر في الشاشات
@@ -14,10 +18,14 @@ export const fmtMoney = (v, currency = 'ر.س') =>
   `${fmtNum(v)} ${currency}`
 
 export const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+  d ? new Date(d).toLocaleDateString(DATE_LOCALE, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
 export const fmtDateTime = (d) =>
-  d ? new Date(d).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
+  d ? new Date(d).toLocaleString(DATE_LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
+
+// شهر وسنة — للوحة التحكم وأرشيف الشهور
+export const fmtMonth = (d) =>
+  d ? new Date(d).toLocaleDateString(DATE_LOCALE, { month: 'long', year: 'numeric' }) : '—'
 
 // "منذ ٥ دقائق" — لعمود آخر نشاط
 export function timeAgo(d) {

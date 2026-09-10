@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
+import { fmtMonth } from '../lib/format'
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('en-US')
 
@@ -12,8 +13,7 @@ const monthKey = (d) => {
 }
 const thisMonth = () => monthKey(new Date())
 
-const monthLabel = (m) =>
-  new Date(m).toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })
+const monthLabel = (m) => fmtMonth(m)
 
 // سهم التغيّر مقارنة بالشهر السابق
 function Delta({ now, before }) {
