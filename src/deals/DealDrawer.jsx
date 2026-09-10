@@ -7,11 +7,15 @@ import { fetchDealFinance, DEAL_STATUS, PAY_STATUS } from './useDealRefs'
 import { fmtNum, fmtDate } from '../lib/format'
 
 export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
-  const { isManager, isSuperAdmin, roleCode } = useAuth()
+  const { isManager, isSuperAdmin, roleCode, profile } = useAuth()
   const [deal, setDeal] = useState(null)
   const [fin, setFin] = useState(null)
   const [err, setErr] = useState('')
   const [confirmOutcome, setConfirmOutcome] = useState(null)  // done | lost | waiting
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [flash, setFlash] = useState('')
 
   const load = useCallback(async () => {
     const [{ data: d }, f] = await Promise.all([
@@ -25,6 +29,15 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
     ])
     setDeal(d)
     setFin(f)
+    setForm({
+      procedure_type_id: d?.procedure_type_id ?? '',
+      doctor_id: d?.doctor_id ?? '',
+      grafts: d?.grafts ?? '',
+      operation_date: d?.operation_date ?? '',
+      total_amount: d?.total_amount ?? '',
+      tax_amount: d?.tax_amount ?? 0,
+      tax_note: d?.tax_note ?? '',
+    })
   }, [dealId])
 
   useEffect(() => { load() }, [load])
@@ -41,6 +54,57 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
     setConfirmOutcome(null)
     await load()
     onChanged()
+  }
+
+  async function saveEdit() {
+    setErr(''); setSaving(true)
+
+    const patch = {
+      procedure_type_id: form.procedure_type_id ? Number(form.procedure_type_id) : null,
+      doctor_id: form.doctor_id ? Number(form.doctor_id) : null,
+      grafts: form.grafts ? Number(form.grafts) : null,
+      operation_date: form.operation_date || null,
+    }
+
+    // المبالغ تُرسل فقط لمن يملك تعديلها، وإن تغيّرت فعلًا
+    if (canEditMoney) {
+      const t = Number(form.total_amount || 0)
+      const x = Number(form.tax_amount || 0)
+      if (!t || t <= 0) { setErr('أدخل قيمة التعاقد'); setSaving(false); return }
+      if (x >= t) { setErr('الضريبة لا يمكن أن تساوي قيمة التعاقد أو تتجاوزها'); setSaving(false); return }
+      if (t !== Number(deal.total_amount) || x !== Number(deal.tax_amount ?? 0)) {
+        patch.total_amount = t
+        patch.tax_amount = x
+        patch.tax_note = form.tax_note || null
+      }
+    }
+
+    const { error } = await supabase.from('deals').update(patch).eq('id', dealId)
+    setSaving(false)
+
+    if (error) {
+      setErr(error.message?.includes('غير مصرح') ? error.message
+           : error.message?.includes('مقفول') ? 'الديل مقفول محاسبيًا'
+           : 'تعذر الحفظ — ' + error.message)
+      return
+    }
+
+    // تسجيل تغيير المبالغ في سجل العميل
+    if (patch.total_amount !== undefined) {
+      await supabase.from('activities').insert({
+        lead_id: deal.lead_id,
+        user_id: profile?.id,
+        type: 'note',
+        content: `تعديل مالية الديل #${dealId}: `
+          + `التعاقد ${fmtNum(deal.total_amount)} ← ${fmtNum(patch.total_amount)} ر.س · `
+          + `الضريبة ${fmtNum(deal.tax_amount)} ← ${fmtNum(patch.tax_amount)} ر.س`,
+      })
+    }
+
+    setEditing(false)
+    setFlash('تم حفظ التعديل')
+    setTimeout(() => setFlash(''), 3000)
+    await load(); onChanged()
   }
 
   async function changeCoordinator(id) {
@@ -70,6 +134,12 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
   const canSetOutcome = ['super_admin', 'sales_manager', 'coordinator', 'accountant']
     .includes(roleCode)
 
+  // تعديل البيانات التشغيلية · تعديل المبالغ — والقفل يمنع الجميع
+  const canEditFields = !deal.is_locked
+    && ['super_admin', 'sales_manager', 'coordinator', 'accountant'].includes(roleCode)
+  const canEditMoney = !deal.is_locked
+    && ['super_admin', 'sales_manager', 'accountant'].includes(roleCode)
+
   const st = DEAL_STATUS[deal.status]
   const pay = fin ? PAY_STATUS[fin.payment_status] : null
 
@@ -92,10 +162,17 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
         </header>
 
         {err && <div className="alert alert-error">{err}</div>}
+        {flash && <div className="alert alert-ok">{flash}</div>}
 
         {/* الملخص المالي */}
         <div className="drawer-section">
-          <h3>المالية</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0 }}>المالية</h3>
+            {!editing && canEditFields && (
+              <button className="btn btn-ghost" style={{ padding: '6px 14px' }}
+                onClick={() => setEditing(true)}>تعديل الديل</button>
+            )}
+          </div>
           <div className="fin-grid">
             <div><span>المطلوب من العميل</span>{fmtNum(deal.total_amount)} ر.س</div>
             <div><span>المحصّل</span>{fmtNum(fin?.collected)} ر.س</div>
@@ -124,14 +201,90 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
         </div>
 
         {/* تفاصيل العملية */}
-        <div className="drawer-info">
-          <div><span>النوع</span>{deal.procedure_types?.name_ar ?? '—'}</div>
-          <div><span>البصيلات</span>{deal.grafts ? fmtNum(deal.grafts) : '—'}</div>
-          <div><span>الطبيب</span>{deal.doctors?.full_name ?? '—'}</div>
-          <div><span>تاريخ العملية</span>{fmtDate(deal.operation_date)}</div>
-          <div><span>موظف المبيعات</span>{deal.agent?.full_name}</div>
-          <div><span>المنسقة</span>{deal.coordinator?.full_name ?? '—'}</div>
-        </div>
+        {editing ? (
+          <div className="drawer-section">
+            <h3>تعديل بيانات العملية</h3>
+
+            <div className="grid-2">
+              <div className="field">
+                <label>نوع العملية</label>
+                <select value={form.procedure_type_id}
+                  onChange={e => setForm(f => ({ ...f, procedure_type_id: e.target.value }))}>
+                  <option value="">—</option>
+                  {refs.procedures.map(p => <option key={p.id} value={p.id}>{p.name_ar}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label>الطبيب</label>
+                <select value={form.doctor_id}
+                  onChange={e => setForm(f => ({ ...f, doctor_id: e.target.value }))}>
+                  <option value="">—</option>
+                  {refs.doctors.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid-2">
+              <div className="field">
+                <label>عدد البصيلات</label>
+                <input type="number" min={0} value={form.grafts}
+                  onChange={e => setForm(f => ({ ...f, grafts: e.target.value }))} />
+              </div>
+              <div className="field">
+                <label>تاريخ العملية</label>
+                <input type="date" value={form.operation_date ?? ''}
+                  onChange={e => setForm(f => ({ ...f, operation_date: e.target.value }))} />
+              </div>
+            </div>
+
+            {canEditMoney ? (
+              <>
+                <div style={{ borderTop: '1px dashed var(--line)', margin: '4px 0 14px' }} />
+                <div className="grid-2">
+                  <div className="field">
+                    <label>قيمة التعاقد (ر.س)</label>
+                    <input type="number" min={0} value={form.total_amount}
+                      onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} />
+                  </div>
+                  <div className="field">
+                    <label>الضريبة (ر.س)</label>
+                    <input type="number" min={0} value={form.tax_amount}
+                      onChange={e => setForm(f => ({ ...f, tax_amount: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="field">
+                  <label>ملاحظة على الضريبة</label>
+                  <input value={form.tax_note ?? ''}
+                    onChange={e => setForm(f => ({ ...f, tax_note: e.target.value }))} />
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--warn)', marginBottom: 12, lineHeight: 1.7 }}>
+                  ⚠ تعديل المبالغ يغيّر الإيراد والعمولة وحالة السداد — ويُسجَّل في سجل العميل
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12 }}>
+                تعديل المبالغ يتم عبر المحاسب أو المدير
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" onClick={saveEdit} disabled={saving}>
+                {saving ? 'جارٍ الحفظ…' : 'حفظ التعديل'}
+              </button>
+              <button className="btn btn-ghost" disabled={saving}
+                onClick={() => { setEditing(false); setErr(''); load() }}>إلغاء</button>
+            </div>
+          </div>
+        ) : (
+          <div className="drawer-info">
+            <div><span>النوع</span>{deal.procedure_types?.name_ar ?? '—'}</div>
+            <div><span>البصيلات</span>{deal.grafts ? fmtNum(deal.grafts) : '—'}</div>
+            <div><span>الطبيب</span>{deal.doctors?.full_name ?? '—'}</div>
+            <div><span>تاريخ العملية</span>{fmtDate(deal.operation_date)}</div>
+            <div><span>موظف المبيعات</span>{deal.agent?.full_name}</div>
+            <div><span>المنسقة</span>{deal.coordinator?.full_name ?? '—'}</div>
+          </div>
+        )}
 
         {/* تغيير المنسقة — للمدير فقط
             المنسقة لا تنقل الديل (وعمولته) لزميلتها */}
