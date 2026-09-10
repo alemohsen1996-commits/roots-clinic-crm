@@ -438,39 +438,41 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
 
         {/* تسجيل نشاط + إجراءات سريعة */}
         {!readOnlyForSales && (
-          <div className="drawer-section">
-            <h3>تسجيل نشاط</h3>
+          <div className="act-box">
+            <div className="row-label">ماذا حدث في هذا التواصل؟</div>
 
             {currentBoard === 'sales' && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                <button className="btn btn-ghost" disabled={busy} onClick={markNoAnswer}
+              <div className="quick-acts">
+                <button className="act-chip no" disabled={busy} onClick={markNoAnswer}
                   title={(() => {
                     const chain = buildNoAnswerChain(refs.stages)
-                    const i = chain.findIndex(s => s.code === lead.stages?.code)
+                    const i = chain.findIndex(x => x.code === lead.stages?.code)
                     if (!chain.length) return 'يسجّل محاولة اتصال'
-                    if (i === -1) return `يسجّل المحاولة وينقل إلى «${chain[0].name_ar}»`
-                    if (i < chain.length - 1) return `يسجّل المحاولة وينقل إلى «${chain[i + 1].name_ar}»`
-                    return 'آخر مرحلة في السلسلة — يزيد عدّاد المحاولات فقط'
+                    if (i === -1) return `ينقل إلى «${chain[0].name_ar}»`
+                    if (i < chain.length - 1) return `ينقل إلى «${chain[i + 1].name_ar}»`
+                    return 'آخر مرحلة — يزيد العدّاد فقط'
                   })()}>
                   ☎ لم يرد
                 </button>
-                <button className="btn btn-ghost" disabled={busy} onClick={markContacted}>
+                <button className="act-chip yes" disabled={busy} onClick={markContacted}>
                   ✓ تم التواصل
                 </button>
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <select value={noteType} onChange={e => setNoteType(e.target.value)} style={{ width: 110 }}>
+            <div className="note-row">
+              <select value={noteType} onChange={e => setNoteType(e.target.value)}>
                 <option value="note">ملاحظة</option>
                 <option value="call">مكالمة</option>
                 <option value="whatsapp">واتساب</option>
               </select>
-              <input style={{ flex: 1 }} value={note}
+              <input value={note}
                 onChange={e => setNote(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addActivity()}
-                placeholder="ماذا حدث في هذا التواصل؟" />
-              <button className="btn btn-primary" onClick={addActivity} disabled={!note.trim()}>حفظ</button>
+                placeholder="اكتب تفاصيل التواصل…" />
+              <button className="btn btn-primary" onClick={addActivity} disabled={!note.trim()}>
+                حفظ
+              </button>
             </div>
           </div>
         )}
@@ -479,61 +481,54 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
         <TaskSection leadId={leadId} leadOwnerId={lead.owner_id} onChanged={() => { load(); onChanged() }} />
 
         {/* المرحلة */}
-        <div className="drawer-section">
-          <h3>المرحلة {currentBoard === 'coordinator' ? '(بورد المنسقات)' : '(بورد المبيعات)'}</h3>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="stage-box">
+          <div className="row-label">
+            المرحلة {currentBoard === 'coordinator' ? '· بورد المنسقات' : '· بورد المبيعات'}
+          </div>
+
+          <div className="stage-row">
             <select value={stageTo} onChange={e => { setStageTo(e.target.value); setErr('') }}
-              disabled={readOnlyForSales}
-              style={{ flex: 1, minWidth: 160 }}>
-              {targetStages.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.name_ar}{(s.board ?? 'sales') !== currentBoard ? ' ← تحويل للمنسقة' : ''}
+              disabled={readOnlyForSales}>
+              {targetStages.map(st => (
+                <option key={st.id} value={st.id}>
+                  {st.name_ar}{(st.board ?? 'sales') !== currentBoard ? ' ← تحويل للمنسقة' : ''}
                 </option>
               ))}
             </select>
-            {needsLostReason && (
-              <select value={lostReason} onChange={e => setLostReason(e.target.value)}
-                style={{ flex: 1, minWidth: 160 }}>
-                <option value="">— سبب الخسارة —</option>
-                {refs.lostReasons.map(r => <option key={r.id} value={r.id}>{r.name_ar}</option>)}
-              </select>
+            {!readOnlyForSales && (
+              <button className="btn btn-primary"
+                disabled={Number(stageTo) === lead.stage_id}
+                onClick={changeStage}>نقل</button>
             )}
           </div>
 
+          {needsLostReason && (
+            <div className="field" style={{ marginTop: 10, marginBottom: 0 }}>
+              <label>سبب الخسارة *</label>
+              <select value={lostReason} onChange={e => setLostReason(e.target.value)}>
+                <option value="">— اختر —</option>
+                {refs.lostReasons.map(r => <option key={r.id} value={r.id}>{r.name_ar}</option>)}
+              </select>
+            </div>
+          )}
+
           {movingToFollowup && (
             <div style={{ marginTop: 10 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-soft)', display: 'block', marginBottom: 6 }}>
-                المنسقة المسؤولة *
-              </label>
-              <select value={coordinatorId} onChange={e => setCoordinatorId(e.target.value)}
-                style={{ width: '100%' }}>
-                <option value="">— اختر المنسقة —</option>
-                {coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-              </select>
-              <p style={{ fontSize: 12, color: 'var(--warn)', marginTop: 6 }}>
-                بعد التحويل ينتقل المريض لبورد المنسقات وتصبح هي المتحكمة فيه
-              </p>
+              <div className="field" style={{ marginBottom: 6 }}>
+                <label>المنسقة المسؤولة *</label>
+                <select value={coordinatorId} onChange={e => setCoordinatorId(e.target.value)}>
+                  <option value="">— اختر —</option>
+                  {coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                </select>
+              </div>
               {!offer.offer_details.trim() && (
-                <p style={{ fontSize: 12.5, color: 'var(--danger)', marginTop: 6, fontWeight: 600 }}>
+                <p style={{ fontSize: 12.5, color: 'var(--danger)', fontWeight: 600 }}>
                   ⚠ لم تكتب تفاصيل العرض — المنسقة لن تعرف ما عُرض على العميل
                 </p>
               )}
             </div>
           )}
 
-          {!readOnlyForSales && (
-            <button className="btn btn-primary" style={{ marginTop: 10 }}
-              disabled={Number(stageTo) === lead.stage_id}
-              onClick={changeStage}>
-              نقل
-            </button>
-          )}
-
-          {targetStage?.code === 'deal' && (
-            <p style={{ fontSize: 12.5, color: 'var(--warn)', marginTop: 8 }}>
-              عند النقل للديل ستحتاج فتح ملف تعاقد من صفحة الديلات
-            </p>
-          )}
           {lead.stages?.code === 'deal' && (
             <a href={`/deals?lead=${lead.id}`} className="btn btn-primary"
               style={{ display: 'inline-block', marginTop: 10, textDecoration: 'none' }}>

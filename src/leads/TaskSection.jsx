@@ -9,9 +9,10 @@ import { fmtDateTime } from '../lib/format'
 
 // مواعيد جاهزة — تغني عن فتح منتقي التاريخ في أغلب الحالات
 const QUICK = [
-  { label: 'بكرة',      hours: 24 },
-  { label: 'بعد يومين', hours: 48 },
-  { label: 'بعد أسبوع', hours: 168 },
+  { label: 'اليوم',     icon: '🕐', hours: 3 },
+  { label: 'بكرة',      icon: '🌅', hours: 24 },
+  { label: 'بعد يومين', icon: '📅', hours: 48 },
+  { label: 'بعد أسبوع', icon: '🗓', hours: 168 },
 ]
 
 const toLocalInput = (d) => {
@@ -26,6 +27,8 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
   const [due, setDue] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const [custom, setCustom] = useState(false)   // إظهار الموعد المخصّص
+  const [confirmStop, setConfirmStop] = useState(false)
 
   const load = useCallback(async () => {
     const [{ data: t }, { data: l }] = await Promise.all([
@@ -55,11 +58,11 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
     })
     // جدولة تاسك تلغي أي تأجيل سابق
     await supabase.from('leads').update({ snooze_until: null }).eq('id', leadId)
-    setDue(''); setNote(''); setBusy(false)
+    setDue(''); setNote(''); setCustom(false); setBusy(false)
     await load(); onChanged?.()
   }
 
-  // موعد سريع: نفس التوقيت الحالي بعد N ساعة
+  // موعد سريع: الساعة القادمة المضبوطة بعد N ساعة
   function quickSchedule(hours) {
     const d = new Date()
     d.setHours(d.getHours() + hours)
@@ -103,6 +106,7 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
     await supabase.from('activities').insert({
       lead_id: leadId, user_id: profile.id, type: 'note', content: 'إيقاف المتابعة',
     })
+    setConfirmStop(false)
     await load(); onChanged?.()
   }
 
@@ -121,13 +125,10 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
   // ---------- موقوفة ----------
   if (paused) {
     return (
-      <div className="lead-block">
-        <div className="task-open" style={{ background: 'var(--surface)', borderColor: 'var(--line)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <b>⏹ المتابعة موقوفة</b>
-            <button className="btn btn-primary btn-sm" onClick={resumeFollow}>استئناف</button>
-          </div>
-        </div>
+      <div className="follow-card paused">
+        <div className="follow-title">⏹ المتابعة موقوفة على هذا الملف</div>
+        <p className="follow-sub">لن تظهر أي تنبيهات حتى تستأنفها</p>
+        <button className="btn btn-primary btn-sm" onClick={resumeFollow}>▶ استئناف المتابعة</button>
       </div>
     )
   }
@@ -135,65 +136,80 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
   // ---------- مهمة قائمة ----------
   if (task) {
     return (
-      <div className="lead-block">
-        <div className="task-open" data-overdue={overdue}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <b style={{ fontSize: 13.5 }}>{overdue ? '⚠ متابعة متأخرة' : '⏰ متابعة مجدولة'}</b>
-            <span style={{
-              fontSize: 13, fontWeight: 700,
-              color: overdue ? 'var(--danger)' : 'var(--primary)',
-            }}>
-              {fmtDateTime(task.due_at)}
-            </span>
-          </div>
-          {task.note && (
-            <div style={{ fontSize: 12.5, marginTop: 6, color: 'var(--ink-soft)' }}>{task.note}</div>
-          )}
-          <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-            <button className="btn btn-primary btn-sm" onClick={completeTask}>✓ تم التنفيذ</button>
-            <button className="btn btn-ghost btn-sm" onClick={cancelTask}>إلغاء المهمة</button>
-            {!snoozed && (
-              <button className="btn btn-ghost btn-sm" onClick={snoozeToTomorrow}>🌙 أجّل لبكرة</button>
-            )}
-            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
-              onClick={pauseFollow}>⏹ إيقاف</button>
-          </div>
-          {snoozed && (
-            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 8 }}>
-              🌙 التنبيه مؤجّل حتى الغد
-            </div>
-          )}
+      <div className={'follow-card ' + (overdue ? 'late' : 'active')}>
+        <div className="follow-head">
+          <span className="follow-title">
+            {overdue ? '⚠ متابعة متأخرة' : '⏰ متابعة مجدولة'}
+          </span>
+          <span className="follow-when">{fmtDateTime(task.due_at)}</span>
         </div>
+
+        {task.note && <div className="follow-note">{task.note}</div>}
+
+        <div className="follow-actions">
+          <button className="btn btn-primary" onClick={completeTask}>✓ تم التنفيذ</button>
+          {!snoozed && (
+            <button className="btn btn-ghost btn-sm" onClick={snoozeToTomorrow}>🌙 أجّل لبكرة</button>
+          )}
+          <button className="btn btn-ghost btn-sm" onClick={cancelTask}>إلغاء المهمة</button>
+        </div>
+
+        {snoozed && <div className="follow-sub">🌙 التنبيه مؤجّل حتى الغد</div>}
       </div>
     )
   }
 
   // ---------- لا توجد مهمة: جدولة ----------
   return (
-    <div className="lead-block">
-      <div className="row-label">جدولة متابعة</div>
+    <div className="follow-card empty-state">
+      <div className="follow-title">متى تتابع هذا العميل؟</div>
 
-      {/* مواعيد بضغطة واحدة */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+      <div className="quick-times">
         {QUICK.map(q => (
-          <button key={q.label} className="btn btn-ghost btn-sm" disabled={busy}
+          <button key={q.label} className="time-chip" disabled={busy}
             onClick={() => quickSchedule(q.hours)}>
-            {q.label}
+            <b>{q.icon}</b>{q.label}
           </button>
         ))}
-        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
-          onClick={pauseFollow}>⏹ إيقاف المتابعة</button>
+        <button className={'time-chip alt' + (custom ? ' on' : '')}
+          onClick={() => setCustom(v => !v)}>
+          <b>⚙</b>موعد آخر
+        </button>
       </div>
 
-      {/* موعد مخصّص */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input type="datetime-local" value={due} onChange={e => setDue(e.target.value)}
-          min={toLocalInput(new Date())} style={{ flex: '1 1 180px' }} />
-        <input value={note} onChange={e => setNote(e.target.value)}
-          placeholder="ملاحظة (اختياري)" style={{ flex: '1 1 180px' }} />
-        <button className="btn btn-primary" onClick={() => addTask()} disabled={busy || !due}>
-          {busy ? '…' : 'جدولة'}
-        </button>
+      {custom && (
+        <div className="custom-time">
+          <div className="field" style={{ marginBottom: 8 }}>
+            <label>الموعد</label>
+            <input type="datetime-local" value={due} min={toLocalInput(new Date())}
+              onChange={e => setDue(e.target.value)} />
+          </div>
+          <div className="field" style={{ marginBottom: 10 }}>
+            <label>ملاحظة (اختياري)</label>
+            <input value={note} onChange={e => setNote(e.target.value)}
+              placeholder="مثال: يتصل بعد استشارة زوجته" />
+          </div>
+          <button className="btn btn-primary" onClick={() => addTask()} disabled={busy || !due}>
+            {busy ? 'جارٍ الحفظ…' : 'جدولة المتابعة'}
+          </button>
+        </div>
+      )}
+
+      {/* إجراء نهائي — مفصول ومميّز بصريًا */}
+      <div className="danger-row">
+        {!confirmStop ? (
+          <button className="link-danger" onClick={() => setConfirmStop(true)}>
+            ⏹ إيقاف المتابعة على هذا الملف
+          </button>
+        ) : (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
+              ستتوقف كل التنبيهات — متأكد؟
+            </span>
+            <button className="btn btn-danger btn-sm" onClick={pauseFollow}>نعم، أوقف</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setConfirmStop(false)}>تراجع</button>
+          </div>
+        )}
       </div>
     </div>
   )
