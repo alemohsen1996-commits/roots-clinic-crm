@@ -56,7 +56,13 @@ export default function StagesTab() {
       if (current?.is_core) delete payload.board
       ;({ error } = await supabase.from('stages').update(payload).eq('id', editing))
     } else {
-      const code = form.code.trim() || 'stage_' + Date.now()
+      // توحيد الكود: أحرف صغيرة وشُرَط سفلية فقط — الشرطات العادية
+      // تكسر الأنماط التي يعتمد عليها النظام (مثل سلسلة no_response_N)
+      const code = (form.code.trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_')
+        .replace(/[^a-z0-9_]/g, '')
+      ) || 'stage_' + Date.now()
       if (stages.some(s => s.code === code)) {
         setErr('هذا الكود مستخدم بالفعل — اختر كودًا آخر')
         return
@@ -182,7 +188,12 @@ export default function StagesTab() {
         {!editing && (
           <div className="field">
             <label>الكود (إنجليزي، اختياري)</label>
-            <input dir="ltr" value={form.code} onChange={e => set('code', e.target.value)} placeholder="no_response_4" />
+            <input dir="ltr" value={form.code} onChange={e => set('code', e.target.value)}
+              placeholder="no_response_5" />
+            <small style={{ color: 'var(--ink-soft)' }}>
+              يُحوَّل تلقائيًا لأحرف صغيرة وشُرَط سفلية.
+              لإضافة مرحلة لسلسلة «لا يرد» استخدم <b>no_response_5</b> وهكذا
+            </small>
           </div>
         )}
         <div className="field">

@@ -20,8 +20,16 @@ const ACT_GROUP = {
   stage_change: 'sys', assignment: 'sys', system: 'sys',
 }
 
-// سلسلة "لا يرد" بالترتيب
-const NO_ANSWER_CHAIN = ['no_response_1', 'no_response_2', 'no_response_3']
+// سلسلة "لا يرد" تُبنى من المراحل الفعلية في القاعدة،
+// فأي مرحلة جديدة (لا يرد 5، 6 …) تنضمّ تلقائيًا بلا تعديل كود
+const NO_ANSWER_RE = /^no[_-]?response[_-]?(\d+)$/i
+
+function buildNoAnswerChain(stages) {
+  return (stages ?? [])
+    .filter(s => NO_ANSWER_RE.test(s.code ?? ''))
+    .map(s => ({ ...s, seq: Number((s.code.match(NO_ANSWER_RE) || [])[1] || 0) }))
+    .sort((a, b) => a.seq - b.seq || a.sort_order - b.sort_order)
+}
 
 const waNumber = (phone) => String(phone ?? '').replace(/\D/g, '')
 
@@ -244,15 +252,16 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
   async function markNoAnswer() {
     setBusy(true); setErr('')
     const canMoveStage = currentBoard === 'sales' && !readOnlyForSales
+    const chain = buildNoAnswerChain(refs.stages)
     const code = lead.stages?.code
-    const idx = NO_ANSWER_CHAIN.indexOf(code)
+    const idx = chain.findIndex(s => s.code === code)
     let nextStageId = null
-    if (canMoveStage) {
+    if (canMoveStage && chain.length) {
       if (idx === -1) {
         // ليس في السلسلة بعد → أول مرحلة "لا يرد"
-        nextStageId = refs.stages.find(s => s.code === NO_ANSWER_CHAIN[0])?.id ?? null
-      } else if (idx < NO_ANSWER_CHAIN.length - 1) {
-        nextStageId = refs.stages.find(s => s.code === NO_ANSWER_CHAIN[idx + 1])?.id ?? null
+        nextStageId = chain[0].id
+      } else if (idx < chain.length - 1) {
+        nextStageId = chain[idx + 1].id
       }
       // في آخر السلسلة: يبقى مكانه ويزيد العدّاد فقط
     }
@@ -279,7 +288,8 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
     const canMoveStage = currentBoard === 'sales' && !readOnlyForSales
     const contacted = refs.stages.find(s => s.code === 'contacted')
     const code = lead.stages?.code
-    const movable = canMoveStage && ['new', ...NO_ANSWER_CHAIN].includes(code)
+    const chainCodes = buildNoAnswerChain(refs.stages).map(s => s.code)
+    const movable = canMoveStage && ['new', ...chainCodes].includes(code)
 
     await supabase.from('activities').insert({
       lead_id: leadId, user_id: profile.id, type: 'call', content: 'تم التواصل مع العميل',
@@ -401,7 +411,14 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
             {currentBoard === 'sales' && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
                 <button className="btn btn-ghost" disabled={busy} onClick={markNoAnswer}
-                  title="يسجّل المحاولة وينقل لمرحلة لا يرد التالية">
+                  title={(() => {
+                    const chain = buildNoAnswerChain(refs.stages)
+                    const i = chain.findIndex(s => s.code === lead.stages?.code)
+                    if (!chain.length) return 'يسجّل محاولة اتصال'
+                    if (i === -1) return `يسجّل المحاولة وينقل إلى «${chain[0].name_ar}»`
+                    if (i < chain.length - 1) return `يسجّل المحاولة وينقل إلى «${chain[i + 1].name_ar}»`
+                    return 'آخر مرحلة في السلسلة — يزيد عدّاد المحاولات فقط'
+                  })()}>
                   ☎ لم يرد
                 </button>
                 <button className="btn btn-ghost" disabled={busy} onClick={markContacted}>
