@@ -4,6 +4,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtNum, fmtDateTime } from '../lib/format'
+
+// تاريخ مختصر يمنع تكسّر الخلية في جدول متعدد الأعمدة
+const shortDT = (d) => {
+  if (!d) return '—'
+  const x = new Date(d)
+  return x.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })
+       + ' · ' + x.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+}
 import AddPaymentModal from './AddPaymentModal'
 
 const waNumber = (phone) => String(phone ?? '').replace(/\D/g, '')
@@ -33,7 +41,9 @@ export default function PaymentsPage() {
       .select(`
         id, receipt_no, amount, method, paid_at, reference, notes, confirmed_at,
         status, void_reason,
-        deals(id, leads(file_no, full_name, phone)),
+        deals(id, leads(file_no, full_name, phone),
+              agent:profiles!deals_agent_id_fkey(full_name),
+              coordinator:profiles!deals_coordinator_id_fkey(full_name)),
         received:profiles!payments_received_by_fkey(full_name),
         confirmer:profiles!payments_confirmed_by_fkey(full_name),
         void_requester:profiles!payments_void_requested_by_fkey(full_name)
@@ -150,11 +160,13 @@ export default function PaymentsPage() {
         </div>
       ) : (
         <div className="card">
-          <table className="table">
+          <div className="table-scroll" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+          <table className="table sticky-head compact">
             <thead>
               <tr>
-                <th>الإيصال</th><th>العميل</th><th>الهاتف</th><th>المبلغ</th><th>الطريقة</th>
-                <th>التاريخ</th><th>سجّلتها</th><th>التأكيد</th><th></th>
+                <th>الإيصال</th><th>العميل</th><th>الهاتف</th><th>السيلز</th><th>المنسقة</th>
+                <th>المبلغ</th><th>الطريقة</th><th>التاريخ</th><th>سجّلتها</th>
+                <th>التأكيد</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -163,10 +175,14 @@ export default function PaymentsPage() {
                 const isVoidReq = p.status === 'void_requested'
                 return (
                   <tr key={p.id} style={isVoid ? { opacity: .5, textDecoration: 'line-through' } : {}}>
-                    <td style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{p.receipt_no}</td>
-                    <td style={{ fontWeight: 600 }}>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      {p.receipt_no}
+                    </td>
+                    <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {p.deals?.leads?.full_name}
-                      <small style={{ color: 'var(--ink-soft)' }}> · {p.deals?.leads?.file_no}</small>
+                      <small style={{ color: 'var(--ink-soft)', display: 'block', fontWeight: 400 }}>
+                        {p.deals?.leads?.file_no}
+                      </small>
                     </td>
                     <td>
                       <div className="phone-cell">
@@ -186,10 +202,19 @@ export default function PaymentsPage() {
                         )}
                       </div>
                     </td>
-                    <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmtNum(p.amount)} ر.س</td>
-                    <td>{METHOD_AR[p.method] ?? p.method}{p.reference && <small style={{ color: 'var(--ink-soft)' }}> · {p.reference}</small>}</td>
-                    <td>{fmtDateTime(p.paid_at)}</td>
-                    <td>{p.received?.full_name ?? '—'}</td>
+                    <td style={{ fontSize: 12.5 }}>{p.deals?.agent?.full_name ?? '—'}</td>
+                    <td style={{ fontSize: 12.5 }}>{p.deals?.coordinator?.full_name ?? '—'}</td>
+                    <td style={{ color: 'var(--gold)', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      {fmtNum(p.amount)} ر.س
+                    </td>
+                    <td style={{ fontSize: 12.5 }}>
+                      {METHOD_AR[p.method] ?? p.method}
+                      {p.reference && <small style={{ color: 'var(--ink-soft)', display: 'block' }}>{p.reference}</small>}
+                    </td>
+                    <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }} title={fmtDateTime(p.paid_at)}>
+                      {shortDT(p.paid_at)}
+                    </td>
+                    <td style={{ fontSize: 12.5 }}>{p.received?.full_name ?? '—'}</td>
                     <td>
                       {isVoid
                         ? <span className="badge badge-suspended">ملغية</span>
@@ -214,6 +239,7 @@ export default function PaymentsPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

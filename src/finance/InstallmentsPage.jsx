@@ -119,7 +119,7 @@ export default function InstallmentsPage() {
               <div style={{ padding: '14px 16px 4px' }}>
                 <h2 style={{ fontSize: 15, color: 'var(--danger)' }}>متأخرات تحتاج متابعة</h2>
               </div>
-              <table className="table">
+              <table className="table compact">
                 <thead>
                   <tr>
                     <th>العميل</th><th>الهاتف</th><th>القسط</th><th>المتبقي</th>
@@ -183,7 +183,7 @@ export default function InstallmentsPage() {
                 استخدم "جدولة أقساط" لتقسيم متبقي أي ديل على دفعات بتواريخ
               </div>
             ) : (
-              <table className="table">
+              <table className="table compact">
                 <thead>
                   <tr><th>العميل</th><th>الهاتف</th><th>القسط</th><th>المتبقي</th><th>الاستحقاق</th><th></th></tr>
                 </thead>

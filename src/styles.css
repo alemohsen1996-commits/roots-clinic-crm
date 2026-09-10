@@ -1152,3 +1152,12 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
 @media (max-width: 900px) {
   .table-scroll { max-height: 340px; }
 }
+
+/* ===================== جدول مضغوط للأعمدة الكثيرة ===================== */
+/* الحشو الافتراضي (15px) يجعل صفوف جدول بعشرة أعمدة عالية ومتكسّرة */
+.table.compact th { padding: 10px 12px; font-size: 12px; }
+.table.compact td { padding: 10px 12px; font-size: 13px; vertical-align: middle; }
+.table.compact .phone-cell > span { font-size: 12px; }
+.table.compact .icon-btn { width: 24px; height: 24px; font-size: 12px; }
+.table.compact .btn { padding: 5px 11px; font-size: 12.5px; }
+.table.compact .badge { font-size: 11.5px; padding: 3px 8px; }
