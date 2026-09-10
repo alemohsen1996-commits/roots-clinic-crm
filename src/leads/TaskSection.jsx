@@ -7,6 +7,18 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtDateTime } from '../lib/format'
 
+// مواعيد جاهزة — تغني عن فتح منتقي التاريخ في أغلب الحالات
+const QUICK = [
+  { label: 'بكرة',      hours: 24 },
+  { label: 'بعد يومين', hours: 48 },
+  { label: 'بعد أسبوع', hours: 168 },
+]
+
+const toLocalInput = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
   const { profile } = useAuth()
   const [task, setTask] = useState(null)
@@ -30,20 +42,29 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
 
   useEffect(() => { load() }, [load])
 
-  async function addTask() {
-    if (!due) return
+  async function addTask(whenIso) {
+    const when = whenIso ?? (due ? new Date(due).toISOString() : null)
+    if (!when) return
     setBusy(true)
     await supabase.from('tasks').insert({
       lead_id: leadId,
       assigned_to: leadOwnerId ?? profile.id,
       created_by: profile.id,
-      due_at: new Date(due).toISOString(),
+      due_at: when,
       note: note.trim() || null,
     })
     // جدولة تاسك تلغي أي تأجيل سابق
     await supabase.from('leads').update({ snooze_until: null }).eq('id', leadId)
     setDue(''); setNote(''); setBusy(false)
     await load(); onChanged?.()
+  }
+
+  // موعد سريع: نفس التوقيت الحالي بعد N ساعة
+  function quickSchedule(hours) {
+    const d = new Date()
+    d.setHours(d.getHours() + hours)
+    d.setMinutes(0, 0, 0)
+    addTask(d.toISOString())
   }
 
   async function completeTask() {
@@ -97,74 +118,83 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
   const snoozed = lead?.snooze_until && new Date(lead.snooze_until) > new Date()
   const paused = lead?.follow_paused
 
-  return (
-    <div className="drawer-section">
-      <h3>مهمة المتابعة</h3>
-
-      {/* حالة موقوفة */}
-      {paused ? (
+  // ---------- موقوفة ----------
+  if (paused) {
+    return (
+      <div className="lead-block">
         <div className="task-open" style={{ background: 'var(--surface)', borderColor: 'var(--line)' }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>⏹ المتابعة موقوفة</div>
-          <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12 }}>
-            لن تظهر أي تنبيهات على هذا الملف حتى تستأنف المتابعة
-          </p>
-          <button className="btn btn-primary" onClick={resumeFollow}>استئناف المتابعة</button>
-        </div>
-      ) : (
-        <>
-          {/* تاسك مفتوح */}
-          {task ? (
-            <div className="task-open" data-overdue={overdue}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>
-                {overdue ? '⚠ متابعة متأخرة' : '⏰ متابعة مجدولة'}
-              </div>
-              <div style={{ fontSize: 13, color: overdue ? 'var(--danger)' : 'var(--primary)', fontWeight: 600 }}>
-                {fmtDateTime(task.due_at)}
-              </div>
-              {task.note && <div style={{ fontSize: 13, marginTop: 8, color: 'var(--ink-soft)' }}>{task.note}</div>}
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={completeTask}>تم التنفيذ</button>
-                <button className="btn btn-ghost" onClick={cancelTask}>إلغاء المهمة</button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 10 }}>
-                حدّد موعد المتابعة القادم — سيختفي تنبيه الإهمال حتى يحين الموعد
-              </p>
-              <div className="field">
-                <label>موعد المتابعة</label>
-                <input type="datetime-local" value={due} onChange={e => setDue(e.target.value)} />
-              </div>
-              <div className="field">
-                <label>ملاحظة (اختياري)</label>
-                <input value={note} onChange={e => setNote(e.target.value)}
-                  placeholder="مثال: يتصل بعد استشارة زوجته" />
-              </div>
-              <button className="btn btn-primary" onClick={addTask} disabled={busy || !due}>
-                {busy ? 'جارٍ الحفظ…' : 'جدولة المتابعة'}
-              </button>
-            </>
-          )}
-
-          {/* أدوات سريعة */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap',
-            borderTop: '1px solid var(--line)', paddingTop: 14 }}>
-            {snoozed ? (
-              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-                🌙 مؤجّل حتى الغد — لن يظهر تنبيه اليوم
-              </span>
-            ) : (
-              <button className="btn btn-ghost" onClick={snoozeToTomorrow}>
-                🌙 شفته — أجّل لبكرة
-              </button>
-            )}
-            <button className="btn btn-ghost" style={{ color: 'var(--danger)' }} onClick={pauseFollow}>
-              ⏹ إيقاف المتابعة
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <b>⏹ المتابعة موقوفة</b>
+            <button className="btn btn-primary btn-sm" onClick={resumeFollow}>استئناف</button>
           </div>
-        </>
-      )}
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- مهمة قائمة ----------
+  if (task) {
+    return (
+      <div className="lead-block">
+        <div className="task-open" data-overdue={overdue}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <b style={{ fontSize: 13.5 }}>{overdue ? '⚠ متابعة متأخرة' : '⏰ متابعة مجدولة'}</b>
+            <span style={{
+              fontSize: 13, fontWeight: 700,
+              color: overdue ? 'var(--danger)' : 'var(--primary)',
+            }}>
+              {fmtDateTime(task.due_at)}
+            </span>
+          </div>
+          {task.note && (
+            <div style={{ fontSize: 12.5, marginTop: 6, color: 'var(--ink-soft)' }}>{task.note}</div>
+          )}
+          <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+            <button className="btn btn-primary btn-sm" onClick={completeTask}>✓ تم التنفيذ</button>
+            <button className="btn btn-ghost btn-sm" onClick={cancelTask}>إلغاء المهمة</button>
+            {!snoozed && (
+              <button className="btn btn-ghost btn-sm" onClick={snoozeToTomorrow}>🌙 أجّل لبكرة</button>
+            )}
+            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
+              onClick={pauseFollow}>⏹ إيقاف</button>
+          </div>
+          {snoozed && (
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 8 }}>
+              🌙 التنبيه مؤجّل حتى الغد
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- لا توجد مهمة: جدولة ----------
+  return (
+    <div className="lead-block">
+      <div className="row-label">جدولة متابعة</div>
+
+      {/* مواعيد بضغطة واحدة */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {QUICK.map(q => (
+          <button key={q.label} className="btn btn-ghost btn-sm" disabled={busy}
+            onClick={() => quickSchedule(q.hours)}>
+            {q.label}
+          </button>
+        ))}
+        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
+          onClick={pauseFollow}>⏹ إيقاف المتابعة</button>
+      </div>
+
+      {/* موعد مخصّص */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input type="datetime-local" value={due} onChange={e => setDue(e.target.value)}
+          min={toLocalInput(new Date())} style={{ flex: '1 1 180px' }} />
+        <input value={note} onChange={e => setNote(e.target.value)}
+          placeholder="ملاحظة (اختياري)" style={{ flex: '1 1 180px' }} />
+        <button className="btn btn-primary" onClick={() => addTask()} disabled={busy || !due}>
+          {busy ? '…' : 'جدولة'}
+        </button>
+      </div>
     </div>
   )
 }

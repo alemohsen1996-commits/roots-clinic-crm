@@ -49,8 +49,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
   const [flash, setFlash] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // طي/فتح الأقسام الأقل استخدامًا
-  const [showInfo, setShowInfo] = useState(false)
+  const [tab, setTab] = useState('follow')     // follow | offer | info | log
   const [actTab, setActTab] = useState('all')
 
   // تعديل البيانات
@@ -342,28 +341,30 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
     <div className="drawer-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <aside className="drawer">
 
-        {/* ===== الرأس: الاسم + الرقم + تواصل مباشر ===== */}
-        <header className="drawer-head">
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--ink-soft)' }}>{lead.file_no}</div>
-            <h2>{lead.full_name}</h2>
-            <div dir="ltr" style={{ textAlign: 'right', color: 'var(--ink-soft)', fontSize: 13.5 }}>{lead.phone}</div>
+        {/* ===== الرأس: هوية العميل وبياناته — مرئية في كل التبويبات ===== */}
+        <header className="drawer-head lead-head">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 11.5, color: 'var(--ink-soft)' }}>
+              {lead.file_no}
+            </div>
+            <h2 style={{ marginBottom: 2 }}>{lead.full_name}</h2>
 
-            {/* أزرار التواصل — أكثر إجراء يتكرر يوميًا */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-              <a className="btn btn-primary" href={`tel:${lead.phone}`}
-                style={{ textDecoration: 'none' }}>☎ اتصال</a>
-              <a className="btn btn-ghost" target="_blank" rel="noreferrer"
-                href={`https://wa.me/${waNumber(lead.phone)}`}
-                style={{ textDecoration: 'none' }}>واتساب</a>
-              <button className="btn btn-ghost"
-                onClick={() => { navigator.clipboard?.writeText(lead.phone ?? ''); say('تم نسخ الرقم') }}>
-                نسخ الرقم
-              </button>
+            {/* الرقم وأزرار التواصل في سطر واحد */}
+            <div className="phone-cell" style={{ marginBottom: 8 }}>
+              <span dir="ltr" style={{ fontSize: 13.5, color: 'var(--ink-soft)' }}>{lead.phone}</span>
+              <a className="icon-btn" href={`tel:${lead.phone}`} title="اتصال">☎</a>
+              <a className="icon-btn" title="واتساب" target="_blank" rel="noreferrer"
+                href={`https://wa.me/${waNumber(lead.phone)}`}>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                  <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.22 8.22 0 0 1-1.26-4.38c0-4.54 3.7-8.23 8.25-8.23a8.23 8.23 0 0 1 0 16.47Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.8-.78.97-.14.16-.29.19-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.43.12-.15.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.35-.77-1.84-.2-.49-.4-.42-.56-.43h-.47c-.16 0-.43.06-.65.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.64 4.19 3.7.58.25 1.04.4 1.4.52.59.19 1.12.16 1.54.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.22-.16-.47-.29Z"/>
+                </svg>
+              </a>
+              <button className="icon-btn" title="نسخ الرقم"
+                onClick={() => { navigator.clipboard?.writeText(lead.phone ?? ''); say('تم نسخ الرقم') }}>⧉</button>
             </div>
 
-            {/* حالة المتابعة — مرئية فورًا بدون نزول */}
-            <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {/* الحالة الحالية */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
               <span className="badge" style={{
                 background: (lead.stages?.color ?? '#888') + '22',
                 color: lead.stages?.color ?? '#888',
@@ -371,22 +372,39 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
                 {lead.stages?.name_ar}
               </span>
               {paused ? (
-                <span className="badge badge-suspended">⏹ المتابعة موقوفة</span>
+                <span className="badge badge-suspended">⏹ موقوفة</span>
               ) : openTask ? (
                 <span className="badge" style={{
                   background: taskLate ? 'var(--danger-soft)' : 'var(--primary)' + '18',
                   color: taskLate ? 'var(--danger)' : 'var(--primary)',
                   fontWeight: 700,
                 }}>
-                  {taskLate ? '⚠ متابعة متأخرة' : '⏰ متابعة'} · {fmtDateTime(openTask.due_at)}
+                  {taskLate ? '⚠' : '⏰'} {fmtDateTime(openTask.due_at)}
                 </span>
               ) : (
-                <span className="badge badge-pending">لا توجد متابعة مجدولة</span>
+                <span className="badge badge-pending">بلا متابعة</span>
               )}
               {lead.attempts > 0 && (
                 <span className="badge" style={{ background: 'var(--surface)', color: 'var(--ink-soft)' }}>
                   محاولات: {lead.attempts}
                 </span>
+              )}
+              {lead.offered_price > 0 && (
+                <span className="badge" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
+                  {fmtNum(lead.offered_price)} ر.س
+                </span>
+              )}
+            </div>
+
+            {/* بيانات العميل — سطر واحد مضغوط */}
+            <div className="lead-facts">
+              <span><i>العمر</i>{lead.age ?? '—'}</span>
+              <span><i>المهنة</i>{lead.occupation ?? '—'}</span>
+              <span><i>الفرع</i>{lead.branches?.name ?? '—'}</span>
+              <span><i>المصدر</i>{lead.lead_sources?.name_ar ?? '—'}</span>
+              <span><i>المسؤول</i>{lead.owner?.full_name ?? 'غير مسند'}</span>
+              {lead.coordinator?.full_name && (
+                <span><i>المنسقة</i>{lead.coordinator.full_name}</span>
               )}
             </div>
           </div>
@@ -397,13 +415,28 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
         {flash && <div className="alert alert-ok">{flash}</div>}
 
         {readOnlyForSales && (
-          <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', margin: '0 0 4px',
-            background: 'var(--surface)', padding: '8px 12px', borderRadius: 8 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-soft)',
+            background: 'var(--surface)', padding: '8px 12px', borderRadius: 8, marginBottom: 10 }}>
             👁 هذا المريض تحت إدارة المنسقة الآن — يمكنك متابعة حالته فقط
           </div>
         )}
 
-        {/* ===== ١. تسجيل نشاط + إجراءات سريعة ===== */}
+        {/* ===== التبويبات ===== */}
+        <div className="tabs drawer-tabs">
+          {[
+            { k: 'follow', l: 'المتابعة' },
+            { k: 'offer',  l: 'العرض' },
+            { k: 'info',   l: 'البيانات' },
+            { k: 'log',    l: 'السجل' },
+          ].map(t => (
+            <button key={t.k} className={'tab' + (tab === t.k ? ' on' : '')}
+              onClick={() => setTab(t.k)}>{t.l}</button>
+          ))}
+        </div>
+
+        {tab === 'follow' && (<>
+
+        {/* تسجيل نشاط + إجراءات سريعة */}
         {!readOnlyForSales && (
           <div className="drawer-section">
             <h3>تسجيل نشاط</h3>
@@ -442,10 +475,10 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
           </div>
         )}
 
-        {/* ===== ٢. مهمة المتابعة ===== */}
+        {/* مهمة المتابعة */}
         <TaskSection leadId={leadId} leadOwnerId={lead.owner_id} onChanged={() => { load(); onChanged() }} />
 
-        {/* ===== ٣. المرحلة ===== */}
+        {/* المرحلة */}
         <div className="drawer-section">
           <h3>المرحلة {currentBoard === 'coordinator' ? '(بورد المنسقات)' : '(بورد المبيعات)'}</h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -509,7 +542,9 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
           )}
         </div>
 
-        {/* ===== ٤. العرض المقدّم للعميل ===== */}
+        </>)}
+
+        {tab === 'offer' && (
         <div className="drawer-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <h3 style={{ margin: 0 }}>العرض المقدّم للعميل</h3>
@@ -613,33 +648,19 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
           )}
         </div>
 
-        {/* ===== ٥. بيانات العميل — مطوية ===== */}
+        )}
+
+        {tab === 'info' && (<>
         <div className="drawer-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <button className="btn btn-ghost" style={{ padding: '4px 0', border: 'none' }}
-              onClick={() => setShowInfo(v => !v)}>
-              <h3 style={{ margin: 0 }}>{showInfo ? '▾' : '▸'} بيانات العميل</h3>
-            </button>
-            {showInfo && !editing && !readOnlyForSales && (
-              <button className="btn btn-ghost" style={{ padding: '6px 14px' }} onClick={() => setEditing(true)}>
-                تعديل
-              </button>
+            <h3 style={{ margin: 0 }}>بيانات العميل</h3>
+            {!editing && !readOnlyForSales && (
+              <button className="btn btn-ghost" style={{ padding: '6px 14px' }}
+                onClick={() => setEditing(true)}>تعديل</button>
             )}
           </div>
 
-          {!showInfo && (
-            <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 6 }}>
-              {[
-                lead.age ? `${lead.age} سنة` : null,
-                lead.occupation,
-                lead.branches?.name,
-                lead.lead_sources?.name_ar,
-                lead.owner?.full_name ? `مسؤول: ${lead.owner.full_name}` : null,
-              ].filter(Boolean).join(' · ') || 'لا بيانات مسجّلة — اضغط للفتح'}
-            </div>
-          )}
-
-          {showInfo && (editing ? (
+          {editing ? (
             <>
               <div className="grid-2">
                 <div className="field">
@@ -684,8 +705,10 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
               <div><span>المصدر</span>{lead.lead_sources?.name_ar ?? '—'}</div>
               <div><span>المسؤول (مبيعات)</span>{lead.owner?.full_name ?? 'غير مسند'}</div>
               <div><span>المنسقة</span>{lead.coordinator?.full_name ?? '—'}</div>
+              <div><span>تاريخ الإنشاء</span>{fmtDateTime(lead.created_at)}</div>
+              <div><span>آخر نشاط</span>{fmtDateTime(lead.last_activity)}</div>
             </div>
-          ))}
+          )}
         </div>
 
         {/* إعادة الإسناد — للمديرين */}
@@ -698,8 +721,9 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
             </select>
           </div>
         )}
+        </>)}
 
-        {/* ===== ٦. السجل — بتبويبات ===== */}
+        {tab === 'log' && (
         <div className="drawer-section">
           <h3>السجل</h3>
           <div className="tabs" style={{ marginBottom: 10 }}>
@@ -733,7 +757,9 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged }) {
           </div>
         </div>
 
-        {/* منطقة الخطر — للمدير العام فقط */}
+        )}
+
+        {/* منطقة الخطر — للمدير العام فقط (خارج التبويبات) */}
         {isManager && (
           <div className="drawer-section danger-zone">
             <h3 style={{ color: 'var(--danger)' }}>منطقة الخطر</h3>
