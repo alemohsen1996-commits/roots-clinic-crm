@@ -23,7 +23,7 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
         .select(`*, leads(file_no, full_name, phone),
                  agent:profiles!deals_agent_id_fkey(full_name),
                  coordinator:profiles!deals_coordinator_id_fkey(full_name),
-                 procedure_types(name_ar), doctors(full_name)`)
+                 procedure_types(name_ar), techniques(name, name_ar), doctors(full_name)`)
         .eq('id', dealId).single(),
       fetchDealFinance(dealId),
     ])
@@ -31,6 +31,7 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
     setFin(f)
     setForm({
       procedure_type_id: d?.procedure_type_id ?? '',
+      technique_id: d?.technique_id ?? '',
       doctor_id: d?.doctor_id ?? '',
       grafts: d?.grafts ?? '',
       operation_date: d?.operation_date ?? '',
@@ -61,6 +62,7 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
 
     const patch = {
       procedure_type_id: form.procedure_type_id ? Number(form.procedure_type_id) : null,
+      technique_id: form.technique_id ? Number(form.technique_id) : null,
       doctor_id: form.doctor_id ? Number(form.doctor_id) : null,
       grafts: form.grafts ? Number(form.grafts) : null,
       operation_date: form.operation_date || null,
@@ -215,6 +217,21 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
                 </select>
               </div>
               <div className="field">
+                <label>التقنية المستخدمة</label>
+                <select value={form.technique_id}
+                  onChange={e => setForm(f => ({ ...f, technique_id: e.target.value }))}>
+                  <option value="">—</option>
+                  {refs.techniques.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}{t.name_ar ? ` — ${t.name_ar}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid-2">
+              <div className="field">
                 <label>الطبيب</label>
                 <select value={form.doctor_id}
                   onChange={e => setForm(f => ({ ...f, doctor_id: e.target.value }))}>
@@ -278,6 +295,7 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
         ) : (
           <div className="drawer-info">
             <div><span>النوع</span>{deal.procedure_types?.name_ar ?? '—'}</div>
+            <div><span>التقنية</span>{deal.techniques?.name ?? '—'}</div>
             <div><span>البصيلات</span>{deal.grafts ? fmtNum(deal.grafts) : '—'}</div>
             <div><span>الطبيب</span>{deal.doctors?.full_name ?? '—'}</div>
             <div><span>تاريخ العملية</span>{fmtDate(deal.operation_date)}</div>

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 
 export function useDealRefs() {
   const [procedures, setProcedures] = useState([])
+  const [techniques, setTechniques] = useState([])
   const [doctors, setDoctors] = useState([])
   const [coordinators, setCoordinators] = useState([])
   const [ready, setReady] = useState(false)
@@ -11,20 +12,22 @@ export function useDealRefs() {
   useEffect(() => {
     Promise.all([
       supabase.from('procedure_types').select('*').eq('is_active', true),
+      supabase.from('techniques').select('*').eq('is_active', true).order('sort_order'),
       supabase.from('doctors').select('*').eq('is_active', true),
       supabase.from('profiles')
         .select('id, full_name, roles!inner(code)')
         .eq('status', 'active')
         .eq('roles.code', 'coordinator'),
-    ]).then(([p, d, c]) => {
+    ]).then(([p, t, d, c]) => {
       setProcedures(p.data ?? [])
+      setTechniques(t.data ?? [])
       setDoctors(d.data ?? [])
       setCoordinators(c.data ?? [])
       setReady(true)
     })
   }, [])
 
-  return { procedures, doctors, coordinators, ready }
+  return { procedures, techniques, doctors, coordinators, ready }
 }
 
 // استعلام الديلات مع المالية — RLS تضمن أن كل دور يرى ما يخصه
@@ -38,6 +41,7 @@ export async function fetchDeals(filters = {}) {
       agent:profiles!deals_agent_id_fkey(full_name),
       coordinator:profiles!deals_coordinator_id_fkey(full_name),
       procedure_types(name_ar),
+      techniques(name),
       doctors(full_name)
     `)
     .order('created_at', { ascending: false })

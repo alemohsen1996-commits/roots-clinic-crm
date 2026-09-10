@@ -72,7 +72,7 @@ export default function DealsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>الملف</th><th>العميل</th><th>العملية</th><th>النوع</th><th>البصيلات</th>
+                <th>الملف</th><th>العميل</th><th>العملية</th><th>النوع</th><th>التقنية</th><th>البصيلات</th>
                 <th>الصافي</th><th>المنسقة</th><th>العملية</th><th>الحالة</th><th>الضريبة</th>
               </tr>
             </thead>
@@ -89,6 +89,7 @@ export default function DealsPage() {
                       : <span style={{ color: 'var(--ink-soft)', fontSize: 12.5 }}>الأولى</span>}
                   </td>
                   <td>{d.procedure_types?.name_ar ?? '—'}</td>
+                  <td style={{ fontSize: 12.5 }}>{d.techniques?.name ?? '—'}</td>
                   <td>{d.grafts ? fmtNum(d.grafts) : '—'}</td>
                   <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmtNum(d.net_amount)} ر.س</td>
                   <td>{d.coordinator?.full_name ?? <span style={{ color: 'var(--danger)' }}>لم تُحدد</span>}</td>

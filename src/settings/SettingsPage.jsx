@@ -6,6 +6,7 @@ import ManualDistributeTab from './ManualDistributeTab'
 import ImportLeadsTab from './ImportLeadsTab'
 import SourcesTab from './SourcesTab'
 import DoctorsTab from './DoctorsTab'
+import TechniquesTab from './TechniquesTab'
 import TeamsTab from './TeamsTab'
 import BranchesTab from './BranchesTab'
 import GeneralTab from './GeneralTab'
@@ -17,6 +18,7 @@ const TABS = [
   { key: 'import',       label: 'استيراد ليدات',      el: ImportLeadsTab },
   { key: 'sources',      label: 'المصادر',            el: SourcesTab },
   { key: 'doctors',      label: 'الأطباء',            el: DoctorsTab },
+  { key: 'techniques',   label: 'التقنيات',           el: TechniquesTab },
   { key: 'teams',        label: 'الفرق',              el: TeamsTab },
   { key: 'branches',     label: 'الفروع',             el: BranchesTab },
   { key: 'general',      label: 'حدود ومالية',        el: GeneralTab },

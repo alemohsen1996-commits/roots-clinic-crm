@@ -16,6 +16,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
     // المنسقة تسجّل باسمها دائمًا ولا تختار غيرها
     coordinator_id: isCoordinator ? profile.id : '',
     procedure_type_id: '',
+    technique_id: '',
     doctor_id: '',
     grafts: '',
     total_amount: '',
@@ -114,6 +115,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
       agent_id: lead.owner_id ?? profile.id,     // صاحب الإيراد = مالك الليد
       coordinator_id: form.coordinator_id,
       procedure_type_id: form.procedure_type_id ? Number(form.procedure_type_id) : null,
+      technique_id: form.technique_id ? Number(form.technique_id) : null,
       doctor_id: form.doctor_id ? Number(form.doctor_id) : null,
       grafts: form.grafts ? Number(form.grafts) : null,
       total_amount: total,
@@ -180,17 +182,29 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
 
         <div className="grid-2">
           <div className="field">
+            <label>التقنية المستخدمة</label>
+            <select value={form.technique_id} onChange={e => set('technique_id', e.target.value)}>
+              <option value="">—</option>
+              {refs.techniques.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name}{t.name_ar ? ` — ${t.name_ar}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
             <label>عدد البصيلات</label>
             <input type="number" min={0} value={form.grafts}
               onChange={e => set('grafts', e.target.value)} />
           </div>
-          <div className="field">
-            <label>الطبيب</label>
-            <select value={form.doctor_id} onChange={e => set('doctor_id', e.target.value)}>
-              <option value="">—</option>
-              {refs.doctors.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
-            </select>
-          </div>
+        </div>
+
+        <div className="field">
+          <label>الطبيب</label>
+          <select value={form.doctor_id} onChange={e => set('doctor_id', e.target.value)}>
+            <option value="">—</option>
+            {refs.doctors.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
+          </select>
         </div>
 
         <div className="grid-2">
