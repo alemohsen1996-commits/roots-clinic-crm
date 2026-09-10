@@ -1357,3 +1357,34 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
   line-height: 16px;
 }
 .chip.on .chip-count { background: rgba(255,255,255,.28); }
+
+/* ===================== منع كسر النوافذ والشبكات ===================== */
+/* عناصر النموذج لها عرض افتراضي من المتصفح (خاصة type=number)،
+   فتتمدد خارج حدود النافذة وتُنشئ تمريرًا أفقيًا */
+.modal input,
+.modal select,
+.modal textarea,
+.drawer input,
+.drawer select,
+.drawer textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* خلايا الشبكة يجب أن تسمح بالانكماش وإلا دفعت المحتوى للخارج */
+.grid-2 > *,
+.af-grid > * { min-width: 0; }
+
+.modal, .drawer { overflow-x: hidden; }
+
+/* إخفاء أسهم الزيادة/النقصان — تستهلك عرضًا وتُربك الإدخال الرقمي */
+.modal input[type='number']::-webkit-outer-spin-button,
+.modal input[type='number']::-webkit-inner-spin-button,
+.drawer input[type='number']::-webkit-outer-spin-button,
+.drawer input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.modal input[type='number'],
+.drawer input[type='number'] { -moz-appearance: textfield; }
