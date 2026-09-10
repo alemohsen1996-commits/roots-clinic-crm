@@ -32,7 +32,12 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
   async function setOutcome(status) {
     setErr('')
     const { error } = await supabase.from('deals').update({ status }).eq('id', dealId)
-    if (error) { setErr('تعذر تحديث الحالة'); return }
+    if (error) {
+      setErr(error.message?.includes('غير مصرح')
+        ? 'تحديد نتيجة العملية يتم عبر المنسقة أو المحاسب أو المدير'
+        : 'تعذر تحديث الحالة')
+      return
+    }
     setConfirmOutcome(null)
     await load()
     onChanged()
@@ -60,6 +65,11 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
   }
 
   if (!deal) return null
+
+  // نتيجة العملية: المنسقة والمحاسب والمدير — السيلز يتابع فقط
+  const canSetOutcome = ['super_admin', 'sales_manager', 'coordinator', 'accountant']
+    .includes(roleCode)
+
   const st = DEAL_STATUS[deal.status]
   const pay = fin ? PAY_STATUS[fin.payment_status] : null
 
@@ -149,7 +159,7 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
         )}
 
         {/* تحديد النتيجة */}
-        {deal.status === 'active' || deal.status === 'waiting' ? (
+        {(deal.status === 'active' || deal.status === 'waiting') && canSetOutcome ? (
           <div className="drawer-section">
             <h3>نتيجة العملية</h3>
             {!confirmOutcome ? (
@@ -178,9 +188,20 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
               </div>
             )}
           </div>
-        ) : deal.status === 'done' && (
+        ) : deal.status === 'done' ? (
           <div className="alert alert-ok">
             العملية تمت — باقة البلازما فُتحت تلقائيًا في قسم البلازما
+          </div>
+        ) : !canSetOutcome && (
+          <div className="drawer-section">
+            <h3>نتيجة العملية</h3>
+            <div style={{
+              fontSize: 12.5, color: 'var(--ink-soft)', background: 'var(--surface)',
+              padding: '10px 14px', borderRadius: 8, lineHeight: 1.7,
+            }}>
+              👁 تحديد نتيجة العملية يتم عبر المنسقة أو المحاسب أو المدير —
+              يمكنك متابعة حالة عميلك من هنا
+            </div>
           </div>
         )}
 
