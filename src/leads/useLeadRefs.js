@@ -204,7 +204,7 @@ export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pa
 }
 
 // ---------- الكانبان: لكل مرحلة، أحدث N ليد + العدد الحقيقي ----------
-export async function fetchStageColumn({ stageId, filters = {}, limit = 50 }) {
+export async function fetchStageColumn({ stageId, filters = {}, limit = 50, sort = 'recent' }) {
   let taskIds = null
   if (hasTaskFilter(filters)) {
     taskIds = await taskFilteredIds(filters)
@@ -219,11 +219,12 @@ export async function fetchStageColumn({ stageId, filters = {}, limit = 50 }) {
   countQ = applyFilters(countQ, filters)
   const { count } = await countQ
 
+  // sort: recent = الأحدث نشاطًا · oldest = الأقدم (المهملون أولًا)
   let dataQ = supabase
     .from('leads')
     .select(LEAD_COLUMNS)
     .eq('stage_id', stageId)
-    .order('last_activity', { ascending: false })
+    .order('last_activity', { ascending: sort === 'oldest', nullsFirst: sort === 'oldest' })
     .limit(limit)
   if (taskIds) dataQ = dataQ.in('id', taskIds)
   dataQ = applyFilters(dataQ, filters)

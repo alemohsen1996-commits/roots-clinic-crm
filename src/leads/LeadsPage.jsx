@@ -31,6 +31,14 @@ export default function LeadsPage() {
   useEffect(() => {
     try { localStorage.setItem('leads-view', view) } catch {}
   }, [view])
+
+  // ترتيب الأعمدة — الأقدم يُظهر المهملين أولًا
+  const [sort, setSort] = useState(() => {
+    try { return localStorage.getItem('leads-sort') || 'recent' } catch { return 'recent' }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('leads-sort', sort) } catch {}
+  }, [sort])
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [showAdd, setShowAdd] = useState(false)
   const [openLead, setOpenLead] = useState(null)
@@ -288,6 +296,13 @@ export default function LeadsPage() {
           onClick={() => setShowMore(s => !s)}>
           فلاتر أكثر{advancedCount ? ` (${advancedCount})` : ''}
         </button>
+        {view === 'kanban' && (
+          <select value={sort} onChange={e => setSort(e.target.value)}
+            title="ترتيب الليدات داخل كل عمود">
+            <option value="recent">الأحدث نشاطًا</option>
+            <option value="oldest">الأقدم — المهملون أولًا</option>
+          </select>
+        )}
         <div className="view-toggle">
           <button className={view === 'kanban' ? 'on' : ''} onClick={() => setView('kanban')}>كانبان</button>
           <button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>جدول</button>
@@ -397,10 +412,11 @@ export default function LeadsPage() {
         </div>
       ) : view === 'kanban' ? (
         <Kanban
-          key={board + '-' + refreshKey + '-' + JSON.stringify(effectiveFilters)}
+          key={board + '-' + refreshKey + '-' + sort + '-' + JSON.stringify(effectiveFilters)}
           board={board}
           stages={boardStages}
           filters={effectiveFilters}
+          sort={sort}
           onOpen={openLeadWith}
         />
       ) : (

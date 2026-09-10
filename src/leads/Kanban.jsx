@@ -6,28 +6,42 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { timeAgo } from '../lib/format'
 import { fetchStageColumn, computeAlert } from './useLeadRefs'
 
-const COL_LIMIT = 50
+const COL_FIRST = 50   // الدفعة الأولى
+const COL_MORE  = 20   // كل ضغطة "عرض المزيد" 
 
 // إعدادات التمرير التلقائي
 const EDGE_ZONE  = 90   // عرض المنطقة الحسّاسة عند الحافة (بكسل)
 const MAX_SPEED  = 22   // أقصى سرعة تمرير لكل إطار
 
-function StageColumn({ stage, filters, onOpen, dragProps, tick }) {
+function StageColumn({ stage, filters, onOpen, dragProps, tick, sort }) {
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [limit, setLimit] = useState(COL_FIRST)
+  const [more, setMore] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { rows, total } = await fetchStageColumn({ stageId: stage.id, filters, limit: COL_LIMIT })
+    const { rows, total } = await fetchStageColumn({
+      stageId: stage.id, filters, limit, sort,
+    })
     setRows(rows)
     setTotal(total)
     setLoading(false)
-  }, [stage.id, filters])
+    setMore(false)
+  }, [stage.id, filters, limit, sort])
 
   useEffect(() => { load() }, [load])
 
+  // تغيّر الفلاتر أو الترتيب يعيد العمود لدفعته الأولى
+  useEffect(() => { setLimit(COL_FIRST) }, [filters, sort, stage.id])
+
   const hidden = total - rows.length
+
+  function loadMore() {
+    setMore(true)
+    setLimit(l => l + COL_MORE)
+  }
 
   return (
     <div {...dragProps}>
@@ -60,16 +74,21 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick }) {
           )
         })}
         {hidden > 0 && (
-          <div className="kanban-more">
-            + {hidden.toLocaleString('en-US')} ليد أقدم — استخدم الجدول أو الفلاتر لعرضهم
-          </div>
+          <button className="kanban-more" onClick={loadMore} disabled={more}>
+            {more
+              ? 'جارٍ التحميل…'
+              : `عرض ${Math.min(COL_MORE, hidden).toLocaleString('en-US')} أخرى · باقي ${hidden.toLocaleString('en-US')}`}
+          </button>
+        )}
+        {hidden === 0 && rows.length > COL_FIRST && (
+          <div className="kanban-end">اكتمل عرض {rows.length.toLocaleString('en-US')} ليد</div>
         )}
       </div>
     </div>
   )
 }
 
-export default function Kanban({ board, stages, filters, onOpen }) {
+export default function Kanban({ board, stages, filters, onOpen, sort = 'recent' }) {
   const storageKey = `kanban-order-${board}`
   const [order, setOrder] = useState([])
   const [dragId, setDragId] = useState(null)
@@ -221,6 +240,7 @@ export default function Kanban({ board, stages, filters, onOpen }) {
             filters={filters}
             onOpen={onOpen}
             tick={tick}
+            sort={sort}
             dragProps={{
               draggable: true,
               className: 'kanban-col' + (dragId === st.id ? ' dragging' : ''),
