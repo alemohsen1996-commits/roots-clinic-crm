@@ -94,6 +94,29 @@ function applyFilters(q, filters) {
   return q
 }
 
+// هل الفلاتر تتضمّن شرطًا معتمدًا على التاسكات؟
+export function hasTaskFilter(f = {}) {
+  return !!(f.alertOnly || f.taskToday || f.taskOverdue || f.noTask)
+}
+
+// معرّفات الليدات المطابقة لفلاتر التاسكات — تُحسب في القاعدة
+// (كانت تُحسب في المتصفح على الصفحة المعروضة فقط فيختلّ العدّ)
+async function taskFilteredIds(filters) {
+  const ids = []
+  for (let off = 0; off < 100000; off += 1000) {
+    let q = supabase.from('v_lead_flags').select('lead_id')
+    if (filters.alertOnly)   q = q.gt('alert_days', 0)
+    if (filters.taskToday)   q = q.eq('task_today', true)
+    if (filters.taskOverdue) q = q.eq('task_overdue', true)
+    if (filters.noTask)      q = q.eq('open_tasks', 0)
+    const { data, error } = await q.range(off, off + 999)
+    if (error) { console.error(error); break }
+    ids.push(...(data ?? []).map(r => r.lead_id))
+    if ((data ?? []).length < 1000) break
+  }
+  return ids
+}
+
 // المراحل التي لا تحتاج متابعة (لا إشعار فيها إطلاقًا)
 const QUIET_STAGES = ['dead', 'lost', 'done', 'won']
 
@@ -157,6 +180,13 @@ export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pa
   const from = page * pageSize
   const to = from + pageSize - 1
 
+  // فلاتر التاسكات تُحوَّل إلى قائمة معرّفات قبل الاستعلام
+  let taskIds = null
+  if (hasTaskFilter(filters)) {
+    taskIds = await taskFilteredIds(filters)
+    if (!taskIds.length) return { rows: [], total: 0 }
+  }
+
   let q = supabase
     .from('leads')
     .select(LEAD_COLUMNS, { count: 'exact' })
@@ -165,6 +195,7 @@ export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pa
     .range(from, to)
 
   if (filters.stage) q = q.eq('stage_id', filters.stage)
+  if (taskIds) q = q.in('id', taskIds)
   q = applyFilters(q, filters)
 
   const { data, count, error } = await q
@@ -174,10 +205,17 @@ export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pa
 
 // ---------- الكانبان: لكل مرحلة، أحدث N ليد + العدد الحقيقي ----------
 export async function fetchStageColumn({ stageId, filters = {}, limit = 50 }) {
+  let taskIds = null
+  if (hasTaskFilter(filters)) {
+    taskIds = await taskFilteredIds(filters)
+    if (!taskIds.length) return { rows: [], total: 0 }
+  }
+
   let countQ = supabase
     .from('leads')
     .select('id', { count: 'exact', head: true })
     .eq('stage_id', stageId)
+  if (taskIds) countQ = countQ.in('id', taskIds)
   countQ = applyFilters(countQ, filters)
   const { count } = await countQ
 
@@ -187,10 +225,9 @@ export async function fetchStageColumn({ stageId, filters = {}, limit = 50 }) {
     .eq('stage_id', stageId)
     .order('last_activity', { ascending: false })
     .limit(limit)
+  if (taskIds) dataQ = dataQ.in('id', taskIds)
   dataQ = applyFilters(dataQ, filters)
   const { data } = await dataQ
 
-  // الفلاتر المحلية (تاسك اليوم/متأخر/بدون تاسك/علامة حمراء)
-  const rows = applyLocalFilters(data ?? [], filters)
-  return { rows, total: count ?? 0 }
+  return { rows: data ?? [], total: count ?? 0 }
 }

@@ -1,7 +1,7 @@
 // صفحة الليدات — شرائح فلترة سريعة + لوحة تفصيلية + بوردان + جدول مقسّم
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
-import { useLeadRefs, fetchLeadsPage, computeAlert, applyLocalFilters } from './useLeadRefs'
+import { useLeadRefs, fetchLeadsPage } from './useLeadRefs'
 import Kanban from './Kanban'
 import LeadsTable from './LeadsTable'
 import AddLeadModal from './AddLeadModal'
@@ -49,6 +49,7 @@ export default function LeadsPage() {
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [chipCounts, setChipCounts] = useState({})
 
   useEffect(() => {
     import('../lib/supabase').then(({ supabase }) =>
@@ -76,13 +77,64 @@ export default function LeadsPage() {
     const { rows, total } = await fetchLeadsPage({
       boardStageIds, filters: effectiveFilters, page, pageSize,
     })
-    const finalRows = applyLocalFilters(rows, effectiveFilters)
-    setTableRows(finalRows)
+    setTableRows(rows)
     setTotal(total)
     setLoading(false)
   }, [boardStageIds, effectiveFilters, page, pageSize, refreshKey])
 
   useEffect(() => { if (view === 'table') loadTable() }, [loadTable, view])
+
+  // أعداد الشرائح — محسوبة في القاعدة على البورد الحالي كاملًا
+  useEffect(() => {
+    if (!boardStageIds.length) return
+    let cancelled = false
+    ;(async () => {
+      const base = () => supabase.from('leads')
+        .select('id', { count: 'exact', head: true })
+        .in('stage_id', boardStageIds)
+        .is('archived_at', null)
+
+      // معرّفات الليدات حسب كل علم
+      const flagIds = async (col, op) => {
+        const out = []
+        for (let off = 0; off < 100000; off += 1000) {
+          let q = supabase.from('v_lead_flags').select('lead_id')
+          q = op === 'gt0' ? q.gt(col, 0) : op === 'eq0' ? q.eq(col, 0) : q.eq(col, true)
+          const { data } = await q.range(off, off + 999)
+          out.push(...(data ?? []).map(r => r.lead_id))
+          if ((data ?? []).length < 1000) break
+        }
+        return out
+      }
+
+      const countByIds = async (ids) => {
+        if (!ids.length) return 0
+        const { count } = await base().in('id', ids)
+        return count ?? 0
+      }
+
+      const [alertIds, todayIds, overdueIds, noTaskIds] = await Promise.all([
+        flagIds('alert_days', 'gt0'),
+        flagIds('task_today', 'bool'),
+        flagIds('task_overdue', 'bool'),
+        flagIds('open_tasks', 'eq0'),
+      ])
+
+      const [alertOnly, taskToday, taskOverdue, noTask, paused, noOwner, stale] = await Promise.all([
+        countByIds(alertIds),
+        countByIds(todayIds),
+        countByIds(overdueIds),
+        countByIds(noTaskIds),
+        base().eq('follow_paused', true).then(r => r.count ?? 0),
+        base().is('owner_id', null).then(r => r.count ?? 0),
+        base().lt('last_activity', new Date(Date.now() - 7 * 86400000).toISOString())
+          .then(r => r.count ?? 0),
+      ])
+
+      if (!cancelled) setChipCounts({ alertOnly, taskToday, taskOverdue, noTask, paused, noOwner, stale })
+    })()
+    return () => { cancelled = true }
+  }, [boardStageIds, refreshKey])
   useEffect(() => { setPage(0) }, [filters, board, pageSize])
   // التحديد يخصّ الصفحة المعروضة — يُمسح عند أي تغيير في السياق
   useEffect(() => { setSelected(new Set()) }, [filters, board, pageSize, page, view, refreshKey])
@@ -144,6 +196,10 @@ export default function LeadsPage() {
   const advancedCount = ['createdFrom','createdTo','branch','interest','priceFrom','priceTo','ageFrom','ageTo','movedToday','snoozed']
     .filter(k => filters[k]).length
 
+  // كل الفلاتر النشطة — لتوضيح أن العدد المعروض مفلتَر
+  const activeFilterCount = Object.entries(filters)
+    .filter(([k, v]) => v !== '' && v !== false && v != null).length
+
   return (
     <>
       <div className="page-head">
@@ -153,7 +209,11 @@ export default function LeadsPage() {
             {board === 'sales'
               ? 'بورد المبيعات'
               : (roleCode === 'agent' ? 'مرضاك المحوّلون — للمتابعة فقط' : 'بورد المنسقات')}
-            {view === 'table' && ` — ${(view === 'table' ? tableRows.length : total).toLocaleString('en-US')} ظاهر`}
+            {view === 'table' && (
+              <> — <b style={{ color: 'var(--gold)' }}>{total.toLocaleString('en-US')}</b> ليد
+                {activeFilterCount > 0 && ' (بعد الفلترة)'}
+              </>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -189,6 +249,9 @@ export default function LeadsPage() {
             className={'chip' + (filters[c.key] ? ' on' : '')}
             onClick={() => toggle(c.key)}>
             {c.label}
+            {chipCounts[c.key] !== undefined && (
+              <span className="chip-count">{chipCounts[c.key].toLocaleString('en-US')}</span>
+            )}
           </button>
         ))}
       </div>
