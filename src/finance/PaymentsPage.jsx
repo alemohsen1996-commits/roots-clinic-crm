@@ -30,7 +30,8 @@ const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(
 const SELECT = `
   id, receipt_no, amount, method, paid_at, reference, notes, confirmed_at,
   status, void_reason,
-  deals(id, leads(file_no, full_name, phone),
+  deals(id, total_amount, tax_amount, net_amount, status,
+        leads(file_no, full_name, phone),
         agent:profiles!deals_agent_id_fkey(full_name),
         coordinator:profiles!deals_coordinator_id_fkey(full_name)),
   received:profiles!payments_received_by_fkey(full_name),
@@ -175,11 +176,13 @@ export default function PaymentsPage() {
     exportCsv(
       `payments-${from || 'all'}-to-${to || 'now'}.csv`,
       ['الإيصال', 'العميل', 'رقم الملف', 'الهاتف', 'السيلز', 'المنسقة',
-       'المبلغ', 'الطريقة', 'المرجع', 'التاريخ', 'سجّلتها', 'الحالة', 'التأكيد'],
+       'المبلغ', 'الضريبة', 'صافي العملية', 'قيمة التعاقد',
+       'الطريقة', 'المرجع', 'التاريخ', 'سجّلتها', 'الحالة', 'التأكيد'],
       all.map(p => [
         p.receipt_no, p.deals?.leads?.full_name, p.deals?.leads?.file_no,
         p.deals?.leads?.phone, p.deals?.agent?.full_name, p.deals?.coordinator?.full_name,
-        p.amount, METHOD_AR[p.method] ?? p.method, p.reference ?? '',
+        p.amount, p.deals?.tax_amount ?? '', p.deals?.net_amount ?? '', p.deals?.total_amount ?? '',
+        METHOD_AR[p.method] ?? p.method, p.reference ?? '',
         fmtDateTime(p.paid_at), p.received?.full_name ?? '',
         ST[p.status] ?? p.status, p.confirmed_at ? 'مؤكدة' : 'غير مؤكدة',
       ])
@@ -361,7 +364,8 @@ export default function PaymentsPage() {
                   </th>
                 )}
                 <th>الإيصال</th><th>العميل</th><th>الهاتف</th><th>السيلز</th><th>المنسقة</th>
-                <th>المبلغ</th><th>الطريقة</th><th>التاريخ</th><th>سجّلتها</th>
+                <th>المبلغ</th><th>الضريبة</th><th>صافي العملية</th>
+                <th>الطريقة</th><th>التاريخ</th><th>سجّلتها</th>
                 <th>التأكيد</th><th></th>
               </tr>
             </thead>
@@ -412,6 +416,13 @@ export default function PaymentsPage() {
                     <td style={{ fontSize: 12.5 }}>{p.deals?.coordinator?.full_name ?? '—'}</td>
                     <td style={{ color: 'var(--gold)', fontWeight: 700, whiteSpace: 'nowrap' }}>
                       {fmtNum(p.amount)} ر.س
+                    </td>
+                    <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: 'var(--ink-soft)' }}>
+                      {Number(p.deals?.tax_amount) > 0 ? fmtNum(p.deals.tax_amount) + ' ر.س' : '—'}
+                    </td>
+                    <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', fontWeight: 600 }}
+                      title="صافي العيادة من هذه العملية بعد خصم الضريبة">
+                      {p.deals?.net_amount ? fmtNum(p.deals.net_amount) + ' ر.س' : '—'}
                     </td>
                     <td style={{ fontSize: 12.5 }}>
                       {METHOD_AR[p.method] ?? p.method}
