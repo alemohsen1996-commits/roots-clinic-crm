@@ -72,6 +72,11 @@ export default function LeadsPage() {
   )
   const boardStageIds = useMemo(() => boardStages.map(s => s.id), [boardStages])
 
+  const salesAgents = useMemo(
+    () => (refs.agents ?? []).filter(a => a.roles?.code === 'agent'),
+    [refs.agents]
+  )
+
   // إضافة coordinator_id للفلتر لو "اتحوّلولي اليوم" مفعّل ودور المستخدم منسقة
   const effectiveFilters = useMemo(() => {
     const f = { ...filters }
@@ -286,30 +291,39 @@ export default function LeadsPage() {
           <option value="">كل المصادر</option>
           {refs.sources.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
         </select>
-        {isManager && board === 'sales' && (
+        {/* فلاتر الأشخاص — متاحة للجميع، وRLS يحدّ ما يراه كل دور
+            السيلز يحتاج معرفة مرضاه عند أي منسقة،
+            والمنسقة تحتاج معرفة مصدر مرضاها من المبيعات */}
+        {board === 'sales' && isManager && (
           <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
             <option value="">كل موظفي المبيعات</option>
-            {refs.agents
-              .filter(a => a.roles?.code === 'agent')
-              .map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+            {salesAgents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
           </select>
         )}
-        {isManager && board === 'coordinator' && (
+
+        {board === 'coordinator' && (
           <>
-            <select value={filters.coordinator} onChange={e => set('coordinator', e.target.value)}>
-              <option value="">كل المنسقات</option>
+            <select value={filters.coordinator} onChange={e => set('coordinator', e.target.value)}
+              title={roleCode === 'agent'
+                ? 'شاهد مرضاك عند منسقة بعينها'
+                : 'فلترة حسب المنسقة المسؤولة'}>
+              <option value="">
+                {roleCode === 'agent' ? 'مرضاي عند كل المنسقات' : 'كل المنسقات'}
+              </option>
               {(refs.coordinators ?? []).map(c => (
                 <option key={c.id} value={c.id}>{c.full_name}</option>
               ))}
             </select>
-            <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
-              <option value="">كل موظفي المبيعات</option>
-              {refs.agents
-                .filter(a => a.roles?.code === 'agent')
-                .map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
-            </select>
+
+            {(isManager || roleCode === 'coordinator') && (
+              <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
+                <option value="">كل موظفي المبيعات</option>
+                {salesAgents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+              </select>
+            )}
           </>
         )}
+
         <button className={'btn btn-ghost' + (advancedCount ? ' on' : '')}
           onClick={() => setShowMore(s => !s)}>
           فلاتر أكثر{advancedCount ? ` (${advancedCount})` : ''}
