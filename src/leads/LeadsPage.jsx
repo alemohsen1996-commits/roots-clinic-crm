@@ -11,7 +11,7 @@ import BulkActionsBar from './BulkActionsBar'
 import { supabase } from '../lib/supabase'
 
 const EMPTY_FILTERS = {
-  search: '', stage: '', source: '', owner: '', branch: '', interest: '',
+  search: '', stage: '', source: '', owner: '', coordinator: '', branch: '', interest: '',
   createdFrom: '', createdTo: '',
   priceFrom: '', priceTo: '', ageFrom: '', ageTo: '',
   // أعلام
@@ -243,7 +243,7 @@ export default function LeadsPage() {
 
       <div className="board-tabs">
         <button className={board === 'sales' ? 'on' : ''}
-          onClick={() => { setBoard('sales'); setShowArchive(false) }}>
+          onClick={() => { setBoard('sales'); setShowArchive(false); set('coordinator', '') }}>
           بورد المبيعات
         </button>
         <button className={board === 'coordinator' ? 'on' : ''}
@@ -286,11 +286,29 @@ export default function LeadsPage() {
           <option value="">كل المصادر</option>
           {refs.sources.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
         </select>
-        {isManager && (
+        {isManager && board === 'sales' && (
           <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
-            <option value="">كل الموظفين</option>
-            {refs.agents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+            <option value="">كل موظفي المبيعات</option>
+            {refs.agents
+              .filter(a => a.roles?.code === 'agent')
+              .map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
           </select>
+        )}
+        {isManager && board === 'coordinator' && (
+          <>
+            <select value={filters.coordinator} onChange={e => set('coordinator', e.target.value)}>
+              <option value="">كل المنسقات</option>
+              {(refs.coordinators ?? []).map(c => (
+                <option key={c.id} value={c.id}>{c.full_name}</option>
+              ))}
+            </select>
+            <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
+              <option value="">كل موظفي المبيعات</option>
+              {refs.agents
+                .filter(a => a.roles?.code === 'agent')
+                .map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+            </select>
+          </>
         )}
         <button className={'btn btn-ghost' + (advancedCount ? ' on' : '')}
           onClick={() => setShowMore(s => !s)}>

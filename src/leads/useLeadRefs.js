@@ -7,6 +7,7 @@ export function useLeadRefs() {
   const [stages, setStages] = useState([])
   const [sources, setSources] = useState([])
   const [agents, setAgents] = useState([])
+  const [coordinators, setCoordinators] = useState([])
   const [lostReasons, setLostReasons] = useState([])
   const [ready, setReady] = useState(false)
 
@@ -14,18 +15,21 @@ export function useLeadRefs() {
     Promise.all([
       supabase.from('stages').select('*').eq('is_active', true).order('sort_order'),
       supabase.from('lead_sources').select('*').eq('is_active', true),
-      supabase.from('profiles').select('id, full_name').eq('status', 'active'),
+      supabase.from('profiles')
+        .select('id, full_name, roles(code)').eq('status', 'active'),
       supabase.from('lost_reasons').select('*').eq('is_active', true),
     ]).then(([st, so, ag, lr]) => {
       setStages(st.data ?? [])
       setSources(so.data ?? [])
-      setAgents(ag.data ?? [])
+      const people = ag.data ?? []
+      setAgents(people)
+      setCoordinators(people.filter(p => p.roles?.code === 'coordinator'))
       setLostReasons(lr.data ?? [])
       setReady(true)
     })
   }, [])
 
-  return { stages, sources, agents, lostReasons, ready }
+  return { stages, sources, agents, coordinators, lostReasons, ready }
 }
 
 // نجلب التاسكات المفتوحة مع كل ليد (لحساب الإشعار على الكارت)
@@ -49,6 +53,8 @@ function applyFilters(q, filters) {
 
   if (filters.source) q = q.eq('source_id', filters.source)
   if (filters.owner)  q = q.eq('owner_id', filters.owner)
+  // فلتر المنسقة — مستقل عن مالك الليد (السيلز)
+  if (filters.coordinator) q = q.eq('coordinator_id', filters.coordinator)
   if (filters.branch) q = q.eq('branch_id', filters.branch)
   if (filters.interest) q = q.eq('procedure_interest', filters.interest)
   if (filters.search) {

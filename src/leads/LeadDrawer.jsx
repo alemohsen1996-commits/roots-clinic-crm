@@ -158,6 +158,17 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     if (Number(stageTo) === lead.stage_id) return
     if (needsLostReason && !lostReason) { setErr('اختر سبب الخسارة أولًا'); return }
     if (movingToFollowup && !coordinatorId) { setErr('اختر المنسقة المسؤولة قبل التحويل للمتابعة'); return }
+    // المنسقة تستلم العميل بناءً على العرض — التحويل بدونه يفقدها السياق
+    if (movingToFollowup && !lead.offer_details?.trim()) {
+      setErr('سجّل العرض المقدّم للعميل أولًا — المنسقة تحتاج معرفة ما عُرض عليه')
+      setTab('offer')
+      return
+    }
+    if (movingToFollowup && !(lead.offered_price > 0)) {
+      setErr('سجّل السعر المعروض أولًا')
+      setTab('offer')
+      return
+    }
 
     // إرجاع من بورد المنسقات إلى المبيعات — قرار مؤثّر، نطلب تأكيدًا
     const backToSales = currentBoard === 'coordinator'
@@ -460,7 +471,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         <div className="tabs drawer-tabs">
           {[
             { k: 'follow', l: 'المتابعة' },
-            { k: 'offer',  l: 'العرض' },
+            { k: 'offer',  l: 'العرض والمرحلة' },
             { k: 'info',   l: 'البيانات' },
             { k: 'log',    l: 'السجل' },
           ].map(t => (
@@ -496,15 +507,15 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             )}
 
             <div className="note-row">
-              <select value={noteType} onChange={e => setNoteType(e.target.value)}>
+              <input className="note-input" value={note}
+                onChange={e => setNote(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addActivity()}
+                placeholder="اكتب تفاصيل التواصل…" />
+              <select className="note-type" value={noteType} onChange={e => setNoteType(e.target.value)}>
                 <option value="note">ملاحظة</option>
                 <option value="call">مكالمة</option>
                 <option value="whatsapp">واتساب</option>
               </select>
-              <input value={note}
-                onChange={e => setNote(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addActivity()}
-                placeholder="اكتب تفاصيل التواصل…" />
               <button className="btn btn-primary" onClick={addActivity} disabled={!note.trim()}>
                 حفظ
               </button>
@@ -515,66 +526,10 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         {/* مهمة المتابعة */}
         <TaskSection leadId={leadId} leadOwnerId={lead.owner_id} onChanged={() => { load(); onChanged() }} />
 
-        {/* المرحلة */}
-        <div className="stage-box">
-          <div className="row-label">
-            المرحلة {currentBoard === 'coordinator' ? '· بورد المنسقات' : '· بورد المبيعات'}
-          </div>
-
-          <div className="stage-row">
-            <select value={stageTo} onChange={e => { setStageTo(e.target.value); setErr('') }}
-              disabled={readOnlyForSales}>
-              {targetStages.map(st => (
-                <option key={st.id} value={st.id}>
-                  {st.name_ar}{(st.board ?? 'sales') !== currentBoard ? ' ← تحويل للمنسقة' : ''}
-                </option>
-              ))}
-            </select>
-            {!readOnlyForSales && (
-              <button className="btn btn-primary"
-                disabled={Number(stageTo) === lead.stage_id}
-                onClick={changeStage}>نقل</button>
-            )}
-          </div>
-
-          {needsLostReason && (
-            <div className="field" style={{ marginTop: 10, marginBottom: 0 }}>
-              <label>سبب الخسارة *</label>
-              <select value={lostReason} onChange={e => setLostReason(e.target.value)}>
-                <option value="">— اختر —</option>
-                {refs.lostReasons.map(r => <option key={r.id} value={r.id}>{r.name_ar}</option>)}
-              </select>
-            </div>
-          )}
-
-          {movingToFollowup && (
-            <div style={{ marginTop: 10 }}>
-              <div className="field" style={{ marginBottom: 6 }}>
-                <label>المنسقة المسؤولة *</label>
-                <select value={coordinatorId} onChange={e => setCoordinatorId(e.target.value)}>
-                  <option value="">— اختر —</option>
-                  {coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-                </select>
-              </div>
-              {!offer.offer_details.trim() && (
-                <p style={{ fontSize: 12.5, color: 'var(--danger)', fontWeight: 600 }}>
-                  ⚠ لم تكتب تفاصيل العرض — المنسقة لن تعرف ما عُرض على العميل
-                </p>
-              )}
-            </div>
-          )}
-
-          {lead.stages?.code === 'deal' && (
-            <a href={`/deals?lead=${lead.id}`} className="btn btn-primary"
-              style={{ display: 'inline-block', marginTop: 10, textDecoration: 'none' }}>
-              فتح ملف التعاقد ←
-            </a>
-          )}
-        </div>
-
         </>)}
 
-        {tab === 'offer' && (
+        {tab === 'offer' && (<>
+
         <div className="drawer-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <h3 style={{ margin: 0 }}>العرض المقدّم للعميل</h3>
@@ -678,7 +633,64 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
           )}
         </div>
 
-        )}
+        {/* المرحلة */}
+        <div className="stage-box">
+          <div className="row-label">
+            المرحلة {currentBoard === 'coordinator' ? '· بورد المنسقات' : '· بورد المبيعات'}
+          </div>
+
+          <div className="stage-row">
+            <select value={stageTo} onChange={e => { setStageTo(e.target.value); setErr('') }}
+              disabled={readOnlyForSales}>
+              {targetStages.map(st => (
+                <option key={st.id} value={st.id}>
+                  {st.name_ar}{(st.board ?? 'sales') !== currentBoard ? ' ← تحويل للمنسقة' : ''}
+                </option>
+              ))}
+            </select>
+            {!readOnlyForSales && (
+              <button className="btn btn-primary"
+                disabled={Number(stageTo) === lead.stage_id}
+                onClick={changeStage}>نقل</button>
+            )}
+          </div>
+
+          {needsLostReason && (
+            <div className="field" style={{ marginTop: 10, marginBottom: 0 }}>
+              <label>سبب الخسارة *</label>
+              <select value={lostReason} onChange={e => setLostReason(e.target.value)}>
+                <option value="">— اختر —</option>
+                {refs.lostReasons.map(r => <option key={r.id} value={r.id}>{r.name_ar}</option>)}
+              </select>
+            </div>
+          )}
+
+          {movingToFollowup && (
+            <div style={{ marginTop: 10 }}>
+              <div className="field" style={{ marginBottom: 6 }}>
+                <label>المنسقة المسؤولة *</label>
+                <select value={coordinatorId} onChange={e => setCoordinatorId(e.target.value)}>
+                  <option value="">— اختر —</option>
+                  {coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                </select>
+              </div>
+              {!lead.offer_details?.trim() && (
+                <p style={{ fontSize: 12.5, color: 'var(--danger)', fontWeight: 700, lineHeight: 1.7 }}>
+                  ⚠ سجّل العرض المقدّم أعلاه أولًا — التحويل لن يتم بدونه
+                </p>
+              )}
+            </div>
+          )}
+
+          {lead.stages?.code === 'deal' && (
+            <a href={`/deals?lead=${lead.id}`} className="btn btn-primary"
+              style={{ display: 'inline-block', marginTop: 10, textDecoration: 'none' }}>
+              فتح ملف التعاقد ←
+            </a>
+          )}
+        </div>
+
+        </>)}
 
         {tab === 'info' && (<>
         <div className="drawer-section">

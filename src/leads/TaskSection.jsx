@@ -15,6 +15,19 @@ const QUICK = [
   { label: 'بعد أسبوع', icon: '🗓', hours: 168 },
 ]
 
+// الموعد الفعلي الذي سيُجدول — يُعرض على الزر ليعرف الموظف ما يختاره
+function targetDate(hours) {
+  const d = new Date()
+  d.setHours(d.getHours() + hours)
+  d.setMinutes(0, 0, 0)
+  return d
+}
+const previewOf = (d) => {
+  const day = d.toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'short', day: 'numeric', month: 'short' })
+  const time = d.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })
+  return `${day} · ${time}`
+}
+
 const toLocalInput = (d) => {
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
@@ -64,10 +77,7 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
 
   // موعد سريع: الساعة القادمة المضبوطة بعد N ساعة
   function quickSchedule(hours) {
-    const d = new Date()
-    d.setHours(d.getHours() + hours)
-    d.setMinutes(0, 0, 0)
-    addTask(d.toISOString())
+    addTask(targetDate(hours).toISOString())
   }
 
   async function completeTask() {
@@ -165,15 +175,23 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
       <div className="follow-title">متى تتابع هذا العميل؟</div>
 
       <div className="quick-times">
-        {QUICK.map(q => (
-          <button key={q.label} className="time-chip" disabled={busy}
-            onClick={() => quickSchedule(q.hours)}>
-            <b>{q.icon}</b>{q.label}
-          </button>
-        ))}
+        {QUICK.map(q => {
+          const d = targetDate(q.hours)
+          return (
+            <button key={q.label} className="time-chip" disabled={busy}
+              onClick={() => quickSchedule(q.hours)}
+              title={`سيُجدول: ${previewOf(d)}`}>
+              <b>{q.icon}</b>
+              {q.label}
+              <em>{previewOf(d)}</em>
+            </button>
+          )
+        })}
         <button className={'time-chip alt' + (custom ? ' on' : '')}
           onClick={() => setCustom(v => !v)}>
-          <b>⚙</b>موعد آخر
+          <b>⚙</b>
+          موعد آخر
+          <em>اختر بنفسك</em>
         </button>
       </div>
 
