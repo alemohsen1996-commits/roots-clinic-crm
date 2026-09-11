@@ -16,6 +16,9 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [openLead, setOpenLead] = useState(null)
   const [navList, setNavList] = useState([])
+  const [upcoming, setUpcoming] = useState([])
+  const [showUpcoming, setShowUpcoming] = useState(false)
+  const [staleCount, setStaleCount] = useState(0)
   const [scope, setScope] = useState('mine')   // mine | all (للمدير)
   const [busyId, setBusyId] = useState(null)
   const [msg, setMsg] = useState('')
@@ -44,10 +47,41 @@ export default function TasksPage() {
 
     const { data } = await q
     setTasks(data ?? [])
+
+    // المتابعات القادمة — بعد نهاية اليوم
+    let uq = supabase
+      .from('tasks')
+      .select(`
+        id, due_at, note, assigned_to,
+        leads(id, file_no, full_name, phone, stage_id, snooze_until, follow_paused,
+              stages(name_ar, color)),
+        assignee:profiles!tasks_assigned_to_fkey(full_name)
+      `)
+      .eq('status', 'open')
+      .gt('due_at', endOfDay.toISOString())
+      .order('due_at', { ascending: true })
+      .limit(50)
+    if (!(isManager && scope === 'all')) uq = uq.eq('assigned_to', profile.id)
+    const { data: up } = await uq
+    setUpcoming(up ?? [])
+
     setLoading(false)
   }, [profile.id, isManager, scope])
 
   useEffect(() => { load() }, [load])
+
+  // الليدات الراكدة — اقتراح عمل عند خلوّ المهام
+  useEffect(() => {
+    if (!profile?.id) return
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+    supabase.from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', profile.id)
+      .is('archived_at', null)
+      .eq('follow_paused', false)
+      .lt('last_activity', weekAgo)
+      .then(({ count }) => setStaleCount(count ?? 0))
+  }, [profile?.id])
 
   // ---------- إجراءات سريعة (نفس منطق TaskSection) ----------
   async function completeTask(t) {
@@ -64,6 +98,18 @@ export default function TasksPage() {
     }).eq('id', t.leads.id)
     setBusyId(null)
     setMsg(`تم تنفيذ متابعة ${t.leads.full_name}`)
+    load()
+  }
+
+  // تقديم متابعة قادمة لليوم — لاستثمار الوقت الفارغ
+  async function pullToToday(t) {
+    setBusyId(t.id); setMsg('')
+    const d = new Date()
+    d.setHours(d.getHours() + 1)
+    d.setMinutes(0, 0, 0)
+    await supabase.from('tasks').update({ due_at: d.toISOString() }).eq('id', t.id)
+    setBusyId(null)
+    setMsg(`تم تقديم متابعة ${t.leads.full_name} لليوم`)
     load()
   }
 
@@ -199,15 +245,87 @@ export default function TasksPage() {
       {loading ? (
         <div className="empty">جارٍ التحميل…</div>
       ) : tasks.length === 0 ? (
-        <div className="card empty">
+        <div className="card empty" style={{ paddingBottom: 22 }}>
           <strong>لا مهام مستحقة اليوم 🎉</strong>
           كل متابعاتك تحت السيطرة
+
+          {staleCount > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <p style={{ fontSize: 13.5, color: 'var(--ink)', marginBottom: 10 }}>
+                عندك <b style={{ color: 'var(--warn)' }}>{staleCount.toLocaleString('en-US')}</b> ليد
+                {' '}بلا حركة من أكثر من أسبوع — فرصة لمتابعتهم
+              </p>
+              <a className="btn btn-primary" href="/leads"
+                style={{ textDecoration: 'none', display: 'inline-block' }}>
+                افتح الليدات الراكدة ←
+              </a>
+            </div>
+          )}
         </div>
       ) : (
         <>
           <Table list={overdue} title="⚠ متأخرة — تحتاج تصرّفًا فورًا" tone="var(--danger)" />
           <Table list={todays}  title="متابعات اليوم"                  tone="var(--primary)" />
         </>
+      )}
+
+      {/* المتابعات القادمة — مطوية كي لا تزاحم مهام اليوم */}
+      {!loading && upcoming.length > 0 && (
+        <div className="card upcoming-box">
+          <button className="upcoming-head" onClick={() => setShowUpcoming(v => !v)}>
+            <span className="arrow">{showUpcoming ? '▾' : '▸'}</span>
+            <b>قادمة ({upcoming.length.toLocaleString('en-US')})</b>
+            <span className="upcoming-hint">
+              أقربها {fmtDateTime(upcoming[0].due_at)}
+            </span>
+          </button>
+
+          {showUpcoming && (
+            <table className="table compact" style={{ marginTop: 8 }}>
+              <thead>
+                <tr>
+                  <th>العميل</th><th>المرحلة</th><th>الموعد</th>
+                  <th>الملاحظة</th>{isManager && scope === 'all' && <th>المسؤول</th>}<th>إجراء</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcoming.map(t => (
+                  <tr key={t.id} style={{ opacity: busyId === t.id ? .5 : 1 }}>
+                    <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      {t.leads?.full_name}
+                      <small style={{ color: 'var(--ink-soft)', display: 'block', fontWeight: 400 }}>
+                        {t.leads?.file_no}
+                      </small>
+                    </td>
+                    <td>
+                      <span className="badge" style={{
+                        background: (t.leads?.stages?.color ?? '#888') + '22',
+                        color: t.leads?.stages?.color ?? '#888',
+                      }}>
+                        {t.leads?.stages?.name_ar}
+                      </span>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap', fontSize: 12.5 }}>{fmtDateTime(t.due_at)}</td>
+                    <td style={{ color: 'var(--ink-soft)', fontSize: 12.5 }}>{t.note ?? '—'}</td>
+                    {isManager && scope === 'all' && <td>{t.assignee?.full_name ?? '—'}</td>}
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button className="btn btn-ghost btn-sm" disabled={busyId === t.id}
+                          onClick={() => pullToToday(t)} title="انقل المتابعة لليوم">
+                          ↑ قدّمها لليوم
+                        </button>
+                        <button className="btn btn-ghost btn-sm"
+                          onClick={() => { setNavList(upcoming.map(x => x.leads)); setOpenLead(t.leads) }}>
+                          الملف
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
 
       {openLead && (
