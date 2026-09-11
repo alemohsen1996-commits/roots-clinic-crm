@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 
 export function useDealRefs() {
   const [procedures, setProcedures] = useState([])
+  const [agents, setAgents] = useState([])
   const [techniques, setTechniques] = useState([])
   const [doctors, setDoctors] = useState([])
   const [coordinators, setCoordinators] = useState([])
@@ -18,16 +19,21 @@ export function useDealRefs() {
         .select('id, full_name, roles!inner(code)')
         .eq('status', 'active')
         .eq('roles.code', 'coordinator'),
-    ]).then(([p, t, d, c]) => {
+      supabase.from('profiles')
+        .select('id, full_name, roles!inner(code)')
+        .eq('status', 'active')
+        .eq('roles.code', 'agent'),
+    ]).then(([p, t, d, c, ag]) => {
       setProcedures(p.data ?? [])
       setTechniques(t.data ?? [])
       setDoctors(d.data ?? [])
       setCoordinators(c.data ?? [])
+      setAgents(ag.data ?? [])
       setReady(true)
     })
   }, [])
 
-  return { procedures, techniques, doctors, coordinators, ready }
+  return { procedures, techniques, doctors, coordinators, agents, ready }
 }
 
 // استعلام الديلات مع المالية — RLS تضمن أن كل دور يرى ما يخصه
@@ -49,6 +55,7 @@ export async function fetchDeals(filters = {}) {
 
   if (filters.status) q = q.eq('status', filters.status)
   if (filters.coordinator) q = q.eq('coordinator_id', filters.coordinator)
+  if (filters.agent) q = q.eq('agent_id', filters.agent)
   if (filters.search) {
     // البحث عبر بيانات الليد يتطلب فلترة محلية — نكتفي هنا بالحد الأعلى ثم نفلتر في الواجهة
   }

@@ -15,6 +15,8 @@ export default function DealsPage() {
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
+  const [agentId, setAgentId] = useState('')
+  const [coordId, setCoordId] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [openDeal, setOpenDeal] = useState(null)
 
@@ -23,9 +25,9 @@ export default function DealsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    setDeals(await fetchDeals({ status }))
+    setDeals(await fetchDeals({ status, agent: agentId, coordinator: coordId }))
     setLoading(false)
-  }, [status])
+  }, [status, agentId, coordId])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { if (preloadLead) setShowNew(true) }, [preloadLead])
@@ -58,6 +60,24 @@ export default function DealsPage() {
           <option value="waiting">انتظار</option>
           <option value="lost">خسارة</option>
         </select>
+
+        {/* فلاتر الأشخاص — تُمكّن المنسقة والمحاسب والمدير من التمييز */}
+        <select value={agentId} onChange={e => setAgentId(e.target.value)}>
+          <option value="">كل موظفي المبيعات</option>
+          {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+        </select>
+
+        <select value={coordId} onChange={e => setCoordId(e.target.value)}>
+          <option value="">كل المنسقات</option>
+          {refs.coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+        </select>
+
+        {(status || agentId || coordId || search) && (
+          <button className="btn btn-ghost btn-sm"
+            onClick={() => { setStatus(''); setAgentId(''); setCoordId(''); setSearch('') }}>
+            مسح الفلاتر
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -73,7 +93,7 @@ export default function DealsPage() {
             <thead>
               <tr>
                 <th>الملف</th><th>العميل</th><th>العملية</th><th>النوع</th><th>التقنية</th><th>البصيلات</th>
-                <th>الصافي</th><th>المنسقة</th><th>العملية</th><th>الحالة</th><th>الضريبة</th>
+                <th>الصافي</th><th>السيلز</th><th>المنسقة</th><th>العملية</th><th>الحالة</th><th>الضريبة</th>
               </tr>
             </thead>
             <tbody>
@@ -92,6 +112,7 @@ export default function DealsPage() {
                   <td style={{ fontSize: 12.5 }}>{d.techniques?.name ?? '—'}</td>
                   <td>{d.grafts ? fmtNum(d.grafts) : '—'}</td>
                   <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmtNum(d.net_amount)} ر.س</td>
+                  <td style={{ fontSize: 12.5 }}>{d.agent?.full_name ?? '—'}</td>
                   <td>{d.coordinator?.full_name ?? <span style={{ color: 'var(--danger)' }}>لم تُحدد</span>}</td>
                   <td>{fmtDate(d.operation_date)}</td>
                   <td>
