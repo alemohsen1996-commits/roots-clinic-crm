@@ -30,14 +30,41 @@ export const fmtMonth = (d) =>
 // رقم صالح لرابط واتساب: أرقام فقط بلا + أو مسافات
 export const waNumber = (phone) => String(phone ?? '').replace(/\D/g, '')
 
+const isMobile = () =>
+  /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent)
+
 // فتح محادثة واتساب في تبويب واحد ثابت بدل تبويب لكل عميل
-// (الموظف يفتح عشرات العملاء يوميًا فتتراكم التبويبات)
+//
+// نتجنّب wa.me على سطح المكتب لأنه يمرّ بصفحة api.whatsapp.com
+// الوسيطة، وذلك التحويل يفقد اسم التبويب فيُفتح تبويب جديد كل مرة
+// (وتظهر معه نافذة "Open WhatsApp?" في كل ضغطة).
+// web.whatsapp.com يفتح المحادثة مباشرة ويحترم اسم التبويب.
 export function openWhatsApp(phone) {
   const n = waNumber(phone)
   if (!n) return
-  const w = window.open(`https://wa.me/${n}`, 'roots-whatsapp')
-  // إن كان التبويب مفتوحًا بالفعل، اجلبه للواجهة
-  if (w) w.focus()
+
+  // الموبايل: wa.me يفتح التطبيق نفسه وهو الأنسب
+  if (isMobile()) {
+    window.open(`https://wa.me/${n}`, '_blank', 'noopener')
+    return
+  }
+
+  const url = `https://web.whatsapp.com/send?phone=${n}`
+  const w = window.open('', 'roots-whatsapp')
+  if (!w) { window.open(url, 'roots-whatsapp'); return }
+
+  // تبويب موجود بالفعل → غيّر وجهته فقط
+  try {
+    if (w.location.href === 'about:blank' || !w.location.href.includes('whatsapp')) {
+      w.location.href = url
+    } else {
+      w.location.replace(url)
+    }
+  } catch {
+    // تعذّر الوصول لموقع التبويب (قيود المتصفح) — افتح عاديًا بنفس الاسم
+    window.open(url, 'roots-whatsapp')
+  }
+  w.focus()
 }
 
 // "منذ ٥ دقائق" — لعمود آخر نشاط
