@@ -27,6 +27,19 @@ export const fmtDateTime = (d) =>
 export const fmtMonth = (d) =>
   d ? new Date(d).toLocaleDateString(DATE_LOCALE, { month: 'long', year: 'numeric' }) : '—'
 
+// رقم صالح لرابط واتساب: أرقام فقط بلا + أو مسافات
+export const waNumber = (phone) => String(phone ?? '').replace(/\D/g, '')
+
+// فتح محادثة واتساب في تبويب واحد ثابت بدل تبويب لكل عميل
+// (الموظف يفتح عشرات العملاء يوميًا فتتراكم التبويبات)
+export function openWhatsApp(phone) {
+  const n = waNumber(phone)
+  if (!n) return
+  const w = window.open(`https://wa.me/${n}`, 'roots-whatsapp')
+  // إن كان التبويب مفتوحًا بالفعل، اجلبه للواجهة
+  if (w) w.focus()
+}
+
 // "منذ ٥ دقائق" — لعمود آخر نشاط
 export function timeAgo(d) {
   if (!d) return '—'
