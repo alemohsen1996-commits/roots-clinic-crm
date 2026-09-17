@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './styles.css'
 
 import { AuthProvider } from './auth/AuthContext'
+import ConnectionBanner from './layout/ConnectionBanner'
 import { RequireAuth, RequireManager } from './auth/guards'
 import Login from './auth/Login'
 import Shell from './layout/Shell'
@@ -24,6 +25,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
+        <ConnectionBanner />
         <Routes>
           <Route path="/login" element={<Login />} />
 
