@@ -103,6 +103,16 @@ export default function LeadsPage() {
     if (!boardStageIds.length) return
     let cancelled = false
     ;(async () => {
+      // فلترة النطاق حسب الدور — نطبّقها في الاستعلام بدل RLS
+      // (v_lead_flags يعمل بصلاحية definer ليتفادى أخطاء الاستعلامات
+      //  الفرعية، والفلترة هنا تقصّ النتيجة لكل موظف على نطاقه)
+      const scope = (q, ownerCol) => {
+        if (isManager) return q
+        if (roleCode === 'coordinator') return q.eq('coordinator_id', profile.id)
+        // السيلز: ليداته + الليدات بلا مسؤول
+        return q.or(`${ownerCol}.eq.${profile.id},${ownerCol}.is.null`)
+      }
+
       // العدّ مباشرة على v_lead_flags — استعلام واحد لكل شريحة،
       // بلا قوائم معرّفات (التي كانت تُقطع عند تجاوز 1000 فيظهر صفر)
       const flagCount = (apply) => {
@@ -110,6 +120,7 @@ export default function LeadsPage() {
           .select('lead_id', { count: 'exact', head: true })
           .in('stage_id', boardStageIds)
           .is('archived_at', null)
+        q = scope(q, 'owner_id')
         return apply(q).then(r => r.count ?? 0)
       }
 
@@ -119,6 +130,7 @@ export default function LeadsPage() {
           .select('id', { count: 'exact', head: true })
           .in('stage_id', boardStageIds)
           .is('archived_at', null)
+        q = scope(q, 'owner_id')
         return apply(q).then(r => r.count ?? 0)
       }
 
