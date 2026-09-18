@@ -443,7 +443,8 @@ export default function LeadsPage() {
         </div>
       ) : view === 'kanban' ? (
         <Kanban
-          key={board + '-' + refreshKey + '-' + sort + '-' + JSON.stringify(effectiveFilters)}
+          key={board + '-' + sort + '-' + JSON.stringify(effectiveFilters)}
+          refreshKey={refreshKey}
           board={board}
           stages={boardStages}
           filters={effectiveFilters}

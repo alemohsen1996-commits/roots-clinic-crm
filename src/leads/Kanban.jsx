@@ -13,15 +13,15 @@ const COL_MORE  = 20   // كل ضغطة "عرض المزيد"
 const EDGE_ZONE  = 90   // عرض المنطقة الحسّاسة عند الحافة (بكسل)
 const MAX_SPEED  = 22   // أقصى سرعة تمرير لكل إطار
 
-function StageColumn({ stage, filters, onOpen, dragProps, tick, sort }) {
+function StageColumn({ stage, filters, onOpen, dragProps, tick, sort, refreshKey }) {
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [limit, setLimit] = useState(COL_FIRST)
   const [more, setMore] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true)
     const { rows, total } = await fetchStageColumn({
       stageId: stage.id, filters, limit, sort,
     })
@@ -35,6 +35,14 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick, sort }) {
 
   // تغيّر الفلاتر أو الترتيب يعيد العمود لدفعته الأولى
   useEffect(() => { setLimit(COL_FIRST) }, [filters, sort, stage.id])
+
+  // تحديث بعد تغيير مرحلة ليد: هادئ، بلا إفراغ العمود فلا يرمش الكانبان
+  const firstRun = useRef(true)
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return }
+    load({ quiet: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   const hidden = total - rows.length
 
@@ -88,7 +96,7 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick, sort }) {
   )
 }
 
-export default function Kanban({ board, stages, filters, onOpen, sort = 'recent' }) {
+export default function Kanban({ board, stages, filters, onOpen, sort = 'recent', refreshKey }) {
   const storageKey = `kanban-order-${board}`
   const [order, setOrder] = useState([])
   const [dragId, setDragId] = useState(null)
@@ -241,6 +249,7 @@ export default function Kanban({ board, stages, filters, onOpen, sort = 'recent'
             onOpen={onOpen}
             tick={tick}
             sort={sort}
+            refreshKey={refreshKey}
             dragProps={{
               draggable: true,
               className: 'kanban-col' + (dragId === st.id ? ' dragging' : ''),
