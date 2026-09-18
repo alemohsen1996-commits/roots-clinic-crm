@@ -105,22 +105,39 @@ export function hasTaskFilter(f = {}) {
   return !!(f.alertOnly || f.taskToday || f.taskOverdue || f.noTask)
 }
 
-// معرّفات الليدات المطابقة لفلاتر التاسكات — تُحسب في القاعدة
-// (كانت تُحسب في المتصفح على الصفحة المعروضة فقط فيختلّ العدّ)
-async function taskFilteredIds(filters) {
-  const ids = []
-  for (let off = 0; off < 100000; off += 1000) {
-    let q = supabase.from('v_lead_flags').select('lead_id')
-    if (filters.alertOnly)   q = q.gt('alert_days', 0)
-    if (filters.taskToday)   q = q.eq('task_today', true)
-    if (filters.taskOverdue) q = q.eq('task_overdue', true)
-    if (filters.noTask)      q = q.eq('open_tasks', 0)
-    const { data, error } = await q.range(off, off + 999)
-    if (error) { console.error(error); break }
-    ids.push(...(data ?? []).map(r => r.lead_id))
-    if ((data ?? []).length < 1000) break
-  }
-  return ids
+// يطبّق شروط فلاتر التاسكات على استعلام v_lead_flags
+function applyFlagConds(q, filters) {
+  if (filters.alertOnly)   q = q.gt('alert_days', 0)
+  if (filters.taskToday)   q = q.eq('task_today', true)
+  if (filters.taskOverdue) q = q.eq('task_overdue', true)
+  if (filters.noTask)      q = q.eq('open_tasks', 0)
+  return q
+}
+
+// معرّفات الليدات المطابقة لفلاتر التاسكات داخل مراحل محددة، مع صفحة/ترتيب.
+// نجلب من v_lead_flags مباشرة (فيه stage_id و archived_at) بدل تمرير آلاف
+// المعرّفات عبر .in() التي تُقطع عند ~1000 فتختفي نتائج.
+async function flagLeadIds({ stageIds, filters, from = 0, to = null, sort = 'recent' }) {
+  let q = supabase.from('v_lead_flags')
+    .select('lead_id, next_due')
+    .in('stage_id', stageIds)
+    .is('archived_at', null)
+  q = applyFlagConds(q, filters)
+  q = q.order('next_due', { ascending: sort !== 'recent', nullsFirst: false })
+  if (to !== null) q = q.range(from, to)
+  const { data, error } = await q
+  if (error) { console.error(error); return [] }
+  return (data ?? []).map(r => r.lead_id)
+}
+
+async function flagCount({ stageIds, filters }) {
+  let q = supabase.from('v_lead_flags')
+    .select('lead_id', { count: 'exact', head: true })
+    .in('stage_id', stageIds)
+    .is('archived_at', null)
+  q = applyFlagConds(q, filters)
+  const { count } = await q
+  return count ?? 0
 }
 
 // المراحل التي لا تحتاج متابعة (لا إشعار فيها إطلاقًا)
@@ -185,12 +202,24 @@ function hasTaskOverdue(lead) {
 export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pageSize = 50 }) {
   const from = page * pageSize
   const to = from + pageSize - 1
+  const stageIds = filters.stage ? [Number(filters.stage)] : boardStageIds
 
-  // فلاتر التاسكات تُحوَّل إلى قائمة معرّفات قبل الاستعلام
-  let taskIds = null
+  // مع فلاتر التاسكات: نصفّح ونعدّ من v_lead_flags مباشرة،
+  // ثم نجلب بيانات صفحة الليدات فقط (قائمة قصيرة آمنة لـ .in)
   if (hasTaskFilter(filters)) {
-    taskIds = await taskFilteredIds(filters)
-    if (!taskIds.length) return { rows: [], total: 0 }
+    const total = await flagCount({ stageIds, filters })
+    if (!total) return { rows: [], total: 0 }
+    const pageIds = await flagLeadIds({ stageIds, filters, from, to, sort: 'recent' })
+    if (!pageIds.length) return { rows: [], total }
+
+    let q = supabase.from('leads').select(LEAD_COLUMNS).in('id', pageIds)
+    q = applyFilters(q, filters)
+    const { data, error } = await q
+    if (error) console.error(error)
+    // الحفاظ على ترتيب pageIds
+    const order = Object.fromEntries(pageIds.map((id, i) => [id, i]))
+    const rows = (data ?? []).sort((a, b) => order[a.id] - order[b.id])
+    return { rows, total }
   }
 
   let q = supabase
@@ -201,7 +230,6 @@ export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pa
     .range(from, to)
 
   if (filters.stage) q = q.eq('stage_id', filters.stage)
-  if (taskIds) q = q.in('id', taskIds)
   q = applyFilters(q, filters)
 
   const { data, count, error } = await q
@@ -211,17 +239,25 @@ export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pa
 
 // ---------- الكانبان: لكل مرحلة، أحدث N ليد + العدد الحقيقي ----------
 export async function fetchStageColumn({ stageId, filters = {}, limit = 50, sort = 'recent' }) {
-  let taskIds = null
+  // مع فلاتر التاسكات: العدّ والصفحة من v_lead_flags مباشرة
   if (hasTaskFilter(filters)) {
-    taskIds = await taskFilteredIds(filters)
-    if (!taskIds.length) return { rows: [], total: 0 }
+    const total = await flagCount({ stageIds: [stageId], filters })
+    if (!total) return { rows: [], total: 0 }
+    const ids = await flagLeadIds({ stageIds: [stageId], filters, from: 0, to: limit - 1, sort })
+    if (!ids.length) return { rows: [], total }
+
+    let dataQ = supabase.from('leads').select(LEAD_COLUMNS).in('id', ids)
+    dataQ = applyFilters(dataQ, filters)
+    const { data } = await dataQ
+    const order = Object.fromEntries(ids.map((id, i) => [id, i]))
+    const rows = (data ?? []).sort((a, b) => order[a.id] - order[b.id])
+    return { rows, total }
   }
 
   let countQ = supabase
     .from('leads')
     .select('id', { count: 'exact', head: true })
     .eq('stage_id', stageId)
-  if (taskIds) countQ = countQ.in('id', taskIds)
   countQ = applyFilters(countQ, filters)
   const { count } = await countQ
 
@@ -232,7 +268,6 @@ export async function fetchStageColumn({ stageId, filters = {}, limit = 50, sort
     .eq('stage_id', stageId)
     .order('last_activity', { ascending: sort === 'oldest', nullsFirst: sort === 'oldest' })
     .limit(limit)
-  if (taskIds) dataQ = dataQ.in('id', taskIds)
   dataQ = applyFilters(dataQ, filters)
   const { data } = await dataQ
 

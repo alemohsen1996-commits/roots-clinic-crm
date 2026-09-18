@@ -103,46 +103,33 @@ export default function LeadsPage() {
     if (!boardStageIds.length) return
     let cancelled = false
     ;(async () => {
-      const base = () => supabase.from('leads')
-        .select('id', { count: 'exact', head: true })
-        .in('stage_id', boardStageIds)
-        .is('archived_at', null)
-
-      // معرّفات الليدات حسب كل علم
-      const flagIds = async (col, op) => {
-        const out = []
-        for (let off = 0; off < 100000; off += 1000) {
-          let q = supabase.from('v_lead_flags').select('lead_id')
-          q = op === 'gt0' ? q.gt(col, 0) : op === 'eq0' ? q.eq(col, 0) : q.eq(col, true)
-          const { data } = await q.range(off, off + 999)
-          out.push(...(data ?? []).map(r => r.lead_id))
-          if ((data ?? []).length < 1000) break
-        }
-        return out
+      // العدّ مباشرة على v_lead_flags — استعلام واحد لكل شريحة،
+      // بلا قوائم معرّفات (التي كانت تُقطع عند تجاوز 1000 فيظهر صفر)
+      const flagCount = (apply) => {
+        let q = supabase.from('v_lead_flags')
+          .select('lead_id', { count: 'exact', head: true })
+          .in('stage_id', boardStageIds)
+          .is('archived_at', null)
+        return apply(q).then(r => r.count ?? 0)
       }
 
-      const countByIds = async (ids) => {
-        if (!ids.length) return 0
-        const { count } = await base().in('id', ids)
-        return count ?? 0
+      // شرائح تعتمد على أعمدة leads مباشرة
+      const leadCount = (apply) => {
+        let q = supabase.from('leads')
+          .select('id', { count: 'exact', head: true })
+          .in('stage_id', boardStageIds)
+          .is('archived_at', null)
+        return apply(q).then(r => r.count ?? 0)
       }
-
-      const [alertIds, todayIds, overdueIds, noTaskIds] = await Promise.all([
-        flagIds('alert_days', 'gt0'),
-        flagIds('task_today', 'bool'),
-        flagIds('task_overdue', 'bool'),
-        flagIds('open_tasks', 'eq0'),
-      ])
 
       const [alertOnly, taskToday, taskOverdue, noTask, paused, noOwner, stale] = await Promise.all([
-        countByIds(alertIds),
-        countByIds(todayIds),
-        countByIds(overdueIds),
-        countByIds(noTaskIds),
-        base().eq('follow_paused', true).then(r => r.count ?? 0),
-        base().is('owner_id', null).then(r => r.count ?? 0),
-        base().lt('last_activity', new Date(Date.now() - 7 * 86400000).toISOString())
-          .then(r => r.count ?? 0),
+        flagCount(q => q.gt('alert_days', 0)),
+        flagCount(q => q.eq('task_today', true)),
+        flagCount(q => q.eq('task_overdue', true)),
+        flagCount(q => q.eq('open_tasks', 0)),
+        leadCount(q => q.eq('follow_paused', true)),
+        leadCount(q => q.is('owner_id', null)),
+        leadCount(q => q.lt('last_activity', new Date(Date.now() - 7 * 86400000).toISOString())),
       ])
 
       if (!cancelled) setChipCounts({ alertOnly, taskToday, taskOverdue, noTask, paused, noOwner, stale })
