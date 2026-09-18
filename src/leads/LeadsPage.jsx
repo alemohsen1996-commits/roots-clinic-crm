@@ -104,35 +104,35 @@ export default function LeadsPage() {
     let cancelled = false
     ;(async () => {
       // العدّ مباشرة على v_lead_flags — استعلام واحد لكل شريحة،
-      // بلا قوائم معرّفات (التي كانت تُقطع عند تجاوز 1000 فيظهر صفر)
-      // فلترة النطاق حسب الدور: v_lead_flags يعمل definer فلا يقصّ تلقائيًا،
-      // فنقصّه هنا. السيلز = ليداته + بلا مسؤول · المنسقة = مرضاها.
+      // فلترة النطاق حسب الدور. v_lead_flags يعمل definer فلا يقصّ تلقائيًا.
+      // .or() مع UUID غير موثوق، فللسيلز نعدّ استعلامين (ليداته + بلا مسؤول)
+      // ونجمعهما. المنسقة والمدير باستعلام واحد.
       const isSales = !isManager && roleCode !== 'coordinator'
       const isCoord = !isManager && roleCode === 'coordinator'
 
-      const scoped = (base) => {
-        if (isCoord) return base.eq('coordinator_id', profile.id)
-        if (isSales) return base.or(`owner_id.eq.${profile.id},owner_id.is.null`)
-        return base
+      // عدّ على مصدر (v_lead_flags أو leads) بعد تطبيق شريحة + نطاق
+      const countScoped = async (table, apply, ownerVal) => {
+        const build = () => {
+          let q = supabase.from(table)
+            .select(table === 'leads' ? 'id' : 'lead_id', { count: 'exact', head: true })
+            .in('stage_id', boardStageIds)
+            .is('archived_at', null)
+          if (isCoord) q = q.eq('coordinator_id', profile.id)
+          return apply(q)
+        }
+        if (isSales) {
+          // ليداته + بلا مسؤول — استعلامان منفصلان يُجمعان
+          const [mine, none] = await Promise.all([
+            build().eq('owner_id', profile.id).then(r => r.count ?? 0),
+            build().is('owner_id', null).then(r => r.count ?? 0),
+          ])
+          return mine + none
+        }
+        return build().then(r => r.count ?? 0)
       }
 
-      const flagCount = (apply) => {
-        let q = supabase.from('v_lead_flags')
-          .select('lead_id', { count: 'exact', head: true })
-          .in('stage_id', boardStageIds)
-          .is('archived_at', null)
-        q = scoped(q)
-        return apply(q).then(r => r.count ?? 0)
-      }
-
-      const leadCount = (apply) => {
-        let q = supabase.from('leads')
-          .select('id', { count: 'exact', head: true })
-          .in('stage_id', boardStageIds)
-          .is('archived_at', null)
-        q = scoped(q)
-        return apply(q).then(r => r.count ?? 0)
-      }
+      const flagCount = (apply) => countScoped('v_lead_flags', apply)
+      const leadCount = (apply) => countScoped('leads', apply)
 
       const [alertOnly, taskToday, taskOverdue, noTask, paused, noOwner, stale] = await Promise.all([
         flagCount(q => q.gt('alert_days', 0)),
