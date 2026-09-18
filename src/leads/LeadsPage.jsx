@@ -103,34 +103,34 @@ export default function LeadsPage() {
     if (!boardStageIds.length) return
     let cancelled = false
     ;(async () => {
-      // فلترة النطاق حسب الدور — نطبّقها في الاستعلام بدل RLS
-      // (v_lead_flags يعمل بصلاحية definer ليتفادى أخطاء الاستعلامات
-      //  الفرعية، والفلترة هنا تقصّ النتيجة لكل موظف على نطاقه)
-      const scope = (q, ownerCol) => {
-        if (isManager) return q
-        if (roleCode === 'coordinator') return q.eq('coordinator_id', profile.id)
-        // السيلز: ليداته + الليدات بلا مسؤول
-        return q.or(`${ownerCol}.eq.${profile.id},${ownerCol}.is.null`)
-      }
-
       // العدّ مباشرة على v_lead_flags — استعلام واحد لكل شريحة،
       // بلا قوائم معرّفات (التي كانت تُقطع عند تجاوز 1000 فيظهر صفر)
+      // فلترة النطاق حسب الدور: v_lead_flags يعمل definer فلا يقصّ تلقائيًا،
+      // فنقصّه هنا. السيلز = ليداته + بلا مسؤول · المنسقة = مرضاها.
+      const isSales = !isManager && roleCode !== 'coordinator'
+      const isCoord = !isManager && roleCode === 'coordinator'
+
+      const scoped = (base) => {
+        if (isCoord) return base.eq('coordinator_id', profile.id)
+        if (isSales) return base.or(`owner_id.eq.${profile.id},owner_id.is.null`)
+        return base
+      }
+
       const flagCount = (apply) => {
         let q = supabase.from('v_lead_flags')
           .select('lead_id', { count: 'exact', head: true })
           .in('stage_id', boardStageIds)
           .is('archived_at', null)
-        q = scope(q, 'owner_id')
+        q = scoped(q)
         return apply(q).then(r => r.count ?? 0)
       }
 
-      // شرائح تعتمد على أعمدة leads مباشرة
       const leadCount = (apply) => {
         let q = supabase.from('leads')
           .select('id', { count: 'exact', head: true })
           .in('stage_id', boardStageIds)
           .is('archived_at', null)
-        q = scope(q, 'owner_id')
+        q = scoped(q)
         return apply(q).then(r => r.count ?? 0)
       }
 
