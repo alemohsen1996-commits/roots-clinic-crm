@@ -147,7 +147,7 @@ export default function LeadsPage() {
       if (!cancelled) setChipCounts({ alertOnly, taskToday, taskOverdue, noTask, paused, noOwner, stale })
     })()
     return () => { cancelled = true }
-  }, [boardStageIds, refreshKey])
+  }, [boardStageIds, effectiveFilters])
   useEffect(() => { setPage(0) }, [filters, board, pageSize])
   // التحديد يخصّ الصفحة المعروضة — يُمسح عند أي تغيير في السياق
   useEffect(() => { setSelected(new Set()) }, [filters, board, pageSize, page, view, refreshKey])
