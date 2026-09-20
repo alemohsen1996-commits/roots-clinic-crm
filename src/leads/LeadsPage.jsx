@@ -161,7 +161,14 @@ export default function LeadsPage() {
   const set = (k, v) => setFilters(f => ({ ...f, [k]: v }))
   const toggle = (k) => setFilters(f => ({ ...f, [k]: !f[k] }))
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  // refresh جماعي كامل — لإضافة ليد جديد والإجراءات الجماعية والاسترجاع فقط
   const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
+
+  // تغييرات الدرور: في الكانبان التحديث موضعي عبر boardBus (بلا refresh جماعي
+  // يعطّل مع النت البطيء)، وفي الجدول نعيد تحميل الصفحة ليظهر التغيير.
+  const onDrawerChanged = useCallback(() => {
+    if (view === 'table') setRefreshKey(k => k + 1)
+  }, [view])
 
   const toggleOne = useCallback((id) => {
     setSelected(prev => {
@@ -519,7 +526,7 @@ export default function LeadsPage() {
         <LeadDrawer leadId={openLead.id} refs={refs}
           siblings={navList}
           onNavigate={setOpenLead}
-          onClose={() => setOpenLead(null)} onChanged={refresh} />
+          onClose={() => setOpenLead(null)} onChanged={onDrawerChanged} />
       )}
     </>
   )

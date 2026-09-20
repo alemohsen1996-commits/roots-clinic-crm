@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtDateTime, fmtNum, openWhatsApp } from '../lib/format'
+import { emitBoardPatch } from './boardBus'
 import TaskSection from './TaskSection'
 
 const ACTIVITY_LABEL = {
@@ -179,8 +180,10 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     }
 
     setErr('')
+    const fromStage = lead.stage_id      // نلتقطه قبل التحديث — بعد load() يصير المرحلة الجديدة
+    const toStage = Number(stageTo)
     const { error } = await supabase.from('leads').update({
-      stage_id: Number(stageTo),
+      stage_id: toStage,
       ...(needsLostReason && { lost_reason_id: Number(lostReason) }),
       ...(movingToFollowup && { coordinator_id: coordinatorId }),
     }).eq('id', leadId)
@@ -191,12 +194,15 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
       return
     }
     await load()
+    // نقل موضعي: العمود المصدر يشيله فورًا، والهدف يحدّث نفسه فقط
+    emitBoardPatch({ removeId: leadId, removeFrom: fromStage, refetch: [toStage] })
     onChanged()
   }
 
   async function saveEdit() {
     if (!edit.full_name.trim() || !edit.phone.trim()) { setErr('الاسم والهاتف مطلوبان'); return }
     setErr(''); setSavingEdit(true)
+    const st = lead.stage_id
     const { error } = await supabase.from('leads').update({
       full_name: edit.full_name.trim(),
       phone: edit.phone.trim(),
@@ -213,6 +219,8 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     }
     setEditing(false)
     await load()
+    // الاسم/الرقم يظهران على الكارت — حدّث عمود هذا الليد فقط
+    emitBoardPatch({ refetch: [st] })
     onChanged()
   }
 
@@ -254,6 +262,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     setEditingOffer(false)
     setOfferMsg({ ok: true, text: '✓ تم حفظ العرض' })
     setTimeout(() => setOfferMsg(null), 4000)
+    // العرض لا يظهر على كارت الكانبان — لا داعي لتحديث أي عمود
     await load(); onChanged()
   }
 
@@ -269,12 +278,15 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
 
   async function addActivity() {
     if (!note.trim()) return
+    const st = lead.stage_id
     await supabase.from('activities').insert({
       lead_id: leadId, user_id: profile.id, type: noteType, content: note.trim(),
     })
     await supabase.from('leads').update({ last_activity: new Date().toISOString() }).eq('id', leadId)
     setNote('')
     await load()
+    // آخر نشاط تغيّر (يؤثّر على الترتيب/الوقت على الكارت) — حدّث هذا العمود فقط
+    emitBoardPatch({ refetch: [st] })
     onChanged()
   }
 
@@ -283,6 +295,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   // نقل المرحلة يحدث فقط داخل بورد المبيعات — حتى لا يُسحب المريض من المنسقة
   async function markNoAnswer() {
     setBusy(true); setErr('')
+    const fromStage = lead.stage_id
     const canMoveStage = currentBoard === 'sales' && !readOnlyForSales
     const chain = buildNoAnswerChain(refs.stages)
     const code = lead.stages?.code
@@ -309,7 +322,15 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
 
     setBusy(false)
     say(nextStageId ? 'سُجِّل "لم يرد" ونُقل للمرحلة التالية' : 'سُجِّل "لم يرد"')
-    await load(); onChanged()
+    await load()
+    if (nextStageId) {
+      // نُقل لمرحلة تالية: المصدر يشيله، والهدف يحدّث نفسه
+      emitBoardPatch({ removeId: leadId, removeFrom: fromStage, refetch: [nextStageId] })
+    } else {
+      // بقي مكانه: حدّث العمود فقط (العدّاد/آخر نشاط)
+      emitBoardPatch({ refetch: [fromStage] })
+    }
+    onChanged()
   }
 
   // إجراء سريع: تم التواصل
@@ -317,6 +338,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   // ولا يعمل إطلاقًا على بورد المنسقات
   async function markContacted() {
     setBusy(true)
+    const fromStage = lead.stage_id
     const canMoveStage = currentBoard === 'sales' && !readOnlyForSales
     const contacted = refs.stages.find(s => s.code === 'contacted')
     const code = lead.stages?.code
@@ -332,24 +354,37 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     }).eq('id', leadId)
     setBusy(false)
     say(movable && contacted ? 'تم التواصل — نُقل إلى "تم التواصل"' : 'تم تسجيل التواصل')
-    await load(); onChanged()
+    await load()
+    if (movable && contacted && contacted.id !== fromStage) {
+      emitBoardPatch({ removeId: leadId, removeFrom: fromStage, refetch: [contacted.id] })
+    } else {
+      emitBoardPatch({ refetch: [fromStage] })
+    }
+    onChanged()
   }
 
   async function reassign(newOwner) {
+    const st = lead.stage_id
     await supabase.from('leads').update({ owner_id: newOwner }).eq('id', leadId)
     await load()
+    emitBoardPatch({ refetch: [st] })
     onChanged()
   }
 
   async function archiveLead() {
+    const st = lead.stage_id
     const { error } = await supabase.rpc('archive_lead', { p_lead_id: leadId })
     if (error) { setErr('تعذر الأرشفة'); return }
+    // خرج من البورد — شِيله من عموده محليًا
+    emitBoardPatch({ removeId: leadId, removeFrom: st })
     onChanged(); onClose()
   }
 
   async function deleteLeadPermanent() {
+    const st = lead.stage_id
     const { error } = await supabase.rpc('delete_lead_permanent', { p_lead_id: leadId })
     if (error) { setErr('تعذر المسح — قد يكون هناك بيانات مرتبطة'); return }
+    emitBoardPatch({ removeId: leadId, removeFrom: st })
     onChanged(); onClose()
   }
 
@@ -522,7 +557,8 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         )}
 
         {/* مهمة المتابعة */}
-        <TaskSection leadId={leadId} leadOwnerId={lead.owner_id} onChanged={() => { load(); onChanged() }} />
+        <TaskSection leadId={leadId} leadOwnerId={lead.owner_id}
+          onChanged={() => { const st = lead.stage_id; load(); emitBoardPatch({ refetch: [st] }); onChanged() }} />
 
         </>)}
 

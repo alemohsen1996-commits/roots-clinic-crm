@@ -5,6 +5,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { timeAgo } from '../lib/format'
 import { fetchStageColumn, computeAlert } from './useLeadRefs'
+import { onBoardPatch } from './boardBus'
 
 const COL_FIRST = 50   // الدفعة الأولى
 const COL_MORE  = 20   // كل ضغطة "عرض المزيد" 
@@ -36,13 +37,28 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick, sort, refreshKey
   // تغيّر الفلاتر أو الترتيب يعيد العمود لدفعته الأولى
   useEffect(() => { setLimit(COL_FIRST) }, [filters, sort, stage.id])
 
-  // تحديث بعد تغيير مرحلة ليد: هادئ، بلا إفراغ العمود فلا يرمش الكانبان
+  // إعادة تحميل جماعية هادئة — تُستعمل فقط لإضافة ليد جديد والإجراءات الجماعية
   const firstRun = useRef(true)
   useEffect(() => {
     if (firstRun.current) { firstRun.current = false; return }
     load({ quiet: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
+
+  // تحديث موضعي عبر boardBus (تغيير مرحلة/تواصل/تعديل من الدرور):
+  // العمود المصدر يشيل الكارت فورًا محليًا، والعمود المتأثر فقط يحدّث نفسه.
+  // باقي الأعمدة لا تُلمَس — فلا refresh جماعي يعطّل مع النت البطيء.
+  const loadRef = useRef(load)
+  useEffect(() => { loadRef.current = load }, [load])
+  useEffect(() => onBoardPatch((d) => {
+    if (d.removeId != null && d.removeFrom === stage.id) {
+      setRows(rs => rs.filter(r => String(r.id) !== String(d.removeId)))
+      setTotal(t => Math.max(0, t - 1))
+    }
+    if (Array.isArray(d.refetch) && d.refetch.includes(stage.id)) {
+      loadRef.current({ quiet: true })
+    }
+  }), [stage.id])
 
   const hidden = total - rows.length
 
