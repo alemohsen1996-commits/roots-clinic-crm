@@ -2,6 +2,7 @@
 // مرتّبة حسب أولوية عمل الموظف: تواصل → متابعة → مرحلة → العرض → بيانات → سجل
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { STAGE } from '../lib/stageCodes'
 import { useAuth } from '../auth/AuthContext'
 import { fmtDateTime, fmtNum, openWhatsApp } from '../lib/format'
 import { emitBoardPatch } from './boardBus'
@@ -143,13 +144,13 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     if (isManager) return true
     const b = s.board ?? 'sales'
     if (b === currentBoard) return true
-    if (currentBoard === 'sales' && s.code === 'followup') return true
+    if (currentBoard === 'sales' && s.code === STAGE.FOLLOWUP) return true
     return false
   })
 
   const targetStage = refs.stages.find(s => s.id === Number(stageTo))
-  const needsLostReason = targetStage?.code === 'lost'
-  const movingToFollowup = targetStage?.code === 'followup' && lead?.stages?.code !== 'followup'
+  const needsLostReason = targetStage?.code === STAGE.LOST
+  const movingToFollowup = targetStage?.code === STAGE.FOLLOWUP && lead?.stages?.code !== STAGE.FOLLOWUP
 
   function say(m) { setFlash(m); setTimeout(() => setFlash(''), 2500) }
 
@@ -340,10 +341,10 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     setBusy(true)
     const fromStage = lead.stage_id
     const canMoveStage = currentBoard === 'sales' && !readOnlyForSales
-    const contacted = refs.stages.find(s => s.code === 'contacted')
+    const contacted = refs.stages.find(s => s.code === STAGE.CONTACTED)
     const code = lead.stages?.code
     const chainCodes = buildNoAnswerChain(refs.stages).map(s => s.code)
-    const movable = canMoveStage && ['new', ...chainCodes].includes(code)
+    const movable = canMoveStage && [STAGE.NEW, ...chainCodes].includes(code)
 
     await supabase.from('activities').insert({
       lead_id: leadId, user_id: profile.id, type: 'call', content: 'تم التواصل مع العميل',
@@ -716,7 +717,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             </div>
           )}
 
-          {lead.stages?.code === 'deal' && (
+          {lead.stages?.code === STAGE.DEAL && (
             <a href={`/deals?lead=${lead.id}`} className="btn btn-primary"
               style={{ display: 'inline-block', marginTop: 10, textDecoration: 'none' }}>
               فتح ملف التعاقد ←

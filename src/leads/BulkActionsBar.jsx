@@ -2,6 +2,7 @@
 // الإجراءات: نقل لمرحلة · إسناد لموظف · أرشفة
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { STAGE } from '../lib/stageCodes'
 
 export default function BulkActionsBar({ ids, stages, agents, onDone, onClear }) {
   const [action, setAction] = useState('')      // stage | owner | archive
@@ -14,8 +15,8 @@ export default function BulkActionsBar({ ids, stages, agents, onDone, onClear })
 
   const count = ids.length
   const targetStage = stages.find(s => s.id === Number(stageId))
-  const needsCoordinator = targetStage?.code === 'followup'
-  const needsLostReason = targetStage?.code === 'lost'
+  const needsCoordinator = targetStage?.code === STAGE.FOLLOWUP
+  const needsLostReason = targetStage?.code === STAGE.LOST
 
   // جلب المنسقات عند الحاجة فقط
   async function ensureCoordinators() {
@@ -31,7 +32,7 @@ export default function BulkActionsBar({ ids, stages, agents, onDone, onClear })
     setStageId(v)
     setMsg(null)
     const st = stages.find(s => s.id === Number(v))
-    if (st?.code === 'followup') ensureCoordinators()
+    if (st?.code === STAGE.FOLLOWUP) ensureCoordinators()
   }
 
   async function run() {

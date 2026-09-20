@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
+import { STAGE } from '../lib/stageCodes'
 
 export default function AddLeadModal({ refs, onClose, onSaved }) {
   const { profile } = useAuth()
@@ -37,7 +38,7 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
     if (dup) { setErr('هذا الرقم مسجل بالفعل — افتح الملف الموجود بدلًا من التكرار'); return }
     setErr(''); setBusy(true)
 
-    const newStage = refs.stages.find(s => s.code === 'new')
+    const newStage = refs.stages.find(s => s.code === STAGE.NEW)
     const manualSource = refs.sources.find(s => s.code === 'manual')
 
     const { error } = await supabase.from('leads').insert({

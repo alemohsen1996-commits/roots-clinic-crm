@@ -2,6 +2,7 @@
 // مصمّم ليتحمّل عشرات الآلاف من الليدات بدون تعليق المتصفح
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { QUIET_STAGES } from '../lib/stageCodes'
 
 export function useLeadRefs() {
   const [stages, setStages] = useState([])
@@ -167,8 +168,6 @@ async function flagCount({ stageIds, filters }) {
   return count ?? 0
 }
 
-// المراحل التي لا تحتاج متابعة (لا إشعار فيها إطلاقًا)
-const QUIET_STAGES = ['dead', 'lost', 'done', 'won']
 
 // يحسب إشعار الليد: عدد أيام التأخير (0 = لا إشعار)
 // يحترم: إيقاف المتابعة، التأجيل لبكرة، المراحل الميتة، التاسك المجدول

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtNum } from '../lib/format'
+import { STAGE } from '../lib/stageCodes'
 
 export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) {
   const { profile, roleCode } = useAuth()
@@ -31,7 +32,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
   useEffect(() => {
     ;(async () => {
       const { data: stages } = await supabase
-        .from('stages').select('id, code').in('code', ['deal', 'repeat_procedure'])
+        .from('stages').select('id, code').in('code', [STAGE.DEAL, STAGE.REPEAT_PROCEDURE])
       const stageIds = (stages ?? []).map(s => s.id)
       if (!stageIds.length) return
 
