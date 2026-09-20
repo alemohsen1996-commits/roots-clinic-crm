@@ -281,22 +281,17 @@ export async function fetchStageColumn({ stageId, filters = {}, limit = 50, sort
     return { rows, total }
   }
 
-  let countQ = supabase
-    .from('leads')
-    .select('id', { count: 'exact', head: true })
-    .eq('stage_id', stageId)
-  countQ = applyFilters(countQ, filters)
-  const { count } = await countQ
-
+  // استعلام واحد يرجّع صفحة العمود + العدد الحقيقي معًا (count: exact مع الصفحة)
+  // بدل استعلامين لكل عمود.
   // sort: recent = الأحدث نشاطًا · oldest = الأقدم (المهملون أولًا)
-  let dataQ = supabase
+  let q = supabase
     .from('leads')
-    .select(LEAD_COLUMNS)
+    .select(LEAD_COLUMNS, { count: 'exact' })
     .eq('stage_id', stageId)
     .order('last_activity', { ascending: sort === 'oldest', nullsFirst: sort === 'oldest' })
     .limit(limit)
-  dataQ = applyFilters(dataQ, filters)
-  const { data } = await dataQ
+  q = applyFilters(q, filters)
+  const { data, count } = await q
 
   return { rows: data ?? [], total: count ?? 0 }
 }
