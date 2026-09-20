@@ -110,56 +110,29 @@ export default function LeadsPage() {
   const loadTableRef = useRef(loadTable)
   useEffect(() => { loadTableRef.current = loadTable }, [loadTable])
 
-  // أعداد الشرائح — محسوبة في القاعدة على البورد الحالي كاملًا
+  // أعداد الشرائح — نداء RPC واحد يحسب السبعة على البورد كاملًا،
+  // والصلاحية تُشتق داخل القاعدة من المستخدم (لا من الواجهة).
+  // مستقلّة عن الفلاتر النشطة، فتُحسب مرة عند تغيّر البورد فقط.
   useEffect(() => {
     if (!boardStageIds.length) return
     let cancelled = false
     ;(async () => {
-      // العدّ مباشرة على v_lead_flags — استعلام واحد لكل شريحة،
-      // فلترة النطاق حسب الدور. v_lead_flags يعمل definer فلا يقصّ تلقائيًا.
-      // .or() مع UUID غير موثوق، فللسيلز نعدّ استعلامين (ليداته + بلا مسؤول)
-      // ونجمعهما. المنسقة والمدير باستعلام واحد.
-      const isSales = !isManager && roleCode !== 'coordinator'
-      const isCoord = !isManager && roleCode === 'coordinator'
-
-      // عدّ على مصدر (v_lead_flags أو leads) بعد تطبيق شريحة + نطاق
-      const countScoped = async (table, apply, ownerVal) => {
-        const build = () => {
-          let q = supabase.from(table)
-            .select(table === 'leads' ? 'id' : 'lead_id', { count: 'exact', head: true })
-            .in('stage_id', boardStageIds)
-            .is('archived_at', null)
-          if (isCoord) q = q.eq('coordinator_id', profile.id)
-          return apply(q)
-        }
-        if (isSales) {
-          // ليداته + بلا مسؤول — استعلامان منفصلان يُجمعان
-          const [mine, none] = await Promise.all([
-            build().eq('owner_id', profile.id).then(r => r.count ?? 0),
-            build().is('owner_id', null).then(r => r.count ?? 0),
-          ])
-          return mine + none
-        }
-        return build().then(r => r.count ?? 0)
-      }
-
-      const flagCount = (apply) => countScoped('v_lead_flags', apply)
-      const leadCount = (apply) => countScoped('leads', apply)
-
-      const [alertOnly, taskToday, taskOverdue, noTask, paused, noOwner, stale] = await Promise.all([
-        flagCount(q => q.gt('alert_days', 0)),
-        flagCount(q => q.eq('task_today', true)),
-        flagCount(q => q.eq('task_overdue', true)),
-        flagCount(q => q.eq('open_tasks', 0)),
-        leadCount(q => q.eq('follow_paused', true)),
-        leadCount(q => q.is('owner_id', null)),
-        leadCount(q => q.lt('last_activity', new Date(Date.now() - 7 * 86400000).toISOString())),
-      ])
-
-      if (!cancelled) setChipCounts({ alertOnly, taskToday, taskOverdue, noTask, paused, noOwner, stale })
+      const { data, error } = await supabase.rpc('chip_counts', { p_stage_ids: boardStageIds })
+      if (cancelled) return
+      if (error) { console.error(error); return }
+      const c = data?.[0] ?? {}
+      setChipCounts({
+        alertOnly:   c.alert_only   ?? 0,
+        taskToday:   c.task_today   ?? 0,
+        taskOverdue: c.task_overdue ?? 0,
+        noTask:      c.no_task      ?? 0,
+        paused:      c.paused       ?? 0,
+        noOwner:     c.no_owner     ?? 0,
+        stale:       c.stale        ?? 0,
+      })
     })()
     return () => { cancelled = true }
-  }, [boardStageIds, effectiveFilters])
+  }, [boardStageIds])
   useEffect(() => { setPage(0) }, [filters, board, pageSize])
   // التحديد يخصّ الصفحة المعروضة — يُمسح عند أي تغيير في السياق
   useEffect(() => { setSelected(new Set()) }, [filters, board, pageSize, page, view, refreshKey])
