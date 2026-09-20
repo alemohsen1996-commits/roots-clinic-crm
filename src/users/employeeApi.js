@@ -23,22 +23,36 @@ export const createEmployee = (p) => callManage({ action: 'create', ...p })
 export const changeEmployeeEmail = (p) => callManage({ action: 'change_email', ...p })
 export const changeEmployeePassword = (p) => callManage({ action: 'change_password', ...p })
 
+// عشوائية آمنة تشفيريًا: عدد صحيح في [0, max) بلا تحيّز باقي القسمة
+// (نرفض العيّنات فوق أكبر مضاعف لـ max يقلّ عن 2^32)
+function secureRandInt(max) {
+  const limit = Math.floor(0xFFFFFFFF / max) * max
+  const buf = new Uint32Array(1)
+  let x
+  do { crypto.getRandomValues(buf); x = buf[0] } while (x >= limit)
+  return x % max
+}
+
+// اختيار حرف عشوائي آمن من مجموعة
+const pick = (set) => set[secureRandInt(set.length)]
+
 // مولّد كلمة مرور قوية (حروف كبيرة/صغيرة + أرقام + رمز)
+// يستعمل crypto.getRandomValues — عشوائية غير قابلة للتنبّؤ، مناسبة للأسرار
 export function generatePassword(len = 12) {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
   const lower = 'abcdefghijkmnpqrstuvwxyz'
   const nums = '23456789'
   const sym = '!@#$%&*'
   const all = upper + lower + nums + sym
-  let pass = [
-    upper[Math.floor(Math.random() * upper.length)],
-    lower[Math.floor(Math.random() * lower.length)],
-    nums[Math.floor(Math.random() * nums.length)],
-    sym[Math.floor(Math.random() * sym.length)],
-  ]
-  for (let i = pass.length; i < len; i++) {
-    pass.push(all[Math.floor(Math.random() * all.length)])
+
+  // نضمن حرفًا واحدًا على الأقل من كل فئة
+  const pass = [pick(upper), pick(lower), pick(nums), pick(sym)]
+  for (let i = pass.length; i < len; i++) pass.push(pick(all))
+
+  // خلط Fisher–Yates بعشوائية آمنة — يزيل انتظام "أول ٤ حروف = فئات ثابتة"
+  for (let i = pass.length - 1; i > 0; i--) {
+    const j = secureRandInt(i + 1)
+    ;[pass[i], pass[j]] = [pass[j], pass[i]]
   }
-  // خلط
-  return pass.sort(() => Math.random() - 0.5).join('')
+  return pass.join('')
 }

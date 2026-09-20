@@ -40,6 +40,13 @@ export default function LeadsPage() {
     try { localStorage.setItem('leads-sort', sort) } catch {}
   }, [sort])
   const [filters, setFilters] = useState(EMPTY_FILTERS)
+  // البحث بـ debounce: الحقل يستجيب فورًا، لكن الاستعلام ينتظر توقّف الكتابة 300ms
+  // فلا يُطلق استعلامًا (وremount للكانبان) مع كل ضغطة زر
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(filters.search.trim()), 300)
+    return () => clearTimeout(id)
+  }, [filters.search])
   const [showAdd, setShowAdd] = useState(false)
   const [openLead, setOpenLead] = useState(null)
   const [navList, setNavList] = useState([])   // قائمة التنقّل: صفوف العمود أو الجدول
@@ -79,10 +86,10 @@ export default function LeadsPage() {
 
   // إضافة coordinator_id للفلتر لو "اتحوّلولي اليوم" مفعّل ودور المستخدم منسقة
   const effectiveFilters = useMemo(() => {
-    const f = { ...filters }
+    const f = { ...filters, search: debouncedSearch }
     if (f.transferredToday && roleCode === 'coordinator') f.coordinatorId = profile.id
     return f
-  }, [filters, roleCode, profile])
+  }, [filters, debouncedSearch, roleCode, profile])
 
   // quiet = تحديث هادئ بلا شاشة تحميل (الصفوف الحالية تبقى ظاهرة حتى تصل الجديدة)
   const loadTable = useCallback(async ({ quiet = false } = {}) => {

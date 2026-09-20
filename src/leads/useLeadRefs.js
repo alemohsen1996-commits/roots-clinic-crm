@@ -144,7 +144,10 @@ async function flagLeadIds({ stageIds, filters, from = 0, to = null, sort = 'rec
   let q = supabase.from('v_lead_flags')
     .select('lead_id, next_due')
     .in('stage_id', stageIds)
-    .is('archived_at', null)
+  // الـ view صار يحوي كل أعمدة الفلترة، فنطبّق الفلاتر كاملةً هنا —
+  // بذلك يتطابق ترقيم الصفحة مع أي فلتر مدموج (مصدر/بحث/تاريخ…).
+  // applyFilters يضيف شرط archived_at بنفسه (is null افتراضيًا).
+  q = applyFilters(q, filters)
   q = applyFlagConds(q, filters)
   q = q.order('next_due', { ascending: sort !== 'recent', nullsFirst: false })
   if (to !== null) q = q.range(from, to)
@@ -157,7 +160,8 @@ async function flagCount({ stageIds, filters }) {
   let q = supabase.from('v_lead_flags')
     .select('lead_id', { count: 'exact', head: true })
     .in('stage_id', stageIds)
-    .is('archived_at', null)
+  // نفس الفلاتر الكاملة على العدّ — فيتساوى total مع عدد صفوف الصفحة
+  q = applyFilters(q, filters)
   q = applyFlagConds(q, filters)
   const { count } = await q
   return count ?? 0
