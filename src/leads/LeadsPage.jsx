@@ -1,5 +1,5 @@
 // صفحة الليدات — شرائح فلترة سريعة + لوحة تفصيلية + بوردان + جدول مقسّم
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useLeadRefs, fetchLeadsPage } from './useLeadRefs'
 import Kanban from './Kanban'
@@ -84,9 +84,10 @@ export default function LeadsPage() {
     return f
   }, [filters, roleCode, profile])
 
-  const loadTable = useCallback(async () => {
+  // quiet = تحديث هادئ بلا شاشة تحميل (الصفوف الحالية تبقى ظاهرة حتى تصل الجديدة)
+  const loadTable = useCallback(async ({ quiet = false } = {}) => {
     if (!boardStageIds.length) return
-    setLoading(true)
+    if (!quiet) setLoading(true)
     // نجلب صفحة أكبر قليلاً لو فيه فلاتر محلية، لضمان امتلاء الصفحة
     const { rows, total } = await fetchLeadsPage({
       boardStageIds, filters: effectiveFilters, page, pageSize,
@@ -97,6 +98,10 @@ export default function LeadsPage() {
   }, [boardStageIds, effectiveFilters, page, pageSize, refreshKey])
 
   useEffect(() => { if (view === 'table') loadTable() }, [loadTable, view])
+
+  // نسخة حيّة من loadTable لاستدعاء تحديث هادئ من الدرور دون إعادة إنشاء أي مستمع
+  const loadTableRef = useRef(loadTable)
+  useEffect(() => { loadTableRef.current = loadTable }, [loadTable])
 
   // أعداد الشرائح — محسوبة في القاعدة على البورد الحالي كاملًا
   useEffect(() => {
@@ -164,10 +169,11 @@ export default function LeadsPage() {
   // refresh جماعي كامل — لإضافة ليد جديد والإجراءات الجماعية والاسترجاع فقط
   const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
 
-  // تغييرات الدرور: في الكانبان التحديث موضعي عبر boardBus (بلا refresh جماعي
-  // يعطّل مع النت البطيء)، وفي الجدول نعيد تحميل الصفحة ليظهر التغيير.
+  // تغييرات الدرور:
+  //  • الكانبان → تحديث موضعي عبر boardBus (بلا نداء قاعدة للنقل)
+  //  • الجدول → تحديث هادئ للصفوف بلا شاشة تحميل تقطع على السيلز مع النت البطيء
   const onDrawerChanged = useCallback(() => {
-    if (view === 'table') setRefreshKey(k => k + 1)
+    if (view === 'table') loadTableRef.current({ quiet: true })
   }, [view])
 
   const toggleOne = useCallback((id) => {
