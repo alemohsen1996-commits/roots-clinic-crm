@@ -59,7 +59,30 @@ function applyFilters(q, filters) {
   if (filters.interest) q = q.eq('procedure_interest', filters.interest)
   if (filters.search) {
     const s = filters.search.trim()
-    q = q.or(`full_name.ilike.%${s}%,phone.ilike.%${s}%,file_no.ilike.%${s}%`)
+    // أرقام فقط من نص البحث — للمطابقة على phone_norm (المخزّن بلا + أو مسافات)
+    let digits = s.replace(/\D/g, '')
+    // توحيد الصيغة المحلية مع المخزّن (كله بكود الدولة 966…):
+    // 00 = بادئة اتصال دولي، و 0 = بادئة محلية سعودية → نزيلها فيطابق الرقم بالكود
+    if (digits.startsWith('00')) digits = digits.slice(2)
+    else if (digits.startsWith('0')) digits = digits.slice(1)
+    // هل يوجد حرف (عربي/لاتيني)؟ أي شيء غير رقم أو علامات الهاتف المعتادة
+    const hasLetters = /[^\d\s+()\-.,]/.test(s)
+
+    const ors = []
+    if (hasLetters) {
+      ors.push(`full_name.ilike.%${s}%`)
+      ors.push(`file_no.ilike.%${s}%`)
+    }
+    if (digits.length >= 3) {
+      // بحث بالأرقام على العمود المطبّع — يطابق كل الأشكال: +، مسافات، أو بدون كود دولة
+      ors.push(`phone_norm.ilike.%${digits}%`)
+      ors.push(`file_no.ilike.%${digits}%`)
+    }
+    // احتياطي: مدخل قصير بلا حروف ولا 3 أرقام — ابحث بالاسم ورقم الملف كما هو
+    if (ors.length === 0) {
+      ors.push(`full_name.ilike.%${s}%`, `file_no.ilike.%${s}%`)
+    }
+    q = q.or(ors.join(','))
   }
 
   // تاريخ الإنشاء
