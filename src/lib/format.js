@@ -39,8 +39,7 @@ const isMobile = () =>
 // الوسيطة، وذلك التحويل يفقد اسم التبويب فيُفتح تبويب جديد كل مرة
 // (وتظهر معه نافذة "Open WhatsApp?" في كل ضغطة).
 // web.whatsapp.com يفتح المحادثة مباشرة ويحترم اسم التبويب.
-// نحتفظ بمرجع النافذة التي فتحناها — أمتن من الاعتماد على اسم النافذة
-// (المواقع الخارجية تمسح window.name، فيضيع التبويب ويُفتح غيره)
+// نحتفظ بمرجع تبويب الويب (لمسار الاحتياط فقط)
 let waWin = null
 
 export function openWhatsApp(phone) {
@@ -48,26 +47,33 @@ export function openWhatsApp(phone) {
   if (!n) return
 
   // الموبايل: wa.me يفتح تطبيق واتساب مباشرة
-  // سطح المكتب: web.whatsapp.com يفتح نسخة الويب
-  const url = isMobile()
-    ? `https://wa.me/${n}`
-    : `https://web.whatsapp.com/send?phone=${n}`
-
-  // نافذة سابقة ما زالت مفتوحة؟ انقلها للعميل الجديد وركّز عليها.
-  // الكتابة في location مسموحة عبر الأصول (الممنوع هو القراءة فقط)،
-  // فلا نفتح تبويبًا جديدًا في كل مرة.
-  if (waWin && !waWin.closed) {
-    try {
-      waWin.location.href = url
-      waWin.focus()
-      return
-    } catch {
-      // تعذّر النقل لأي سبب — نفتح نافذة جديدة أدناه
-    }
+  if (isMobile()) {
+    window.open(`https://wa.me/${n}`, '_blank', 'noopener')
+    return
   }
 
-  waWin = window.open(url, 'roots-whatsapp')
-  waWin?.focus()
+  // سطح المكتب: نفتح تطبيق WhatsApp Desktop عبر بروتوكول whatsapp://
+  // التطبيق يركّز محادثة العميل نفسها بلا فتح أي تبويب متصفّح.
+  // ملاحظة: web.whatsapp.com يفرض عزلًا (COOP) يقطع صلة المتصفح بالتبويب
+  // بعد أول فتحة، فيتعذّر إعادة استخدام تبويب الويب — لذا التطبيق هو الحل الأنظف.
+  // إن لم يكن التطبيق مثبّتًا نرجع للنسخة الويب في تبويب واحد مُعاد استخدامه.
+  const webUrl = `https://web.whatsapp.com/send?phone=${n}`
+  let appTook = false
+  const onBlur = () => { appTook = true }   // فتح التطبيق يُفقد الصفحة التركيز
+  window.addEventListener('blur', onBlur, { once: true })
+
+  window.location.href = `whatsapp://send?phone=${n}`
+
+  setTimeout(() => {
+    window.removeEventListener('blur', onBlur)
+    if (appTook) return                       // التطبيق فتح المحادثة — بلا تبويب
+    if (waWin && !waWin.closed) {
+      try { waWin.location.href = webUrl } catch { waWin = window.open(webUrl, 'roots-whatsapp') }
+    } else {
+      waWin = window.open(webUrl, 'roots-whatsapp')
+    }
+    waWin?.focus()
+  }, 700)
 }
 
 // "منذ ٥ دقائق" — لعمود آخر نشاط
