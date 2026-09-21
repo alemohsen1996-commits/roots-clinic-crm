@@ -43,28 +43,16 @@ export function openWhatsApp(phone) {
   const n = waNumber(phone)
   if (!n) return
 
-  // الموبايل: wa.me يفتح التطبيق نفسه وهو الأنسب
-  if (isMobile()) {
-    window.open(`https://wa.me/${n}`, '_blank', 'noopener')
-    return
-  }
+  // الموبايل: wa.me يفتح تطبيق واتساب مباشرة
+  // سطح المكتب: web.whatsapp.com يفتح نسخة الويب
+  const url = isMobile()
+    ? `https://wa.me/${n}`
+    : `https://web.whatsapp.com/send?phone=${n}`
 
-  const url = `https://web.whatsapp.com/send?phone=${n}`
-  const w = window.open('', 'roots-whatsapp')
-  if (!w) { window.open(url, 'roots-whatsapp'); return }
-
-  // تبويب موجود بالفعل → غيّر وجهته فقط
-  try {
-    if (w.location.href === 'about:blank' || !w.location.href.includes('whatsapp')) {
-      w.location.href = url
-    } else {
-      w.location.replace(url)
-    }
-  } catch {
-    // تعذّر الوصول لموقع التبويب (قيود المتصفح) — افتح عاديًا بنفس الاسم
-    window.open(url, 'roots-whatsapp')
-  }
-  w.focus()
+  // اسم نافذة ثابت: كل ضغطة تعيد استخدام نفس التبويب وتنقله للعميل الجديد،
+  // بدل فتح تبويب جديد في كل مرة (نداء واحد يتفادى قراءة location عبر الأصول)
+  const w = window.open(url, 'roots-whatsapp')
+  w?.focus()
 }
 
 // "منذ ٥ دقائق" — لعمود آخر نشاط
