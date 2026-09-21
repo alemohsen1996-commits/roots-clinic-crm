@@ -909,7 +909,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
 @media (max-width: 900px) {
   /* ---------- الهيكل ---------- */
   .shell { grid-template-columns: 1fr; }
-  .main { padding: 14px 14px 40px; padding-top: 68px; }
+  .main { padding: 14px 14px 40px; padding-top: calc(68px + env(safe-area-inset-top, 0px)); }
   /* القائمة خارج الشاشة يجب ألا تُنشئ تمريرًا أفقيًا للصفحة */
   html, body { overflow-x: hidden; max-width: 100vw; }
 
@@ -921,8 +921,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
     position: fixed;
     top: 0; left: 0; right: 0;
     width: 100%;
-    height: 56px;
-    padding: 0 14px;
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) 14px 0;
     box-sizing: border-box;
     background: var(--ink);
     color: #fff;
@@ -963,7 +963,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
     transform: none;
     transition: inset-inline-end .24s ease;
     z-index: 80;
-    padding-top: 18px;
+    padding-top: calc(18px + env(safe-area-inset-top, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     overflow-y: auto;
   }
   .sidebar.open { inset-inline-end: 0; }
@@ -1013,6 +1014,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
     width: 100% !important;
     max-width: 100% !important;
     border-radius: 0;
+    /* تنزل تحت الشريط العلوي الثابت فيظهر زر الإغلاق والتقليب */
+    padding-top: calc(56px + env(safe-area-inset-top, 0px) + 14px);
+    padding-bottom: calc(26px + env(safe-area-inset-bottom, 0px));
   }
   .drawer-info { grid-template-columns: 1fr; }
 
