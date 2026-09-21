@@ -9,7 +9,7 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
   const { profile } = useAuth()
   const [form, setForm] = useState({
     full_name: '', phone: '', country: '', city: '',
-    age: '', occupation: '', branch_id: '',
+    age: '', occupation: '', branch_id: '', stage_id: '',
     source_id: '', procedure_interest: '', notes: '',
   })
   const [branches, setBranches] = useState([])
@@ -22,6 +22,15 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
     supabase.from('branches').select('id, name').eq('is_active', true).order('name')
       .then(({ data }) => setBranches(data ?? []))
   }, [])
+
+  // المراحل المتاحة عند الإنشاء اليدوي: بورد المبيعات فقط
+  const salesStages = refs.stages.filter(s => (s.board ?? 'sales') === 'sales')
+
+  // المرحلة الافتراضية = "جديد" (تُضبط مرة عند توفّر المراجع)
+  useEffect(() => {
+    const n = refs.stages.find(s => s.code === STAGE.NEW)
+    if (n) setForm(f => (f.stage_id ? f : { ...f, stage_id: String(n.id) }))
+  }, [refs.stages])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -52,7 +61,7 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
       source_id: form.source_id ? Number(form.source_id) : manualSource?.id,
       procedure_interest: form.procedure_interest || null,
       notes: form.notes || null,
-      stage_id: newStage?.id,
+      stage_id: form.stage_id ? Number(form.stage_id) : newStage?.id,
       owner_id: profile.id,
       created_by: profile.id,
     })
@@ -95,6 +104,13 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
             المرحلة: {dup.stage} · المسؤول: {dup.owner ?? 'غير مسند'}
           </div>
         )}
+
+        <div className="field">
+          <label>المرحلة</label>
+          <select value={form.stage_id} onChange={e => set('stage_id', e.target.value)}>
+            {salesStages.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+          </select>
+        </div>
 
         <div className="grid-2">
           <div className="field">
