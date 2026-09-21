@@ -39,6 +39,10 @@ const isMobile = () =>
 // الوسيطة، وذلك التحويل يفقد اسم التبويب فيُفتح تبويب جديد كل مرة
 // (وتظهر معه نافذة "Open WhatsApp?" في كل ضغطة).
 // web.whatsapp.com يفتح المحادثة مباشرة ويحترم اسم التبويب.
+// نحتفظ بمرجع النافذة التي فتحناها — أمتن من الاعتماد على اسم النافذة
+// (المواقع الخارجية تمسح window.name، فيضيع التبويب ويُفتح غيره)
+let waWin = null
+
 export function openWhatsApp(phone) {
   const n = waNumber(phone)
   if (!n) return
@@ -49,10 +53,21 @@ export function openWhatsApp(phone) {
     ? `https://wa.me/${n}`
     : `https://web.whatsapp.com/send?phone=${n}`
 
-  // اسم نافذة ثابت: كل ضغطة تعيد استخدام نفس التبويب وتنقله للعميل الجديد،
-  // بدل فتح تبويب جديد في كل مرة (نداء واحد يتفادى قراءة location عبر الأصول)
-  const w = window.open(url, 'roots-whatsapp')
-  w?.focus()
+  // نافذة سابقة ما زالت مفتوحة؟ انقلها للعميل الجديد وركّز عليها.
+  // الكتابة في location مسموحة عبر الأصول (الممنوع هو القراءة فقط)،
+  // فلا نفتح تبويبًا جديدًا في كل مرة.
+  if (waWin && !waWin.closed) {
+    try {
+      waWin.location.href = url
+      waWin.focus()
+      return
+    } catch {
+      // تعذّر النقل لأي سبب — نفتح نافذة جديدة أدناه
+    }
+  }
+
+  waWin = window.open(url, 'roots-whatsapp')
+  waWin?.focus()
 }
 
 // "منذ ٥ دقائق" — لعمود آخر نشاط
