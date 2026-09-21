@@ -541,8 +541,8 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
               )}
             </div>
 
-            {/* بيانات العميل — عرض مضغوط + قلم، أو فورم التعديل الشامل */}
-            {!editing ? (
+            {/* بيانات العميل — ملخّص مضغوط + قلم (فورم التعديل الكامل يظهر بعرض الدرور تحت الرأس) */}
+            {!editing && (
               <div>
                 <div className="lead-facts">
                   <span><i>العمر</i>{lead.age ?? '—'}</span>
@@ -562,100 +562,6 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                     ✎ تعديل البيانات
                   </button>
                 )}
-              </div>
-            ) : (
-              <div className="lead-edit">
-                <div className="lead-edit-title">✎ تعديل بيانات العميل</div>
-
-                <div className="lead-edit-group">
-                  <div className="grp-label">بيانات أساسية</div>
-                  <div className="lead-edit-grid">
-                    <div className="field">
-                      <label>الاسم *</label>
-                      <input value={edit.full_name} onChange={e => setE('full_name', e.target.value)} />
-                    </div>
-                    <div className="field">
-                      <label>الهاتف *</label>
-                      <input dir="ltr" value={edit.phone} onChange={e => setE('phone', e.target.value)} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="lead-edit-group">
-                  <div className="grp-label">معلومات شخصية</div>
-                  <div className="lead-edit-grid">
-                    <div className="field">
-                      <label>العمر</label>
-                      <input type="number" min={0} max={120} value={edit.age}
-                        onChange={e => setE('age', e.target.value)} />
-                    </div>
-                    <div className="field">
-                      <label>المهنة</label>
-                      <input value={edit.occupation} onChange={e => setE('occupation', e.target.value)} />
-                    </div>
-                    <div className="field">
-                      <label>المدينة</label>
-                      <input value={edit.city} onChange={e => setE('city', e.target.value)} />
-                    </div>
-                    <div className="field">
-                      <label>الدولة</label>
-                      <input value={edit.country} onChange={e => setE('country', e.target.value)} />
-                    </div>
-                    <div className="field col-2">
-                      <label>اللغة</label>
-                      <input value={edit.language} onChange={e => setE('language', e.target.value)} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="lead-edit-group">
-                  <div className="grp-label">تصنيف الليد</div>
-                  <div className="lead-edit-grid">
-                    <div className="field">
-                      <label>المصدر</label>
-                      <select value={edit.source_id} onChange={e => setE('source_id', e.target.value)}>
-                        <option value="">— بدون —</option>
-                        {refs.sources.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
-                      </select>
-                    </div>
-                    <div className="field">
-                      <label>الفرع</label>
-                      <select value={edit.branch_id} onChange={e => setE('branch_id', e.target.value)}>
-                        <option value="">— بدون —</option>
-                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                      </select>
-                    </div>
-                    <div className="field">
-                      <label>الاهتمام</label>
-                      <input value={edit.procedure_interest}
-                        onChange={e => setE('procedure_interest', e.target.value)} />
-                    </div>
-                    <div className="field">
-                      <label>الميزانية</label>
-                      <input value={edit.budget_range} onChange={e => setE('budget_range', e.target.value)} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="lead-edit-group">
-                  <div className="grp-label">ملاحظات</div>
-                  <div className="lead-edit-grid">
-                    <div className="field col-2">
-                      <textarea rows={2} value={edit.notes}
-                        onChange={e => setE('notes', e.target.value)}
-                        placeholder="ملاحظات عن العميل…" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="lead-edit-actions">
-                  <button className="btn btn-primary" onClick={saveEdit} disabled={savingEdit}>
-                    {savingEdit ? 'جارٍ الحفظ…' : 'حفظ'}
-                  </button>
-                  <button className="btn btn-ghost" onClick={() => { setEditing(false); setErr(''); load() }}>
-                    إلغاء
-                  </button>
-                </div>
               </div>
             )}
           </div>
@@ -691,6 +597,102 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
           <div style={{ fontSize: 12.5, color: 'var(--ink-soft)',
             background: 'var(--surface)', padding: '8px 12px', borderRadius: 8, marginBottom: 10 }}>
             👁 هذا المريض تحت إدارة المنسقة الآن — يمكنك متابعة حالته فقط
+          </div>
+        )}
+
+        {editing && (
+          <div className="lead-edit">
+            <div className="lead-edit-title">✎ تعديل بيانات العميل</div>
+
+            <div className="lead-edit-group">
+              <div className="grp-label">بيانات أساسية</div>
+              <div className="lead-edit-grid">
+                <div className="field">
+                  <label>الاسم *</label>
+                  <input value={edit.full_name} onChange={e => setE('full_name', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>الهاتف *</label>
+                  <input dir="ltr" value={edit.phone} onChange={e => setE('phone', e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <div className="lead-edit-group">
+              <div className="grp-label">معلومات شخصية</div>
+              <div className="lead-edit-grid">
+                <div className="field">
+                  <label>العمر</label>
+                  <input type="number" min={0} max={120} value={edit.age}
+                    onChange={e => setE('age', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>المهنة</label>
+                  <input value={edit.occupation} onChange={e => setE('occupation', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>المدينة</label>
+                  <input value={edit.city} onChange={e => setE('city', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>الدولة</label>
+                  <input value={edit.country} onChange={e => setE('country', e.target.value)} />
+                </div>
+                <div className="field col-2">
+                  <label>اللغة</label>
+                  <input value={edit.language} onChange={e => setE('language', e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <div className="lead-edit-group">
+              <div className="grp-label">تصنيف الليد</div>
+              <div className="lead-edit-grid">
+                <div className="field">
+                  <label>المصدر</label>
+                  <select value={edit.source_id} onChange={e => setE('source_id', e.target.value)}>
+                    <option value="">— بدون —</option>
+                    {refs.sources.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>الفرع</label>
+                  <select value={edit.branch_id} onChange={e => setE('branch_id', e.target.value)}>
+                    <option value="">— بدون —</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>الاهتمام</label>
+                  <input value={edit.procedure_interest}
+                    onChange={e => setE('procedure_interest', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>الميزانية</label>
+                  <input value={edit.budget_range} onChange={e => setE('budget_range', e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <div className="lead-edit-group">
+              <div className="grp-label">ملاحظات</div>
+              <div className="lead-edit-grid">
+                <div className="field col-2">
+                  <textarea rows={2} value={edit.notes}
+                    onChange={e => setE('notes', e.target.value)}
+                    placeholder="ملاحظات عن العميل…" />
+                </div>
+              </div>
+            </div>
+
+            <div className="lead-edit-actions">
+              <button className="btn btn-primary" onClick={saveEdit} disabled={savingEdit}>
+                {savingEdit ? 'جارٍ الحفظ…' : 'حفظ'}
+              </button>
+              <button className="btn btn-ghost" onClick={() => { setEditing(false); setErr(''); load() }}>
+                إلغاء
+              </button>
+            </div>
           </div>
         )}
 
