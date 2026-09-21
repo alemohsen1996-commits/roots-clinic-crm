@@ -1,5 +1,5 @@
-// اللوحة الجانبية لتفاصيل الليد
-// مرتّبة حسب أولوية عمل الموظف: تواصل → متابعة → مرحلة → العرض → بيانات → سجل
+// اللوحة الجانبية لتفاصيل الليد — تبويبان: «الكل» (كل الأفعال) + «السجل»
+// الهيدر ثابت فوق التبويبين، وبه تعديل بيانات العميل الشامل inline
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { STAGE } from '../lib/stageCodes'
@@ -14,7 +14,7 @@ const ACTIVITY_LABEL = {
   offer: 'العرض المقدّم',
 }
 
-// تصنيف السجل للتبويبات
+// تصنيف السجل للتبويبات الفرعية
 const ACT_GROUP = {
   call: 'comm', whatsapp: 'comm', sms: 'comm', email: 'comm',
   note: 'note',
@@ -47,9 +47,14 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const [branches, setBranches] = useState([])
   const [err, setErr] = useState('')
   const [flash, setFlash] = useState('')
+  const [undo, setUndo] = useState(null)          // { fromStage, toStage } — تراجع سريع بعد نقل سريع
   const [busy, setBusy] = useState(false)
 
-  const [tab, setTab] = useState('follow')     // follow | offer | info | log
+  const [tab, setTab] = useState('all')           // all | log
+
+  // زر "غير مهتم": يكشف مربّع سبب سريع قبل النقل لمرحلة الخسارة
+  const [notInterestedOpen, setNotInterestedOpen] = useState(false)
+  const [notInterestedReason, setNotInterestedReason] = useState('')
 
   // التنقّل بين الليدات المعروضة — يحترم الفلاتر والعمود الذي فُتح منه
   const navList = Array.isArray(siblings) ? siblings : []
@@ -58,12 +63,16 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const prevLead = hasNav && navIndex > 0 ? navList[navIndex - 1] : null
   const nextLead = hasNav && navIndex < navList.length - 1 ? navList[navIndex + 1] : null
 
-  const goTo = (l) => { if (l && onNavigate) { setTab('follow'); onNavigate(l) } }
+  const goTo = (l) => { if (l && onNavigate) { setTab('all'); onNavigate(l) } }
   const [actTab, setActTab] = useState('all')
 
-  // تعديل البيانات
+  // تعديل بيانات العميل الشامل (inline في الهيدر)
   const [editing, setEditing] = useState(false)
-  const [edit, setEdit] = useState({ full_name: '', phone: '', age: '', occupation: '', branch_id: '' })
+  const [edit, setEdit] = useState({
+    full_name: '', phone: '', age: '', occupation: '',
+    country: '', city: '', language: '',
+    source_id: '', branch_id: '', procedure_interest: '', budget_range: '', notes: '',
+  })
   const [savingEdit, setSavingEdit] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteText, setDeleteText] = useState('')
@@ -97,7 +106,10 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     setEdit({
       full_name: l?.full_name ?? '', phone: l?.phone ?? '',
       age: l?.age ?? '', occupation: l?.occupation ?? '',
-      branch_id: l?.branch_id ?? '',
+      country: l?.country ?? '', city: l?.city ?? '', language: l?.language ?? '',
+      source_id: l?.source_id ?? '', branch_id: l?.branch_id ?? '',
+      procedure_interest: l?.procedure_interest ?? '', budget_range: l?.budget_range ?? '',
+      notes: l?.notes ?? '',
     })
     setOffer({
       offered_price: l?.offered_price ?? '',
@@ -152,7 +164,26 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const needsLostReason = targetStage?.code === STAGE.LOST
   const movingToFollowup = targetStage?.code === STAGE.FOLLOWUP && lead?.stages?.code !== STAGE.FOLLOWUP
 
-  function say(m) { setFlash(m); setTimeout(() => setFlash(''), 2500) }
+  // flash مع خيار تراجع اختياري (يظهر لمدة أطول عند إتاحة التراجع)
+  function say(m, undoInfo = null) {
+    setFlash(m)
+    setUndo(undoInfo)
+    setTimeout(() => { setFlash(''); setUndo(null) }, undoInfo ? 6000 : 2500)
+  }
+
+  // تراجع سريع عن آخر نقل مرحلة — يعيد المرحلة السابقة فقط
+  async function undoMove() {
+    if (!undo) return
+    const { fromStage, toStage } = undo
+    setUndo(null); setFlash('')
+    await supabase.from('leads').update({
+      stage_id: fromStage, last_activity: new Date().toISOString(),
+    }).eq('id', leadId)
+    await load()
+    emitBoardPatch({ removeId: leadId, removeFrom: toStage, refetch: [fromStage] })
+    onChanged()
+    say('تم التراجع')
+  }
 
   async function changeStage() {
     if (Number(stageTo) === lead.stage_id) return
@@ -161,12 +192,10 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     // المنسقة تستلم العميل بناءً على العرض — التحويل بدونه يفقدها السياق
     if (movingToFollowup && !lead.offer_details?.trim()) {
       setErr('سجّل العرض المقدّم للعميل أولًا — المنسقة تحتاج معرفة ما عُرض عليه')
-      setTab('offer')
       return
     }
     if (movingToFollowup && !(lead.offered_price > 0)) {
       setErr('سجّل السعر المعروض أولًا')
-      setTab('offer')
       return
     }
 
@@ -208,8 +237,15 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
       full_name: edit.full_name.trim(),
       phone: edit.phone.trim(),
       age: edit.age ? Number(edit.age) : null,
-      occupation: edit.occupation || null,
+      occupation: edit.occupation?.trim() || null,
+      country: edit.country?.trim() || null,
+      city: edit.city?.trim() || null,
+      language: edit.language?.trim() || null,
+      source_id: edit.source_id ? Number(edit.source_id) : null,
       branch_id: edit.branch_id ? Number(edit.branch_id) : null,
+      procedure_interest: edit.procedure_interest?.trim() || null,
+      budget_range: edit.budget_range?.trim() || null,
+      notes: edit.notes?.trim() || null,
     }).eq('id', leadId)
     setSavingEdit(false)
     if (error) {
@@ -234,14 +270,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     setSavingOffer(false)
 
     if (error) {
-      // الخطأ الأشيع: عمود offer_details غير موجود (لم يُنفَّذ ملف 030)
-      const missingCol = /offer_details/i.test(error.message || '')
-      setOfferMsg({
-        ok: false,
-        text: missingCol
-          ? 'خانة التفاصيل غير موجودة في القاعدة — نفّذ ملف 030_offer_details.sql'
-          : 'تعذر الحفظ — ' + (error.message || ''),
-      })
+      setOfferMsg({ ok: false, text: 'تعذر الحفظ — ' + (error.message || '') })
       return
     }
 
@@ -304,8 +333,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     let nextStageId = null
     if (canMoveStage && chain.length) {
       if (idx === -1) {
-        // ليس في السلسلة بعد → أول مرحلة "لا يرد"
-        nextStageId = chain[0].id
+        nextStageId = chain[0].id       // ليس في السلسلة بعد → أول مرحلة "لا يرد"
       } else if (idx < chain.length - 1) {
         nextStageId = chain[idx + 1].id
       }
@@ -322,21 +350,18 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     }).eq('id', leadId)
 
     setBusy(false)
-    say(nextStageId ? 'سُجِّل "لم يرد" ونُقل للمرحلة التالية' : 'سُجِّل "لم يرد"')
     await load()
     if (nextStageId) {
-      // نُقل لمرحلة تالية: المصدر يشيله، والهدف يحدّث نفسه
       emitBoardPatch({ removeId: leadId, removeFrom: fromStage, refetch: [nextStageId] })
+      say('سُجِّل "لم يرد" ونُقل للمرحلة التالية', { fromStage, toStage: nextStageId })
     } else {
-      // بقي مكانه: حدّث العمود فقط (العدّاد/آخر نشاط)
       emitBoardPatch({ refetch: [fromStage] })
+      say('سُجِّل "لم يرد"')
     }
     onChanged()
   }
 
-  // إجراء سريع: تم التواصل
-  // ينقل من أي مرحلة مبكرة (جديد / لا يرد ١-٣) إلى "تم التواصل"
-  // ولا يعمل إطلاقًا على بورد المنسقات
+  // إجراء سريع: تم التواصل — ينقل من مرحلة مبكرة (جديد / لا يرد) إلى "تم التواصل"
   async function markContacted() {
     setBusy(true)
     const fromStage = lead.stage_id
@@ -354,13 +379,65 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
       ...(movable && contacted ? { stage_id: contacted.id } : {}),
     }).eq('id', leadId)
     setBusy(false)
-    say(movable && contacted ? 'تم التواصل — نُقل إلى "تم التواصل"' : 'تم تسجيل التواصل')
     await load()
     if (movable && contacted && contacted.id !== fromStage) {
       emitBoardPatch({ removeId: leadId, removeFrom: fromStage, refetch: [contacted.id] })
+      say('تم التواصل — نُقل إلى "تم التواصل"', { fromStage, toStage: contacted.id })
     } else {
       emitBoardPatch({ refetch: [fromStage] })
+      say('تم تسجيل التواصل')
     }
+    onChanged()
+  }
+
+  // إجراء سريع: مهتم — ينقل إلى مرحلة "مهتم" (بورد المبيعات)
+  async function markInterested() {
+    setBusy(true)
+    const fromStage = lead.stage_id
+    const canMoveStage = currentBoard === 'sales' && !readOnlyForSales
+    const interested = refs.stages.find(s => s.code === STAGE.INTERESTED)
+    const movable = canMoveStage && interested && lead.stages?.code !== STAGE.INTERESTED
+
+    await supabase.from('activities').insert({
+      lead_id: leadId, user_id: profile.id, type: 'call', content: 'العميل مهتم',
+    })
+    await supabase.from('leads').update({
+      last_activity: new Date().toISOString(),
+      ...(movable ? { stage_id: interested.id } : {}),
+    }).eq('id', leadId)
+    setBusy(false)
+    await load()
+    if (movable && interested.id !== fromStage) {
+      emitBoardPatch({ removeId: leadId, removeFrom: fromStage, refetch: [interested.id] })
+      say('سُجِّل "مهتم"', { fromStage, toStage: interested.id })
+    } else {
+      emitBoardPatch({ refetch: [fromStage] })
+      say('سُجِّل "مهتم"')
+    }
+    onChanged()
+  }
+
+  // إجراء سريع: غير مهتم — ينقل لمرحلة "غير مهتم" (dead) مع سبب اختياري
+  async function markNotInterested() {
+    const dead = refs.stages.find(s => s.code === STAGE.DEAD)
+    if (!dead) { setErr('مرحلة "غير مهتم" غير موجودة'); return }
+    setBusy(true); setErr('')
+    const fromStage = lead.stage_id
+
+    await supabase.from('activities').insert({
+      lead_id: leadId, user_id: profile.id, type: 'call', content: 'العميل غير مهتم',
+    })
+    await supabase.from('leads').update({
+      stage_id: dead.id,
+      ...(notInterestedReason ? { lost_reason_id: Number(notInterestedReason) } : {}),
+      last_activity: new Date().toISOString(),
+    }).eq('id', leadId)
+    setBusy(false)
+    setNotInterestedOpen(false)
+    setNotInterestedReason('')
+    await load()
+    emitBoardPatch({ removeId: leadId, removeFrom: fromStage, refetch: [dead.id] })
+    say('سُجِّل "غير مهتم"', { fromStage, toStage: dead.id })
     onChanged()
   }
 
@@ -376,7 +453,6 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     const st = lead.stage_id
     const { error } = await supabase.rpc('archive_lead', { p_lead_id: leadId })
     if (error) { setErr('تعذر الأرشفة'); return }
-    // خرج من البورد — شِيله من عموده محليًا
     emitBoardPatch({ removeId: leadId, removeFrom: st })
     onChanged(); onClose()
   }
@@ -410,7 +486,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     <div className="drawer-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <aside className="drawer">
 
-        {/* ===== الرأس: هوية العميل وبياناته — مرئية في كل التبويبات ===== */}
+        {/* ===== الرأس: هوية العميل + بياناته (مع تعديل شامل inline) ===== */}
         <header className="drawer-head lead-head">
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: 'monospace', fontSize: 11.5, color: 'var(--ink-soft)' }}>
@@ -465,18 +541,124 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
               )}
             </div>
 
-            {/* بيانات العميل — سطر واحد مضغوط */}
-            <div className="lead-facts">
-              <span><i>العمر</i>{lead.age ?? '—'}</span>
-              <span><i>المهنة</i>{lead.occupation ?? '—'}</span>
-              <span><i>الفرع</i>{lead.branches?.name ?? '—'}</span>
-              <span><i>المصدر</i>{lead.lead_sources?.name_ar ?? '—'}</span>
-              <span><i>المسؤول</i>{lead.owner?.full_name ?? 'غير مسند'}</span>
-              {lead.coordinator?.full_name && (
-                <span><i>المنسقة</i>{lead.coordinator.full_name}</span>
-              )}
-            </div>
+            {/* بيانات العميل — عرض مضغوط + قلم، أو فورم التعديل الشامل */}
+            {!editing ? (
+              <div>
+                <div className="lead-facts">
+                  <span><i>العمر</i>{lead.age ?? '—'}</span>
+                  <span><i>المهنة</i>{lead.occupation ?? '—'}</span>
+                  <span><i>المدينة</i>{lead.city ?? '—'}</span>
+                  <span><i>الفرع</i>{lead.branches?.name ?? '—'}</span>
+                  <span><i>المصدر</i>{lead.lead_sources?.name_ar ?? '—'}</span>
+                  <span><i>الاهتمام</i>{lead.procedure_interest ?? '—'}</span>
+                  <span><i>المسؤول</i>{lead.owner?.full_name ?? 'غير مسند'}</span>
+                  {lead.coordinator?.full_name && (
+                    <span><i>المنسقة</i>{lead.coordinator.full_name}</span>
+                  )}
+                </div>
+                {!readOnlyForSales && (
+                  <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12, marginTop: 6 }}
+                    onClick={() => { setEditing(true); setErr('') }}>
+                    ✎ تعديل البيانات
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="lead-edit" style={{
+                border: '1px solid var(--primary)', borderRadius: 10, padding: 12, marginTop: 4,
+              }}>
+                <div className="row-label" style={{ marginBottom: 8 }}>تعديل بيانات العميل</div>
+
+                <div className="grid-2">
+                  <div className="field">
+                    <label>الاسم *</label>
+                    <input value={edit.full_name} onChange={e => setE('full_name', e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>الهاتف *</label>
+                    <input dir="ltr" value={edit.phone} onChange={e => setE('phone', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid-2">
+                  <div className="field">
+                    <label>العمر</label>
+                    <input type="number" min={0} max={120} value={edit.age}
+                      onChange={e => setE('age', e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>المهنة</label>
+                    <input value={edit.occupation} onChange={e => setE('occupation', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid-2">
+                  <div className="field">
+                    <label>المدينة</label>
+                    <input value={edit.city} onChange={e => setE('city', e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>الدولة</label>
+                    <input value={edit.country} onChange={e => setE('country', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid-2">
+                  <div className="field">
+                    <label>اللغة</label>
+                    <input value={edit.language} onChange={e => setE('language', e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>المصدر</label>
+                    <select value={edit.source_id} onChange={e => setE('source_id', e.target.value)}>
+                      <option value="">— بدون —</option>
+                      {refs.sources.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid-2">
+                  <div className="field">
+                    <label>الفرع</label>
+                    <select value={edit.branch_id} onChange={e => setE('branch_id', e.target.value)}>
+                      <option value="">— بدون —</option>
+                      {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>الاهتمام</label>
+                    <input value={edit.procedure_interest}
+                      onChange={e => setE('procedure_interest', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label>الميزانية</label>
+                  <input value={edit.budget_range} onChange={e => setE('budget_range', e.target.value)} />
+                </div>
+
+                <div className="field">
+                  <label>ملاحظات</label>
+                  <textarea rows={2} value={edit.notes} onChange={e => setE('notes', e.target.value)}
+                    style={{
+                      width: '100%', padding: '8px 10px', border: '1px solid var(--line)',
+                      borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)',
+                      fontSize: 13.5, lineHeight: 1.7, resize: 'vertical',
+                    }} />
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-primary" onClick={saveEdit} disabled={savingEdit}>
+                    {savingEdit ? 'جارٍ الحفظ…' : 'حفظ'}
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => { setEditing(false); setErr(''); load() }}>
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
+
           <div className="head-actions">
             {hasNav && (
               <div className="nav-pager" title="استخدم ← و → للتنقّل">
@@ -492,7 +674,17 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         </header>
 
         {err && <div className="alert alert-error">{err}</div>}
-        {flash && <div className="alert alert-ok">{flash}</div>}
+        {flash && (
+          <div className="alert alert-ok"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span>{flash}</span>
+            {undo && (
+              <button className="btn btn-ghost" style={{ padding: '4px 12px' }} onClick={undoMove}>
+                ↩ تراجع
+              </button>
+            )}
+          </div>
+        )}
 
         {readOnlyForSales && (
           <div style={{ fontSize: 12.5, color: 'var(--ink-soft)',
@@ -501,22 +693,20 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
           </div>
         )}
 
-        {/* ===== التبويبات ===== */}
+        {/* ===== تبويبان فقط ===== */}
         <div className="tabs drawer-tabs">
           {[
-            { k: 'follow', l: 'المتابعة' },
-            { k: 'offer',  l: 'العرض والمرحلة' },
-            { k: 'info',   l: 'البيانات' },
-            { k: 'log',    l: 'السجل' },
+            { k: 'all', l: 'الكل' },
+            { k: 'log', l: 'السجل' },
           ].map(t => (
             <button key={t.k} className={'tab' + (tab === t.k ? ' on' : '')}
               onClick={() => setTab(t.k)}>{t.l}</button>
           ))}
         </div>
 
-        {tab === 'follow' && (<>
+        {tab === 'all' && (<>
 
-        {/* تسجيل نشاط + إجراءات سريعة */}
+        {/* تسجيل نشاط + أزرار النتيجة السريعة */}
         {!readOnlyForSales && (
           <div className="act-box">
             <div className="row-label">ماذا حدث في هذا التواصل؟</div>
@@ -537,6 +727,32 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                 <button className="act-chip yes" disabled={busy} onClick={markContacted}>
                   ✓ تم التواصل
                 </button>
+                <button className="act-chip" disabled={busy} onClick={markInterested}
+                  style={{ color: 'var(--ok)', borderColor: 'var(--ok)' }}>
+                  ♥ مهتم
+                </button>
+                <button className="act-chip" disabled={busy}
+                  onClick={() => { setNotInterestedOpen(v => !v); setErr('') }}
+                  style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}>
+                  ✕ غير مهتم
+                </button>
+              </div>
+            )}
+
+            {/* غير مهتم: سبب سريع قبل النقل لمرحلة الخسارة */}
+            {currentBoard === 'sales' && notInterestedOpen && (
+              <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
+                <label>سبب عدم الاهتمام (اختياري)</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <select value={notInterestedReason}
+                    onChange={e => setNotInterestedReason(e.target.value)} style={{ flex: 1 }}>
+                    <option value="">— بدون سبب —</option>
+                    {refs.lostReasons.map(r => <option key={r.id} value={r.id}>{r.name_ar}</option>)}
+                  </select>
+                  <button className="btn btn-danger" disabled={busy} onClick={markNotInterested}>
+                    تأكيد
+                  </button>
+                </div>
               </div>
             )}
 
@@ -557,14 +773,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
           </div>
         )}
 
-        {/* مهمة المتابعة */}
-        <TaskSection leadId={leadId} leadOwnerId={lead.owner_id}
-          onChanged={() => { const st = lead.stage_id; load(); emitBoardPatch({ refetch: [st] }); onChanged() }} />
-
-        </>)}
-
-        {tab === 'offer' && (<>
-
+        {/* العرض المقدّم — ارتفاع ثابت مع اسكرول */}
         <div className="drawer-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <h3 style={{ margin: 0 }}>العرض المقدّم للعميل</h3>
@@ -576,7 +785,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             )}
           </div>
 
-          {/* ---- وضع العرض (مقروء) ---- */}
+          {/* ---- وضع العرض (مقروء) — ارتفاع محدود + اسكرول ---- */}
           {(!editingOffer || readOnlyForSales) && hasOffer && (
             <div className="offer-box">
               <div className="offer-price">
@@ -586,13 +795,15 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
               </div>
 
               {lead.offer_details ? (
-                <ul className="offer-list">
-                  {String(lead.offer_details)
-                    .split('\n')
-                    .map(x => x.replace(/^[•\-*\s]+/, '').trim())
-                    .filter(Boolean)
-                    .map((line, i) => <li key={i}>{line}</li>)}
-                </ul>
+                <div style={{ maxHeight: 150, overflowY: 'auto', marginTop: 6 }}>
+                  <ul className="offer-list">
+                    {String(lead.offer_details)
+                      .split('\n')
+                      .map(x => x.replace(/^[•\-*\s]+/, '').trim())
+                      .filter(Boolean)
+                      .map((line, i) => <li key={i}>{line}</li>)}
+                  </ul>
+                </div>
               ) : (
                 <div style={{ fontSize: 12.5, color: 'var(--warn)', marginTop: 8, fontWeight: 600 }}>
                   ⚠ لا توجد تفاصيل — المنسقة لن تعرف ما عُرض على العميل
@@ -668,10 +879,10 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
           )}
         </div>
 
-        {/* المرحلة */}
+        {/* نقل المرحلة — مباشرة تحت العرض */}
         <div className="stage-box">
           <div className="row-label">
-            المرحلة {currentBoard === 'coordinator' ? '· بورد المنسقات' : '· بورد المبيعات'}
+            نقل المرحلة {currentBoard === 'coordinator' ? '· بورد المنسقات' : '· بورد المبيعات'}
           </div>
 
           <div className="stage-row">
@@ -725,68 +936,9 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
           )}
         </div>
 
-        </>)}
-
-        {tab === 'info' && (<>
-        <div className="drawer-section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>بيانات العميل</h3>
-            {!editing && !readOnlyForSales && (
-              <button className="btn btn-ghost" style={{ padding: '6px 14px' }}
-                onClick={() => setEditing(true)}>تعديل</button>
-            )}
-          </div>
-
-          {editing ? (
-            <>
-              <div className="grid-2">
-                <div className="field">
-                  <label>الاسم</label>
-                  <input value={edit.full_name} onChange={e => setE('full_name', e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>الهاتف</label>
-                  <input dir="ltr" value={edit.phone} onChange={e => setE('phone', e.target.value)} />
-                </div>
-              </div>
-              <div className="grid-2">
-                <div className="field">
-                  <label>العمر</label>
-                  <input type="number" min={0} max={120} value={edit.age}
-                    onChange={e => setE('age', e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>المهنة</label>
-                  <input value={edit.occupation} onChange={e => setE('occupation', e.target.value)} />
-                </div>
-              </div>
-              <div className="field">
-                <label>الفرع</label>
-                <select value={edit.branch_id} onChange={e => setE('branch_id', e.target.value)}>
-                  <option value="">— بدون —</option>
-                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary" onClick={saveEdit} disabled={savingEdit}>
-                  {savingEdit ? 'جارٍ الحفظ…' : 'حفظ'}
-                </button>
-                <button className="btn btn-ghost" onClick={() => { setEditing(false); load() }}>إلغاء</button>
-              </div>
-            </>
-          ) : (
-            <div className="drawer-info" style={{ marginBottom: 0, marginTop: 10 }}>
-              <div><span>العمر</span>{lead.age ?? '—'}</div>
-              <div><span>المهنة</span>{lead.occupation ?? '—'}</div>
-              <div><span>الفرع</span>{lead.branches?.name ?? '—'}</div>
-              <div><span>المصدر</span>{lead.lead_sources?.name_ar ?? '—'}</div>
-              <div><span>المسؤول (مبيعات)</span>{lead.owner?.full_name ?? 'غير مسند'}</div>
-              <div><span>المنسقة</span>{lead.coordinator?.full_name ?? '—'}</div>
-              <div><span>تاريخ الإنشاء</span>{fmtDateTime(lead.created_at)}</div>
-              <div><span>آخر نشاط</span>{fmtDateTime(lead.last_activity)}</div>
-            </div>
-          )}
-        </div>
+        {/* المتابعة */}
+        <TaskSection leadId={leadId} leadOwnerId={lead.owner_id}
+          onChanged={() => { const st = lead.stage_id; load(); emitBoardPatch({ refetch: [st] }); onChanged() }} />
 
         {/* إعادة الإسناد — للمديرين */}
         {isManager && (
@@ -798,6 +950,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             </select>
           </div>
         )}
+
         </>)}
 
         {tab === 'log' && (
@@ -833,7 +986,6 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             ))}
           </div>
         </div>
-
         )}
 
         {/* منطقة الخطر — للمدير العام فقط (خارج التبويبات) */}

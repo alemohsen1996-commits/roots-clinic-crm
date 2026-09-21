@@ -5,6 +5,7 @@
 export const STAGE = {
   NEW: 'new',
   CONTACTED: 'contacted',
+  INTERESTED: 'interested',
   FOLLOWUP: 'followup',
   DEAL: 'deal',
   DONE: 'done',
