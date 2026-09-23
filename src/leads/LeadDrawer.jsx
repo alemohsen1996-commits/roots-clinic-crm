@@ -138,10 +138,6 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     setSlotsLoading(false)
   }, [apptBranch, apptDate])
 
-  useEffect(() => {
-    if (!movingToFollowup || apptNoTime) { setSlots([]); return }
-    loadSlots()
-  }, [movingToFollowup, apptNoTime, loadSlots])
 
   // ← و → للتنقّل، Esc للإغلاق — ما لم يكن المؤشر داخل حقل إدخال
   useEffect(() => {
@@ -187,6 +183,12 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const targetStage = refs.stages.find(s => s.id === Number(stageTo))
   const needsLostReason = targetStage?.code === STAGE.LOST
   const movingToFollowup = targetStage?.code === STAGE.FOLLOWUP && lead?.stages?.code !== STAGE.FOLLOWUP
+
+  // تحميل الخانات المتاحة عند تفعيل التحويل للمتابعة (بعد تعريف movingToFollowup)
+  useEffect(() => {
+    if (!movingToFollowup || apptNoTime) { setSlots([]); return }
+    loadSlots()
+  }, [movingToFollowup, apptNoTime, loadSlots])
 
   // flash مع خيار تراجع اختياري (يظهر لمدة أطول عند إتاحة التراجع)
   function say(m, undoInfo = null) {
