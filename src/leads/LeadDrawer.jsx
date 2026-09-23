@@ -43,6 +43,13 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const [stageTo, setStageTo] = useState('')
   const [lostReason, setLostReason] = useState('')
   const [coordinatorId, setCoordinatorId] = useState('')
+  // حجز معاينة عند التحويل للمتابعة
+  const [apptNoTime, setApptNoTime] = useState(false)   // بدون موعد — المنسقة تحجز
+  const [apptBranch, setApptBranch] = useState('')
+  const [apptDate, setApptDate]     = useState('')
+  const [apptTime, setApptTime]     = useState('')
+  const [slots, setSlots]           = useState([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
   const [coordinators, setCoordinators] = useState([])
   const [branches, setBranches] = useState([])
   const [err, setErr] = useState('')
@@ -103,6 +110,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     setOpenTask(t?.[0] ?? null)
     setStageTo(l?.stage_id ?? '')
     setCoordinatorId(l?.coordinator_id ?? '')
+    setApptBranch(l?.branch_id ? String(l.branch_id) : '')
     setEdit({
       full_name: l?.full_name ?? '', phone: l?.phone ?? '',
       age: l?.age ?? '', occupation: l?.occupation ?? '',
@@ -118,6 +126,22 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   }, [leadId])
 
   useEffect(() => { load() }, [load])
+
+  // الخانات المتاحة لفرع/يوم المعاينة (تُولّد في القاعدة وتستبعد المحجوز)
+  const loadSlots = useCallback(async () => {
+    if (!apptBranch || !apptDate) { setSlots([]); return }
+    setSlotsLoading(true)
+    const { data } = await supabase.rpc('available_slots', {
+      p_branch_id: Number(apptBranch), p_date: apptDate,
+    })
+    setSlots((data ?? []).map(r => r.slot))
+    setSlotsLoading(false)
+  }, [apptBranch, apptDate])
+
+  useEffect(() => {
+    if (!movingToFollowup || apptNoTime) { setSlots([]); return }
+    loadSlots()
+  }, [movingToFollowup, apptNoTime, loadSlots])
 
   // ← و → للتنقّل، Esc للإغلاق — ما لم يكن المؤشر داخل حقل إدخال
   useEffect(() => {
@@ -198,6 +222,12 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
       setErr('سجّل السعر المعروض أولًا')
       return
     }
+    if (movingToFollowup) {
+      if (!apptBranch) { setErr('اختر فرع المعاينة'); return }
+      if (!apptNoTime && (!apptDate || !apptTime)) {
+        setErr('اختر يوم ووقت المعاينة، أو فعّل «بدون موعد»'); return
+      }
+    }
 
     // إرجاع من بورد المنسقات إلى المبيعات — قرار مؤثّر، نطلب تأكيدًا
     const backToSales = currentBoard === 'coordinator'
@@ -212,12 +242,35 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     setErr('')
     const fromStage = lead.stage_id      // نلتقطه قبل التحديث — بعد load() يصير المرحلة الجديدة
     const toStage = Number(stageTo)
+
+    // للمتابعة: نحجز المعاينة أولًا (تقفل الخانة)، فإن نجحت ننقل الليد
+    let createdApptId = null
+    if (movingToFollowup) {
+      const { data: appt, error: apptErr } = await supabase.from('appointments').insert({
+        lead_id: leadId,
+        branch_id: Number(apptBranch),
+        coordinator_id: coordinatorId,
+        created_by: profile.id,
+        ...(apptNoTime
+          ? { status: 'pending' }
+          : { status: 'booked', appt_date: apptDate, appt_time: apptTime }),
+      }).select('id').single()
+      if (apptErr) {
+        const conflict = apptErr.code === '23505'
+        setErr(conflict ? 'الخانة دي اتحجزت للتو — اختر وقت تاني' : 'تعذّر حجز المعاينة')
+        if (conflict) { setApptTime(''); loadSlots() }
+        return   // لم ننقل الليد
+      }
+      createdApptId = appt.id
+    }
+
     const { error } = await supabase.from('leads').update({
       stage_id: toStage,
       ...(needsLostReason && { lost_reason_id: Number(lostReason) }),
       ...(movingToFollowup && { coordinator_id: coordinatorId }),
     }).eq('id', leadId)
     if (error) {
+      if (createdApptId) await supabase.from('appointments').delete().eq('id', createdApptId)
       setErr(error.message?.includes('غير مصرح')
         ? 'إرجاع المريض لبورد المبيعات يتم عبر المدير فقط'
         : 'تعذر تغيير المرحلة')
@@ -923,6 +976,61 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                   {coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
                 </select>
               </div>
+
+              <div className="field" style={{ marginBottom: 6 }}>
+                <label>فرع المعاينة *</label>
+                <select value={apptBranch}
+                  onChange={e => { setApptBranch(e.target.value); setApptTime('') }}>
+                  <option value="">— اختر —</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, margin: '8px 0' }}>
+                <input type="checkbox" checked={apptNoTime}
+                  onChange={e => { setApptNoTime(e.target.checked); setApptTime('') }} />
+                بدون موعد — المنسقة تحجز لاحقًا
+              </label>
+
+              {!apptNoTime && (
+                <>
+                  <div className="field" style={{ marginBottom: 6 }}>
+                    <label>يوم المعاينة *</label>
+                    <input type="date" value={apptDate}
+                      onChange={e => { setApptDate(e.target.value); setApptTime('') }} />
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label>الوقت المتاح *</label>
+                    {(!apptBranch || !apptDate) ? (
+                      <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>اختر الفرع واليوم لعرض الأوقات</div>
+                    ) : slotsLoading ? (
+                      <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>جارٍ التحميل…</div>
+                    ) : slots.length === 0 ? (
+                      <div style={{ fontSize: 12.5, color: 'var(--warn)', fontWeight: 600 }}>
+                        لا خانات متاحة في هذا اليوم (إجازة أو محجوز بالكامل)
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {slots.map(t => {
+                          const on = apptTime === t
+                          return (
+                            <button key={t} type="button" onClick={() => setApptTime(t)}
+                              className="btn"
+                              style={{
+                                padding: '5px 12px', fontSize: 13, borderRadius: 8,
+                                border: '1px solid ' + (on ? 'var(--primary)' : 'var(--line)'),
+                                background: on ? 'var(--primary)' : 'transparent',
+                                color: on ? '#fff' : 'var(--ink)',
+                              }}>
+                              {String(t).slice(0, 5)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
               {!lead.offer_details?.trim() && (
                 <p style={{ fontSize: 12.5, color: 'var(--danger)', fontWeight: 700, lineHeight: 1.7 }}>
                   ⚠ سجّل العرض المقدّم أعلاه أولًا — التحويل لن يتم بدونه
