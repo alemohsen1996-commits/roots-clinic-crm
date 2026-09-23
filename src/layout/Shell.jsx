@@ -12,6 +12,7 @@ const I = {
   leads:     <><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M17 8h5M19.5 5.5v5"/></>,
   deals:     <><path d="M4 7h16v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M4 12h16"/></>,
   prp:       <><path d="M12 3s5 5.5 5 9a5 5 0 0 1-10 0c0-3.5 5-9 5-9z"/><path d="M9.5 12.5a2.5 2.5 0 0 0 2.5 2.5"/></>,
+  appts:     <><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><circle cx="12" cy="14.5" r="3.2"/><path d="M12 13v1.7l1.3.9"/></>,
   payments:  <><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/><path d="M6 15h4"/></>,
   install:   <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></>,
   team:      <><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.2 2.9-5.3 6.5-5.3s6.5 2.1 6.5 5.3"/><path d="M17 5.5a3.2 3.2 0 0 1 0 6"/><path d="M18.5 14.5c1.9.7 3 2.2 3 4"/></>,
@@ -33,6 +34,8 @@ const NAV = [
       roles: ['super_admin','sales_manager','agent','coordinator'] },
     // المنسقة الآن ترى الليدات (بوردها) لمتابعة مرضاها المحوّلين إليها
     { to: '/leads', label: 'الليدات', icon: 'leads',
+      roles: ['super_admin','sales_manager','agent','coordinator'] },
+    { to: '/appointments', label: 'المعاينات', icon: 'appts',
       roles: ['super_admin','sales_manager','agent','coordinator'] },
     { to: '/deals', label: 'الديلات', icon: 'deals',
       roles: ['super_admin','sales_manager','agent','coordinator','accountant'] },

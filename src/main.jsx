@@ -17,6 +17,7 @@ import DealsPage from './deals/DealsPage'
 import PaymentsPage from './finance/PaymentsPage'
 import InstallmentsPage from './finance/InstallmentsPage'
 import PrpPage from './prp/PrpPage'
+import AppointmentsPage from './pages/AppointmentsPage'
 import ReportsPage from './reports/ReportsPage'
 import ArchivePage from './archive/ArchivePage'
 import SettingsPage from './settings/SettingsPage'
@@ -36,6 +37,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="leads" element={<LeadsPage />} />
             <Route path="deals" element={<DealsPage />} />
             <Route path="prp" element={<PrpPage />} />
+            <Route path="appointments" element={<AppointmentsPage />} />
             <Route path="payments" element={<PaymentsPage />} />
             <Route path="installments" element={<InstallmentsPage />} />
             <Route path="reports" element={<RequireManager><ReportsPage /></RequireManager>} />
