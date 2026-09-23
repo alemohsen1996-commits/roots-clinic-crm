@@ -9,6 +9,7 @@ import DoctorsTab from './DoctorsTab'
 import TechniquesTab from './TechniquesTab'
 import TeamsTab from './TeamsTab'
 import BranchesTab from './BranchesTab'
+import BranchHoursTab from './BranchHoursTab'
 import GeneralTab from './GeneralTab'
 
 const TABS = [
@@ -21,6 +22,7 @@ const TABS = [
   { key: 'techniques',   label: 'التقنيات',           el: TechniquesTab },
   { key: 'teams',        label: 'الفرق',              el: TeamsTab },
   { key: 'branches',     label: 'الفروع',             el: BranchesTab },
+  { key: 'branch_hours', label: 'ساعات الفروع',      el: BranchHoursTab },
   { key: 'general',      label: 'حدود ومالية',        el: GeneralTab },
 ]
 
