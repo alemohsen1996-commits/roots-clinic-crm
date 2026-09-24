@@ -263,7 +263,7 @@ export default function AppointmentsPage() {
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="بحث باسم المريض أو رقمه…" />
         </div>
         <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}
-          style={{ height: 42, minWidth: 190, borderRadius: 12, textAlign: 'center', textAlignLast: 'center' }}>
+          style={{ height: 42, minWidth: 190, borderRadius: 12, textAlign: 'center', textAlignLast: 'center', fontWeight: 700 }}>
           <option value="">كل السيلز</option>
           {salesList.map(sv => <option key={sv.id} value={sv.id}>{sv.name}</option>)}
         </select>
