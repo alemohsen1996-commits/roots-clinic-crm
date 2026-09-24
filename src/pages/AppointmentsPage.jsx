@@ -256,14 +256,14 @@ export default function AppointmentsPage() {
       </div>
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
-        <div className="appt-search" style={{ margin: 0 }}>
+        <div className="appt-search" style={{ margin: 0, flex: 1, maxWidth: 500 }}>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
           </svg>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="بحث باسم المريض أو رقمه…" />
         </div>
         <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}
-          style={{ height: 42, minWidth: 190, borderRadius: 12 }}>
+          style={{ height: 42, minWidth: 190, borderRadius: 12, textAlign: 'center', textAlignLast: 'center' }}>
           <option value="">كل السيلز</option>
           {salesList.map(sv => <option key={sv.id} value={sv.id}>{sv.name}</option>)}
         </select>
