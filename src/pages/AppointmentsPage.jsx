@@ -248,8 +248,14 @@ export default function AppointmentsPage() {
               </div>
               <div className="field" style={{ marginBottom: 10 }}>
                 <label>الوقت المتاح</label>
-                {book.slots.length === 0 ? (
-                  <div style={{ fontSize: 12.5, color: 'var(--warn)', fontWeight: 600 }}>لا خانات متاحة في هذا اليوم</div>
+                {!sched ? (
+                  <div style={{ fontSize: 12.5, color: 'var(--warn)', fontWeight: 600 }}>
+                    فرع «{branch?.name}» غير مُعدّ — اضبط ساعاته من الإعدادات ← ساعات الفروع
+                  </div>
+                ) : book.slots.length === 0 ? (
+                  <div style={{ fontSize: 12.5, color: 'var(--warn)', fontWeight: 600 }}>
+                    لا خانات متاحة في هذا اليوم (إجازة أو محجوز بالكامل)
+                  </div>
                 ) : (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {book.slots.map(t => {
