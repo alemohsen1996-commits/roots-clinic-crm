@@ -6,6 +6,7 @@ import { useLeadRefs } from '../leads/useLeadRefs'
 import LeadDrawer from '../leads/LeadDrawer'
 import { emitBoardPatch } from '../leads/boardBus'
 import { STAGE } from '../lib/stageCodes'
+import { useAuth } from '../auth/AuthContext'
 
 const STATUS = {
   booked:      { ar: 'محجوز',   bg: 'var(--primary)', soft: true },
@@ -46,6 +47,8 @@ function genSlots(sched, dateStr) {
 export default function AppointmentsPage() {
   const refs = useLeadRefs()
   const stages = refs.stages
+  const { profile, roleCode, isManager } = useAuth()
+  const canAttend = isManager || roleCode === 'coordinator'   // حضر/لم يحضر: المنسقة/المدير فقط
   const [branches, setBranches] = useState([])
   const [branchId, setBranchId] = useState(null)
   const [summary, setSummary] = useState({})   // لكل فرع: أقرب حجز + الأعداد
@@ -77,9 +80,9 @@ export default function AppointmentsPage() {
       // ملخّص: أقرب حجز قادم + أعداد المحجوز/بدون موعد لكل فرع
       const today = todayStr()
       const [{ data: up }, { data: pend }] = await Promise.all([
-        supabase.from('appointments').select('branch_id, appt_date')
+        supabase.from('v_appointments').select('branch_id, appt_date')
           .gte('appt_date', today).in('status', ['booked', 'attended']),
-        supabase.from('appointments').select('branch_id')
+        supabase.from('v_appointments').select('branch_id')
           .is('appt_date', null).eq('status', 'pending'),
       ])
       const sum = {}
@@ -198,6 +201,8 @@ export default function AppointmentsPage() {
     return (a.patient_name || '').toLowerCase().includes(t)
         || (a.patient_phone || '').includes(t)
   }
+  // السيلز يفتح/يؤجّل ليداته فقط؛ المدير والمنسقة للكل
+  const mine = (a) => isManager || roleCode === 'coordinator' || a.owner_id === profile?.id
 
   return (
     <>
@@ -229,21 +234,21 @@ export default function AppointmentsPage() {
       </div>
 
       {/* شريط اليوم */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
-        <button className="btn btn-ghost" onClick={() => setDate(shiftDay(date, -1))}>→ السابق</button>
-        <div style={{ textAlign: 'center', minWidth: 190 }}>
-          <div style={{ fontWeight: 600 }}>{DOW_AR[new Date(date + 'T00:00:00').getDay()]}</div>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            style={{ marginTop: 4, textAlign: 'center' }} />
+      <div className="day-nav">
+        <button className="day-nav-btn" onClick={() => setDate(shiftDay(date, -1))} aria-label="اليوم السابق">›</button>
+        <div className="day-nav-date">
+          <span className="day-nav-dow">{DOW_AR[new Date(date + 'T00:00:00').getDay()]}</span>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <button className="btn btn-ghost" onClick={() => setDate(shiftDay(date, +1))}>التالي ←</button>
-        <button className="btn btn-ghost" style={{ marginInlineStart: 'auto' }}
-          onClick={() => setDate(todayStr())}>اليوم</button>
+        <button className="day-nav-btn" onClick={() => setDate(shiftDay(date, +1))} aria-label="اليوم التالي">‹</button>
+        <button className="btn btn-ghost day-today" onClick={() => setDate(todayStr())}>اليوم</button>
       </div>
 
-      <div style={{ margin: '0 0 12px' }}>
-        <input value={q} onChange={e => setQ(e.target.value)}
-          placeholder="بحث باسم المريض أو رقمه…" style={{ width: '100%', maxWidth: 360 }} />
+      <div className="appt-search">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+        </svg>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="بحث باسم المريض أو رقمه…" />
       </div>
 
       {err && <div className="alert alert-error">{err}</div>}
@@ -257,8 +262,12 @@ export default function AppointmentsPage() {
               display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
               padding: '8px 0', borderTop: '0.5px solid var(--line)',
             }}>
-              <button className="link-name" style={{ fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)' }}
-                onClick={() => setOpenLead(a.lead_id)}>{a.patient_name}</button>
+              {mine(a) ? (
+                <button className="link-name" style={{ fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)' }}
+                  onClick={() => setOpenLead(a.lead_id)}>{a.patient_name}</button>
+              ) : (
+                <span style={{ fontWeight: 600 }}>{a.patient_name}</span>
+              )}
               <span dir="ltr" style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.patient_phone}</span>
               <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>المنسقة: {a.coordinator_name ?? '—'}</span>
               <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>السيلز: {a.owner_name ?? '—'}</span>
@@ -320,7 +329,7 @@ export default function AppointmentsPage() {
       ) : slots.length === 0 ? (
         <div className="empty" style={{ padding: 24 }}>هذا اليوم إجازة لفرع «{branch?.name}».</div>
       ) : (
-        <table className="table">
+        <table className="table appt-table">
           <thead>
             <tr>
               <th style={{ width: 70 }}>الوقت</th>
@@ -349,8 +358,12 @@ export default function AppointmentsPage() {
                 <tr key={t}>
                   <td style={{ fontFamily: 'monospace' }}>{hhmm(t)}</td>
                   <td>
-                    <button className="link-name" style={{ fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)', padding: 0 }}
-                      onClick={() => setOpenLead(a.lead_id)}>{a.patient_name}</button>
+                    {mine(a) ? (
+                      <button className="link-name" style={{ fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)', padding: 0 }}
+                        onClick={() => setOpenLead(a.lead_id)}>{a.patient_name}</button>
+                    ) : (
+                      <span style={{ fontWeight: 600 }}>{a.patient_name}</span>
+                    )}
                   </td>
                   <td dir="ltr" style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{a.patient_phone}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{a.coordinator_name ?? '—'}</td>
@@ -376,18 +389,21 @@ export default function AppointmentsPage() {
                         </div>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                        <button className="btn" disabled={busy} onClick={() => setStatus(a, 'booked')}
-                          style={{ padding: '4px 10px', fontSize: 12,
-                            ...(a.status === 'booked' ? { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' } : {}) }}>محجوز</button>
-                        <button className="btn" disabled={busy} onClick={() => askNote(a, 'attended')}
-                          style={{ padding: '4px 10px', fontSize: 12, color: 'var(--ok)', borderColor: 'var(--ok)',
-                            ...(a.status === 'attended' ? { background: 'var(--ok)', color: '#fff' } : {}) }}>حضر</button>
-                        <button className="btn" disabled={busy} onClick={() => askNote(a, 'no_show')}
-                          style={{ padding: '4px 10px', fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger)',
-                            ...(a.status === 'no_show' ? { background: 'var(--danger)', color: '#fff' } : {}) }}>لم يحضر</button>
-                        <button className="btn" disabled={busy} onClick={() => setStatus(a, 'pending')}
-                          style={{ padding: '4px 10px', fontSize: 12, color: 'var(--warn)', borderColor: 'var(--warn)' }}>تأجّل</button>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {canAttend && (
+                          <button className="btn" disabled={busy} onClick={() => askNote(a, 'attended')}
+                            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--ok)', borderColor: 'var(--ok)',
+                              ...(a.status === 'attended' ? { background: 'var(--ok)', color: '#fff' } : {}) }}>حضر</button>
+                        )}
+                        {canAttend && (
+                          <button className="btn" disabled={busy} onClick={() => askNote(a, 'no_show')}
+                            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--danger)', borderColor: 'var(--danger)',
+                              ...(a.status === 'no_show' ? { background: 'var(--danger)', color: '#fff' } : {}) }}>لم يحضر</button>
+                        )}
+                        {mine(a) && (
+                          <button className="btn" disabled={busy} onClick={() => setStatus(a, 'pending')}
+                            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--warn)', borderColor: 'var(--warn)' }}>تأجّل</button>
+                        )}
                       </div>
                     )}
                   </td>

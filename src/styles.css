@@ -1621,3 +1621,51 @@ button.kanban-more:disabled { opacity: .6; cursor: default; }
   60%  { transform: scale(1.06); }
   100% { transform: scale(1); }
 }
+
+/* ---------- شاشة المعاينات: شريط اليوم + بحث + رأس الجدول ---------- */
+.day-nav { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+.day-nav-btn {
+  width: 38px; height: 38px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 22px; line-height: 1; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  cursor: pointer; transition: background .15s, border-color .15s, color .15s, transform .1s;
+}
+.day-nav-btn:hover { border-color: var(--primary); color: var(--primary); }
+.day-nav-btn:active { transform: scale(0.94); }
+.day-nav-date {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 168px; padding: 6px 16px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line);
+}
+.day-nav-dow { font-weight: 700; font-size: 14px; }
+.day-nav-date input[type=date] {
+  border: 0; background: transparent; text-align: center; padding: 0;
+  font-size: 12.5px; color: var(--ink-soft);
+}
+.day-today { margin-inline-start: auto; }
+
+.appt-search {
+  display: flex; align-items: center; gap: 9px;
+  max-width: 380px; margin: 0 0 14px; padding: 0 13px; height: 42px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  color: var(--ink-soft); transition: border-color .15s, box-shadow .15s;
+}
+.appt-search:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+.appt-search input {
+  flex: 1; border: 0; background: transparent; height: 100%;
+  font-size: 13.5px; font-family: var(--font-body); color: var(--ink); outline: none;
+}
+
+.appt-table thead th {
+  background: var(--surface);
+  font-size: 11.5px; font-weight: 700; letter-spacing: .3px;
+  color: var(--ink-soft); padding: 13px 12px;
+  border-bottom: 1.5px solid var(--line);
+}
+.appt-table tbody td { padding: 11px 12px; }
+.appt-table tbody tr { transition: background .12s; }
+.appt-table tbody tr:hover { background: color-mix(in srgb, var(--primary) 4%, transparent); }
