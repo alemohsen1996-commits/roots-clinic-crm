@@ -301,7 +301,7 @@ export default function AppointmentsPage() {
                     لا خانات متاحة في هذا اليوم (إجازة أو محجوز بالكامل)
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
                     {book.slots.map(t => {
                       const on = book.time === t
                       return (
@@ -338,13 +338,13 @@ export default function AppointmentsPage() {
         <table className="table appt-table">
           <thead>
             <tr>
-              <th style={{ width: 68 }}>الوقت</th>
-              <th style={{ width: 130 }}>المريض</th>
-              <th style={{ width: 115 }}>الرقم</th>
-              <th style={{ width: 120, whiteSpace: 'nowrap' }}>المنسقة</th>
-              <th style={{ width: 100, whiteSpace: 'nowrap' }}>السيلز</th>
-              <th>ملاحظات</th>
-              <th style={{ width: 85 }}>الحالة</th>
+              <th style={{ width: 80 }}>الوقت</th>
+              <th style={{ width: 150 }}>المريض</th>
+              <th style={{ width: 145 }}>الرقم</th>
+              <th style={{ width: 140 }}>المنسقة</th>
+              <th style={{ width: 120 }}>السيلز</th>
+              <th style={{ width: 210 }}>ملاحظات</th>
+              <th style={{ width: 100 }}>الحالة</th>
               <th style={{ width: 220 }}>إجراء</th>
             </tr>
           </thead>
@@ -372,8 +372,8 @@ export default function AppointmentsPage() {
                     )}
                   </td>
                   <td dir="ltr" style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{a.patient_phone}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{a.coordinator_name ?? '—'}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{a.owner_name ?? '—'}</td>
+                  <td>{a.coordinator_name ?? '—'}</td>
+                  <td>{a.owner_name ?? '—'}</td>
                   <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
                     {a.callcenter_note && <div>{a.callcenter_note}</div>}
                     {a.coordinator_note && <div style={{ color: 'var(--primary)', fontWeight: 500 }}>{a.coordinator_note}</div>}
@@ -387,7 +387,7 @@ export default function AppointmentsPage() {
                           placeholder={noteFor.action === 'attended' ? 'ملاحظة الحضور (مطلوبة)…' : 'سبب عدم الحضور (مطلوب)…'}
                           style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--line)',
                                    borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: 12.5, resize: 'vertical' }} />
-                        <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                           <button className="btn btn-primary" disabled={busy} onClick={confirmNote}
                             style={{ padding: '4px 12px', fontSize: 12 }}>تأكيد</button>
                           <button className="btn btn-ghost" onClick={() => { setNoteFor(null); setNoteText(''); setErr('') }}

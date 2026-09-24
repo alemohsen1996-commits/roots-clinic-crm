@@ -1674,3 +1674,4 @@ button.kanban-more:disabled { opacity: .6; cursor: default; }
   border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
 }
 .appt-table tbody tr:hover { background: color-mix(in srgb, var(--primary) 5%, transparent); }
+.appt-table th, .appt-table td { text-align: center; vertical-align: middle; }
