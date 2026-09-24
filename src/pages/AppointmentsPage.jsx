@@ -65,6 +65,7 @@ export default function AppointmentsPage() {
   const [book, setBook] = useState(null)       // { apptId, date, time, slots }
   const [err, setErr] = useState('')
   const [q, setQ] = useState('')   // بحث بالاسم/الرقم
+  const [ownerFilter, setOwnerFilter] = useState('')   // فلتر باسم السيلز
 
   // مراحل المعاينة (أكواد ديناميكية — نطابقها بالاسم)
   const attendedStage = stages.find(s => s.name_ar === 'حضر المعاينة')
@@ -202,6 +203,12 @@ export default function AppointmentsPage() {
     return (a.patient_name || '').toLowerCase().includes(t)
         || (a.patient_phone || '').includes(t)
   }
+  // قائمة السيلز الظاهرين في العرض الحالي (لفلتر «مرضى سيلز معيّن»)
+  const salesList = Array.from(
+    new Map([...appts, ...pending].filter(a => a.owner_id).map(a => [a.owner_id, a.owner_name || '—'])).entries()
+  ).map(([id, name]) => ({ id, name }))
+  const passFilters = (a) => (!ownerFilter || a.owner_id === ownerFilter) && matchQ(a)
+  const filtering = !!q.trim() || !!ownerFilter
   // السيلز يفتح/يؤجّل ليداته فقط؛ المدير والمنسقة للكل
   const mine = (a) => isManager || roleCode === 'coordinator' || a.owner_id === profile?.id
 
@@ -248,11 +255,18 @@ export default function AppointmentsPage() {
         <button className="btn btn-ghost day-today" onClick={() => setDate(todayStr())}>اليوم</button>
       </div>
 
-      <div className="appt-search">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
-        </svg>
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="بحث باسم المريض أو رقمه…" />
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+        <div className="appt-search" style={{ margin: 0 }}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+          </svg>
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="بحث باسم المريض أو رقمه…" />
+        </div>
+        <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}
+          style={{ height: 42, minWidth: 190, borderRadius: 12 }}>
+          <option value="">كل السيلز</option>
+          {salesList.map(sv => <option key={sv.id} value={sv.id}>{sv.name}</option>)}
+        </select>
       </div>
 
       {err && <div className="alert alert-error">{err}</div>}
@@ -261,7 +275,7 @@ export default function AppointmentsPage() {
       {pending.length > 0 && (
         <div className="drawer-section" style={{ marginBottom: 14 }}>
           <h3>بدون موعد — بانتظار الحجز ({pending.length})</h3>
-          {pending.filter(matchQ).map(a => (
+          {pending.filter(passFilters).map(a => (
             <div key={a.id} style={{
               display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
               padding: '8px 0', borderTop: '0.5px solid var(--line)',
@@ -351,7 +365,7 @@ export default function AppointmentsPage() {
           <tbody>
             {slots.map(t => {
               const a = byTime[hhmm(t)]
-              if (q.trim() && (!a || !matchQ(a))) return null   // أثناء البحث: المطابق فقط
+              if (filtering && (!a || !passFilters(a))) return null   // أثناء الفلترة: المطابق فقط
               if (!a) return (
                 <tr key={t} style={{ color: 'var(--ink-soft)' }}>
                   <td style={{ fontFamily: 'monospace' }}>{hhmm(t)}</td>
