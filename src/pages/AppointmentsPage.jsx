@@ -334,14 +334,14 @@ export default function AppointmentsPage() {
         <table className="table appt-table">
           <thead>
             <tr>
-              <th style={{ width: 70 }}>الوقت</th>
-              <th>المريض</th>
-              <th style={{ width: 120 }}>الرقم</th>
-              <th style={{ whiteSpace: 'nowrap' }}>المنسقة</th>
-              <th style={{ whiteSpace: 'nowrap' }}>السيلز</th>
+              <th style={{ width: 68 }}>الوقت</th>
+              <th style={{ width: 130 }}>المريض</th>
+              <th style={{ width: 115 }}>الرقم</th>
+              <th style={{ width: 95 }}>المنسقة</th>
+              <th style={{ width: 78 }}>السيلز</th>
               <th>ملاحظات</th>
-              <th style={{ width: 90 }}>الحالة</th>
-              <th style={{ width: 240 }}>إجراء</th>
+              <th style={{ width: 85 }}>الحالة</th>
+              <th style={{ width: 220 }}>إجراء</th>
             </tr>
           </thead>
           <tbody>
@@ -368,8 +368,10 @@ export default function AppointmentsPage() {
                     )}
                   </td>
                   <td dir="ltr" style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{a.patient_phone}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{a.coordinator_name ?? '—'}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{a.owner_name ?? '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 95 }}
+                      title={a.coordinator_name ?? ''}>{a.coordinator_name ?? '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 78 }}
+                      title={a.owner_name ?? ''}>{a.owner_name ?? '—'}</td>
                   <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
                     {a.callcenter_note && <div>{a.callcenter_note}</div>}
                     {a.coordinator_note && <div style={{ color: 'var(--primary)', fontWeight: 500 }}>{a.coordinator_note}</div>}
