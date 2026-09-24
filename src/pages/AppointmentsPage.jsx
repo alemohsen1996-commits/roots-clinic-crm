@@ -235,12 +235,16 @@ export default function AppointmentsPage() {
 
       {/* شريط اليوم */}
       <div className="day-nav">
-        <button className="day-nav-btn" onClick={() => setDate(shiftDay(date, -1))} aria-label="اليوم السابق">›</button>
+        <button className="day-nav-btn" onClick={() => setDate(shiftDay(date, -1))} aria-label="اليوم السابق">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+        </button>
         <div className="day-nav-date">
           <span className="day-nav-dow">{DOW_AR[new Date(date + 'T00:00:00').getDay()]}</span>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <button className="day-nav-btn" onClick={() => setDate(shiftDay(date, +1))} aria-label="اليوم التالي">‹</button>
+        <button className="day-nav-btn" onClick={() => setDate(shiftDay(date, +1))} aria-label="اليوم التالي">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m15 6-6 6 6 6" /></svg>
+        </button>
         <button className="btn btn-ghost day-today" onClick={() => setDate(todayStr())}>اليوم</button>
       </div>
 
@@ -337,8 +341,8 @@ export default function AppointmentsPage() {
               <th style={{ width: 68 }}>الوقت</th>
               <th style={{ width: 130 }}>المريض</th>
               <th style={{ width: 115 }}>الرقم</th>
-              <th style={{ width: 95 }}>المنسقة</th>
-              <th style={{ width: 78 }}>السيلز</th>
+              <th style={{ width: 120, whiteSpace: 'nowrap' }}>المنسقة</th>
+              <th style={{ width: 100, whiteSpace: 'nowrap' }}>السيلز</th>
               <th>ملاحظات</th>
               <th style={{ width: 85 }}>الحالة</th>
               <th style={{ width: 220 }}>إجراء</th>
@@ -368,10 +372,8 @@ export default function AppointmentsPage() {
                     )}
                   </td>
                   <td dir="ltr" style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{a.patient_phone}</td>
-                  <td style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 95 }}
-                      title={a.coordinator_name ?? ''}>{a.coordinator_name ?? '—'}</td>
-                  <td style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 78 }}
-                      title={a.owner_name ?? ''}>{a.owner_name ?? '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{a.coordinator_name ?? '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{a.owner_name ?? '—'}</td>
                   <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
                     {a.callcenter_note && <div>{a.callcenter_note}</div>}
                     {a.coordinator_note && <div style={{ color: 'var(--primary)', fontWeight: 500 }}>{a.coordinator_note}</div>}
