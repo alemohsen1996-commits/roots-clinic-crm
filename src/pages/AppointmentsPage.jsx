@@ -16,7 +16,8 @@ const STATUS = {
   pending:     { ar: 'بدون موعد', bg: 'var(--ink-soft)' },
 }
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
-const todayStr = () => new Date().toISOString().slice(0, 10)
+const localYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const todayStr = () => localYMD(new Date())
 const DOW_AR = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
 
 function StatusBadge({ s }) {
@@ -209,7 +210,6 @@ export default function AppointmentsPage() {
       <div className="page-head">
         <div>
           <h1>المعاينات</h1>
-          <div className="hint">جدول مواعيد المعاينات لكل فرع — يستبدل جدول الإكسيل</div>
         </div>
       </div>
 
@@ -271,8 +271,10 @@ export default function AppointmentsPage() {
               <span dir="ltr" style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.patient_phone}</span>
               <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>المنسقة: {a.coordinator_name ?? '—'}</span>
               <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>السيلز: {a.owner_name ?? '—'}</span>
-              <button className="btn btn-primary" style={{ marginInlineStart: 'auto', padding: '5px 14px' }}
-                onClick={() => openBooking(a)}>احجز موعد</button>
+              {mine(a) && (
+                <button className="btn btn-primary" style={{ marginInlineStart: 'auto', padding: '5px 14px' }}
+                  onClick={() => openBooking(a)}>احجز موعد</button>
+              )}
             </div>
           ))}
 
@@ -428,5 +430,5 @@ export default function AppointmentsPage() {
 function shiftDay(dateStr, delta) {
   const d = new Date(dateStr + 'T00:00:00')
   d.setDate(d.getDate() + delta)
-  return d.toISOString().slice(0, 10)
+  return localYMD(d)
 }

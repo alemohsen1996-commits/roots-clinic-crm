@@ -1661,11 +1661,19 @@ button.kanban-more:disabled { opacity: .6; cursor: default; }
 }
 
 .appt-table thead th {
-  background: var(--surface);
-  font-size: 11.5px; font-weight: 700; letter-spacing: .3px;
-  color: var(--ink-soft); padding: 13px 12px;
-  border-bottom: 1.5px solid var(--line);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--primary) 10%, var(--surface)),
+    color-mix(in srgb, var(--primary) 3%, var(--surface)));
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  font-size: 12px; font-weight: 800; letter-spacing: .4px;
+  color: var(--ink); padding: 15px 12px;
+  border-bottom: 2px solid color-mix(in srgb, var(--primary) 30%, var(--line));
 }
-.appt-table tbody td { padding: 11px 12px; }
+.appt-table thead th:first-child { border-start-start-radius: 12px; }
+.appt-table thead th:last-child  { border-start-end-radius: 12px; }
+.appt-table tbody td { padding: 12px; }
 .appt-table tbody tr { transition: background .12s; }
-.appt-table tbody tr:hover { background: color-mix(in srgb, var(--primary) 4%, transparent); }
+.appt-table tbody tr:not(:last-child) td {
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+}
+.appt-table tbody tr:hover { background: color-mix(in srgb, var(--primary) 5%, transparent); }
