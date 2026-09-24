@@ -171,6 +171,26 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const currentBoard = lead?.stages?.board ?? 'sales'
   const isSalesOwner = roleCode === 'agent' && lead?.owner_id === profile?.id
   const readOnlyForSales = isSalesOwner && currentBoard === 'coordinator'
+  // السيلز يقدر يصحّح تحويله (المنسقة/الفرع/الموعد) طول ما الليد لسه في المتابعة
+  const canFixHandoff = isSalesOwner && lead?.stages?.code === STAGE.FOLLOWUP
+
+  // تحميل المعاينة النشطة لتعبئة نموذج التصحيح بالفرع/الموعد الحاليين
+  useEffect(() => {
+    if (!canFixHandoff) return
+    let alive = true
+    ;(async () => {
+      const { data } = await supabase.from('appointments')
+        .select('id, branch_id, appt_date, appt_time, status')
+        .eq('lead_id', leadId).in('status', ['pending', 'booked'])
+        .order('id', { ascending: false }).limit(1).maybeSingle()
+      if (!alive) return
+      setApptBranch(data?.branch_id ? String(data.branch_id) : '')
+      setApptNoTime(!data || data.status === 'pending')
+      setApptDate(data?.appt_date ?? '')
+      setApptTime('')
+    })()
+    return () => { alive = false }
+  }, [canFixHandoff, leadId])
 
   const targetStages = refs.stages.filter(s => {
     if (isManager) return true
@@ -189,9 +209,9 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
 
   // تحميل الخانات المتاحة عند تفعيل التحويل للمتابعة (بعد تعريف movingToFollowup)
   useEffect(() => {
-    if (!movingToFollowup || apptNoTime) { setSlots([]); return }
+    if ((!movingToFollowup && !canFixHandoff) || apptNoTime) { setSlots([]); return }
     loadSlots()
-  }, [movingToFollowup, apptNoTime, loadSlots])
+  }, [movingToFollowup, canFixHandoff, apptNoTime, loadSlots])
 
   // flash مع خيار تراجع اختياري (يظهر لمدة أطول عند إتاحة التراجع)
   function say(m, undoInfo = null) {
@@ -303,6 +323,49 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     // نقل موضعي: العمود المصدر يشيله فورًا، والهدف يحدّث نفسه فقط
     emitBoardPatch({ removeId: leadId, removeFrom: fromStage, refetch: [toStage] })
     onChanged()
+  }
+
+  // تصحيح التحويل من السيلز — يغيّر المنسقة/الفرع/الموعد والليد لسه في المتابعة
+  async function fixHandoff() {
+    setErr('')
+    if (!coordinatorId) { setErr('اختر المنسقة'); return }
+    if (!apptBranch) { setErr('اختر فرع المعاينة'); return }
+    if (!apptNoTime && (!apptDate || !apptTime)) {
+      setErr('اختر يوم ووقت المعاينة، أو فعّل «بدون موعد»'); return
+    }
+    setBusy(true)
+
+    // 1) أنشئ المعاينة الجديدة أولًا (تقفل الخانة) — فإن نجحت نلغي القديمة
+    const { data: appt, error: apptErr } = await supabase.from('appointments').insert({
+      lead_id: leadId,
+      branch_id: Number(apptBranch),
+      coordinator_id: coordinatorId,
+      created_by: profile.id,
+      ...(apptNoTime
+        ? { status: 'pending' }
+        : { status: 'booked', appt_date: apptDate, appt_time: apptTime }),
+    }).select('id').single()
+    if (apptErr) {
+      setBusy(false)
+      const conflict = apptErr.code === '23505'
+      setErr(conflict ? 'الخانة دي اتحجزت للتو — اختر وقت تاني' : 'تعذّر تعديل المعاينة')
+      if (conflict) { setApptTime(''); loadSlots() }
+      return
+    }
+
+    // 2) ألغِ أي معاينة نشطة سابقة (يبقى موعد واحد فعّال)
+    await supabase.from('appointments')
+      .update({ status: 'rescheduled', appt_date: null, appt_time: null, updated_at: new Date().toISOString() })
+      .eq('lead_id', leadId).in('status', ['pending', 'booked']).neq('id', appt.id)
+
+    // 3) حدّث منسقة الليد (المرحلة تفضل متابعة — مفيش نقل بورد)
+    const { error: leadErr } = await supabase.from('leads')
+      .update({ coordinator_id: coordinatorId }).eq('id', leadId)
+    setBusy(false)
+    if (leadErr) { setErr('تعذّر تحديث المنسقة'); return }
+
+    say('تم تصحيح التحويل')
+    await load(); onChanged()
   }
 
   async function saveEdit() {
@@ -673,6 +736,77 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
           <div style={{ fontSize: 12.5, color: 'var(--ink-soft)',
             background: 'var(--surface)', padding: '8px 12px', borderRadius: 8, marginBottom: 10 }}>
             👁 هذا المريض تحت إدارة المنسقة الآن — يمكنك متابعة حالته فقط
+          </div>
+        )}
+
+        {canFixHandoff && (
+          <div className="stage-box" style={{ border: '1.5px solid var(--primary)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+            <div className="row-label" style={{ color: 'var(--primary)' }}>تصحيح التحويل</div>
+            <p style={{ fontSize: 12, color: 'var(--ink-soft)', margin: '0 0 10px', lineHeight: 1.7 }}>
+              لو حوّلت للمنسقة أو الفرع الغلط، صحّحها من هنا طول ما المريض لسه في المتابعة.
+            </p>
+
+            <div className="field" style={{ marginBottom: 6 }}>
+              <label>المنسقة المسؤولة *</label>
+              <select value={coordinatorId} onChange={e => setCoordinatorId(e.target.value)}>
+                <option value="">— اختر —</option>
+                {coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+              </select>
+            </div>
+
+            <div className="field" style={{ marginBottom: 6 }}>
+              <label>فرع المعاينة *</label>
+              <select value={apptBranch} onChange={e => { setApptBranch(e.target.value); setApptTime('') }}>
+                <option value="">— اختر —</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, margin: '8px 0' }}>
+              <input type="checkbox" checked={apptNoTime}
+                onChange={e => { setApptNoTime(e.target.checked); setApptTime('') }} />
+              بدون موعد — المنسقة تحجز لاحقًا
+            </label>
+
+            {!apptNoTime && (
+              <>
+                <div className="field" style={{ marginBottom: 6 }}>
+                  <label>يوم المعاينة *</label>
+                  <input type="date" value={apptDate}
+                    onChange={e => { setApptDate(e.target.value); setApptTime('') }} />
+                </div>
+                <div className="field" style={{ marginBottom: 8 }}>
+                  <label>الوقت المتاح *</label>
+                  {(!apptBranch || !apptDate) ? (
+                    <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>اختر الفرع واليوم لعرض الأوقات</div>
+                  ) : slotsLoading ? (
+                    <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>جارٍ التحميل…</div>
+                  ) : slots.length === 0 ? (
+                    <div style={{ fontSize: 12.5, color: 'var(--warn)', fontWeight: 600 }}>
+                      لا خانات متاحة في هذا اليوم (إجازة أو محجوز بالكامل)
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {slots.map(t => {
+                        const on = apptTime === t
+                        return (
+                          <button key={t} type="button" onClick={() => setApptTime(t)} className="btn"
+                            style={{ padding: '5px 12px', fontSize: 13, borderRadius: 8,
+                              border: '1px solid ' + (on ? 'var(--primary)' : 'var(--line)'),
+                              background: on ? 'var(--primary)' : 'transparent', color: on ? '#fff' : 'var(--ink)' }}>
+                            {String(t).slice(0, 5)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <button className="btn btn-primary" disabled={busy} onClick={fixHandoff}>
+              {busy ? '…' : 'تصحيح التحويل'}
+            </button>
           </div>
         )}
 

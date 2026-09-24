@@ -121,6 +121,19 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
     await load(); onChanged()
   }
 
+  async function changeAgent(id) {
+    if (!id) return
+    const { error } = await supabase.from('deals')
+      .update({ agent_id: id }).eq('id', dealId)
+    if (error) {
+      setErr(error.message.includes('مقفول') ? 'الديل مقفول محاسبيًا'
+           : error.message.includes('غير مصرح') ? 'تغيير السيلز متاح للمدير فقط'
+           : 'تعذر التعديل')
+      return
+    }
+    await load(); onChanged()
+  }
+
   async function toggleLock() {
     const { error } = await supabase.from('deals').update({
       is_locked: !deal.is_locked,
@@ -315,6 +328,19 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
             </select>
             <small style={{ color: 'var(--ink-soft)' }}>
               تغيير المنسقة ينقل عمولة هذا الديل — متاح للمدير فقط
+            </small>
+          </div>
+        )}
+
+        {/* تغيير السيلز — للمدير فقط (عمولة الديل تنتقل معه) */}
+        {!deal.is_locked && isManager && (
+          <div className="drawer-section">
+            <h3>موظف المبيعات (السيلز)</h3>
+            <select value={deal.agent_id ?? ''} onChange={e => changeAgent(e.target.value)}>
+              {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+            </select>
+            <small style={{ color: 'var(--ink-soft)' }}>
+              تغيير السيلز ينقل عمولة هذا الديل — متاح للمدير فقط
             </small>
           </div>
         )}
