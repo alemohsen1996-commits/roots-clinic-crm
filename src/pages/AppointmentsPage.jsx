@@ -101,7 +101,8 @@ export default function AppointmentsPage() {
       if (list.length) {
         const withNear = list.filter(b => sum[b.id]?.nearest)
           .sort((a, b) => sum[a.id].nearest.localeCompare(sum[b.id].nearest))
-        const def = withNear[0] ?? list[0]
+        const withPending = list.filter(b => (sum[b.id]?.pending ?? 0) > 0)   // فروع فيها «بدون موعد»
+        const def = withNear[0] ?? withPending[0] ?? list[0]
         setBranchId(prev => prev ?? def.id)
         if (sum[def.id]?.nearest) setDate(sum[def.id].nearest)
       }
