@@ -111,11 +111,9 @@ export default function AppointmentsPage() {
     setLoading(true); setErr('')
     const [{ data: sc }, { data: dayAppts }, { data: pend }] = await Promise.all([
       supabase.from('branch_schedules').select('*').eq('branch_id', branchId).maybeSingle(),
-      supabase.from('appointments')
-        .select('*, leads(id, full_name, phone, owner:profiles!leads_owner_id_fkey(full_name)), coordinator:profiles!appointments_coordinator_id_fkey(full_name)')
+      supabase.from('v_appointments').select('*')
         .eq('branch_id', branchId).eq('appt_date', date),
-      supabase.from('appointments')
-        .select('*, leads(id, full_name, phone, owner:profiles!leads_owner_id_fkey(full_name)), coordinator:profiles!appointments_coordinator_id_fkey(full_name)')
+      supabase.from('v_appointments').select('*')
         .eq('branch_id', branchId).eq('status', 'pending'),
     ])
     setSched(sc ?? null)
@@ -179,8 +177,8 @@ export default function AppointmentsPage() {
   const matchQ = (a) => {
     const t = q.trim().toLowerCase()
     if (!t) return true
-    return (a.leads?.full_name || '').toLowerCase().includes(t)
-        || (a.leads?.phone || '').includes(t)
+    return (a.patient_name || '').toLowerCase().includes(t)
+        || (a.patient_phone || '').includes(t)
   }
 
   return (
@@ -193,11 +191,11 @@ export default function AppointmentsPage() {
       </div>
 
       {/* تبويبات الفروع */}
-      <div className="tabs" style={{ overflowX: 'auto' }}>
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '4px 0 14px', flexWrap: 'wrap' }}>
         {branches.map(b => {
           const cnt = (summary[b.id]?.upcoming ?? 0) + (summary[b.id]?.pending ?? 0)
           return (
-            <button key={b.id} className={'tab' + (b.id === branchId ? ' on' : '')}
+            <button key={b.id} className={'branch-chip' + (b.id === branchId ? ' on' : '')}
               onClick={() => selectBranch(b.id)}>
               {b.name}
               {cnt > 0 && (
@@ -242,10 +240,10 @@ export default function AppointmentsPage() {
               padding: '8px 0', borderTop: '0.5px solid var(--line)',
             }}>
               <button className="link-name" style={{ fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)' }}
-                onClick={() => setOpenLead(a.lead_id)}>{a.leads?.full_name}</button>
-              <span dir="ltr" style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.leads?.phone}</span>
-              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>المنسقة: {a.coordinator?.full_name ?? '—'}</span>
-              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>السيلز: {a.leads?.owner?.full_name ?? '—'}</span>
+                onClick={() => setOpenLead(a.lead_id)}>{a.patient_name}</button>
+              <span dir="ltr" style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.patient_phone}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>المنسقة: {a.coordinator_name ?? '—'}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>السيلز: {a.owner_name ?? '—'}</span>
               <button className="btn btn-primary" style={{ marginInlineStart: 'auto', padding: '5px 14px' }}
                 onClick={() => openBooking(a)}>احجز موعد</button>
             </div>
@@ -334,11 +332,11 @@ export default function AppointmentsPage() {
                   <td style={{ fontFamily: 'monospace' }}>{hhmm(t)}</td>
                   <td>
                     <button className="link-name" style={{ fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)', padding: 0 }}
-                      onClick={() => setOpenLead(a.lead_id)}>{a.leads?.full_name}</button>
+                      onClick={() => setOpenLead(a.lead_id)}>{a.patient_name}</button>
                   </td>
-                  <td dir="ltr" style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{a.leads?.phone}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{a.coordinator?.full_name ?? '—'}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{a.leads?.owner?.full_name ?? '—'}</td>
+                  <td dir="ltr" style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{a.patient_phone}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{a.coordinator_name ?? '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{a.owner_name ?? '—'}</td>
                   <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.callcenter_note ?? '—'}</td>
                   <td><StatusBadge s={a.status} /></td>
                   <td>
