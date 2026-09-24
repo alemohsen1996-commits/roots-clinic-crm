@@ -111,10 +111,10 @@ export default function AppointmentsPage() {
     const [{ data: sc }, { data: dayAppts }, { data: pend }] = await Promise.all([
       supabase.from('branch_schedules').select('*').eq('branch_id', branchId).maybeSingle(),
       supabase.from('appointments')
-        .select('*, leads(id, full_name, phone), coordinator:profiles(full_name)')
+        .select('*, leads(id, full_name, phone), coordinator:profiles!appointments_coordinator_id_fkey(full_name)')
         .eq('branch_id', branchId).eq('appt_date', date),
       supabase.from('appointments')
-        .select('*, leads(id, full_name, phone), coordinator:profiles(full_name)')
+        .select('*, leads(id, full_name, phone), coordinator:profiles!appointments_coordinator_id_fkey(full_name)')
         .eq('branch_id', branchId).eq('status', 'pending'),
     ])
     setSched(sc ?? null)
