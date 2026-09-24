@@ -284,6 +284,12 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         .update({ status: 'rescheduled', appt_date: null, appt_time: null, updated_at: new Date().toISOString() })
         .eq('lead_id', leadId).in('status', ['pending', 'booked']).neq('id', createdApptId)
     }
+    // خروج من مسار المعاينة (نقل لبورد المبيعات) — ألغِ أي معاينة نشطة من الجدول
+    if (!movingToFollowup && (targetStage?.board ?? 'sales') === 'sales') {
+      await supabase.from('appointments')
+        .update({ status: 'rescheduled', appt_date: null, appt_time: null, updated_at: new Date().toISOString() })
+        .eq('lead_id', leadId).in('status', ['pending', 'booked'])
+    }
     await load()
     // نقل موضعي: العمود المصدر يشيله فورًا، والهدف يحدّث نفسه فقط
     emitBoardPatch({ removeId: leadId, removeFrom: fromStage, refetch: [toStage] })
