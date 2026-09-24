@@ -338,14 +338,14 @@ export default function AppointmentsPage() {
         <table className="table appt-table">
           <thead>
             <tr>
-              <th style={{ width: 80 }}>الوقت</th>
-              <th style={{ width: 150 }}>المريض</th>
-              <th style={{ width: 145 }}>الرقم</th>
-              <th style={{ width: 140 }}>المنسقة</th>
-              <th style={{ width: 120 }}>السيلز</th>
-              <th style={{ width: 210 }}>ملاحظات</th>
-              <th style={{ width: 100 }}>الحالة</th>
-              <th style={{ width: 220 }}>إجراء</th>
+              <th style={{ width: 30 }}>الوقت</th>
+              <th style={{ width: 60 }}>المريض</th>
+              <th style={{ width: 60 }}>الرقم</th>
+              <th style={{ width: 60 }}>المنسقة</th>
+              <th style={{ width: 60 }}>السيلز</th>
+              <th style={{ width: 220 }}>ملاحظات</th>
+              <th style={{ width: 30 }}>الحالة</th>
+              <th style={{ width: 130 }}>إجراء</th>
             </tr>
           </thead>
           <tbody>
@@ -355,8 +355,7 @@ export default function AppointmentsPage() {
               if (!a) return (
                 <tr key={t} style={{ color: 'var(--ink-soft)' }}>
                   <td style={{ fontFamily: 'monospace' }}>{hhmm(t)}</td>
-                  <td colSpan={6} style={{ fontSize: 12.5 }}>— خانة فارغة —</td>
-                  <td></td>
+                  <td colSpan={7} style={{ fontSize: 12.5, textAlign: 'start' }}>— خانة فارغة —</td>
                 </tr>
               )
               const busy = busyId === a.id
