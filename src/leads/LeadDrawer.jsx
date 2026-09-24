@@ -278,6 +278,12 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         : 'تعذر تغيير المرحلة')
       return
     }
+    // بعد نجاح النقل: ألغِ أي معاينة نشطة سابقة لنفس الليد (يبقى موعد واحد فعّال)
+    if (createdApptId) {
+      await supabase.from('appointments')
+        .update({ status: 'rescheduled', appt_date: null, appt_time: null, updated_at: new Date().toISOString() })
+        .eq('lead_id', leadId).in('status', ['pending', 'booked']).neq('id', createdApptId)
+    }
     await load()
     // نقل موضعي: العمود المصدر يشيله فورًا، والهدف يحدّث نفسه فقط
     emitBoardPatch({ removeId: leadId, removeFrom: fromStage, refetch: [toStage] })

@@ -57,6 +57,7 @@ export default function AppointmentsPage() {
   const [busyId, setBusyId] = useState(null)
   const [book, setBook] = useState(null)       // { apptId, date, time, slots }
   const [err, setErr] = useState('')
+  const [q, setQ] = useState('')   // بحث بالاسم/الرقم
 
   // مراحل المعاينة (أكواد ديناميكية — نطابقها بالاسم)
   const attendedStage = stages.find(s => s.name_ar === 'حضر المعاينة')
@@ -111,10 +112,10 @@ export default function AppointmentsPage() {
     const [{ data: sc }, { data: dayAppts }, { data: pend }] = await Promise.all([
       supabase.from('branch_schedules').select('*').eq('branch_id', branchId).maybeSingle(),
       supabase.from('appointments')
-        .select('*, leads(id, full_name, phone), coordinator:profiles!appointments_coordinator_id_fkey(full_name)')
+        .select('*, leads(id, full_name, phone, owner:profiles!leads_owner_id_fkey(full_name)), coordinator:profiles!appointments_coordinator_id_fkey(full_name)')
         .eq('branch_id', branchId).eq('appt_date', date),
       supabase.from('appointments')
-        .select('*, leads(id, full_name, phone), coordinator:profiles!appointments_coordinator_id_fkey(full_name)')
+        .select('*, leads(id, full_name, phone, owner:profiles!leads_owner_id_fkey(full_name)), coordinator:profiles!appointments_coordinator_id_fkey(full_name)')
         .eq('branch_id', branchId).eq('status', 'pending'),
     ])
     setSched(sc ?? null)
@@ -175,6 +176,12 @@ export default function AppointmentsPage() {
   }
 
   const branch = branches.find(b => b.id === branchId)
+  const matchQ = (a) => {
+    const t = q.trim().toLowerCase()
+    if (!t) return true
+    return (a.leads?.full_name || '').toLowerCase().includes(t)
+        || (a.leads?.phone || '').includes(t)
+  }
 
   return (
     <>
@@ -218,13 +225,18 @@ export default function AppointmentsPage() {
           onClick={() => setDate(todayStr())}>اليوم</button>
       </div>
 
+      <div style={{ margin: '0 0 12px' }}>
+        <input value={q} onChange={e => setQ(e.target.value)}
+          placeholder="بحث باسم المريض أو رقمه…" style={{ width: '100%', maxWidth: 360 }} />
+      </div>
+
       {err && <div className="alert alert-error">{err}</div>}
 
       {/* بدون موعد */}
       {pending.length > 0 && (
         <div className="drawer-section" style={{ marginBottom: 14 }}>
           <h3>بدون موعد — بانتظار الحجز ({pending.length})</h3>
-          {pending.map(a => (
+          {pending.filter(matchQ).map(a => (
             <div key={a.id} style={{
               display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
               padding: '8px 0', borderTop: '0.5px solid var(--line)',
@@ -232,7 +244,8 @@ export default function AppointmentsPage() {
               <button className="link-name" style={{ fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)' }}
                 onClick={() => setOpenLead(a.lead_id)}>{a.leads?.full_name}</button>
               <span dir="ltr" style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.leads?.phone}</span>
-              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.coordinator?.full_name}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>المنسقة: {a.coordinator?.full_name ?? '—'}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>السيلز: {a.leads?.owner?.full_name ?? '—'}</span>
               <button className="btn btn-primary" style={{ marginInlineStart: 'auto', padding: '5px 14px' }}
                 onClick={() => openBooking(a)}>احجز موعد</button>
             </div>
@@ -296,20 +309,22 @@ export default function AppointmentsPage() {
             <tr>
               <th style={{ width: 70 }}>الوقت</th>
               <th>المريض</th>
-              <th style={{ width: 130 }}>الرقم</th>
-              <th style={{ width: 100 }}>المنسقة</th>
+              <th style={{ width: 120 }}>الرقم</th>
+              <th style={{ whiteSpace: 'nowrap' }}>المنسقة</th>
+              <th style={{ whiteSpace: 'nowrap' }}>السيلز</th>
               <th>ملاحظات الكول سنتر</th>
               <th style={{ width: 90 }}>الحالة</th>
-              <th style={{ width: 210 }}>إجراء</th>
+              <th style={{ width: 200 }}>إجراء</th>
             </tr>
           </thead>
           <tbody>
             {slots.map(t => {
               const a = byTime[hhmm(t)]
+              if (q.trim() && (!a || !matchQ(a))) return null   // أثناء البحث: المطابق فقط
               if (!a) return (
                 <tr key={t} style={{ color: 'var(--ink-soft)' }}>
                   <td style={{ fontFamily: 'monospace' }}>{hhmm(t)}</td>
-                  <td colSpan={5} style={{ fontSize: 12.5 }}>— خانة فارغة —</td>
+                  <td colSpan={6} style={{ fontSize: 12.5 }}>— خانة فارغة —</td>
                   <td></td>
                 </tr>
               )
@@ -322,7 +337,8 @@ export default function AppointmentsPage() {
                       onClick={() => setOpenLead(a.lead_id)}>{a.leads?.full_name}</button>
                   </td>
                   <td dir="ltr" style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{a.leads?.phone}</td>
-                  <td>{a.coordinator?.full_name ?? '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{a.coordinator?.full_name ?? '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{a.leads?.owner?.full_name ?? '—'}</td>
                   <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.callcenter_note ?? '—'}</td>
                   <td><StatusBadge s={a.status} /></td>
                   <td>
