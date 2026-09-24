@@ -47,6 +47,7 @@ export default function AppointmentsPage() {
   const stages = refs.stages
   const [branches, setBranches] = useState([])
   const [branchId, setBranchId] = useState(null)
+  const [summary, setSummary] = useState({})   // لكل فرع: أقرب حجز + الأعداد
   const [date, setDate] = useState(todayStr())
   const [sched, setSched] = useState(null)
   const [appts, setAppts] = useState([])       // معاينات اليوم (لها وقت)
@@ -62,12 +63,47 @@ export default function AppointmentsPage() {
   const noShowStage   = stages.find(s => s.name_ar === 'لم يحضر المعاينة')
 
   useEffect(() => {
-    supabase.from('branches').select('id, name').eq('is_active', true).order('name')
-      .then(({ data }) => {
-        setBranches(data ?? [])
-        if (data?.length) setBranchId(b => b ?? data[0].id)
+    (async () => {
+      const { data: br } = await supabase.from('branches')
+        .select('id, name').eq('is_active', true).order('name')
+      const list = br ?? []
+      setBranches(list)
+
+      // ملخّص: أقرب حجز قادم + أعداد المحجوز/بدون موعد لكل فرع
+      const today = todayStr()
+      const [{ data: up }, { data: pend }] = await Promise.all([
+        supabase.from('appointments').select('branch_id, appt_date')
+          .gte('appt_date', today).in('status', ['booked', 'attended']),
+        supabase.from('appointments').select('branch_id')
+          .is('appt_date', null).eq('status', 'pending'),
+      ])
+      const sum = {}
+      list.forEach(b => { sum[b.id] = { upcoming: 0, pending: 0, nearest: null } })
+      ;(up ?? []).forEach(r => {
+        const x = sum[r.branch_id]; if (!x) return
+        x.upcoming++
+        if (!x.nearest || r.appt_date < x.nearest) x.nearest = r.appt_date
       })
+      ;(pend ?? []).forEach(r => { if (sum[r.branch_id]) sum[r.branch_id].pending++ })
+      setSummary(sum)
+
+      // الافتراضي: الفرع صاحب أقرب حجز، واليوم = أقرب حجز له
+      if (list.length) {
+        const withNear = list.filter(b => sum[b.id]?.nearest)
+          .sort((a, b) => sum[a.id].nearest.localeCompare(sum[b.id].nearest))
+        const def = withNear[0] ?? list[0]
+        setBranchId(prev => prev ?? def.id)
+        if (sum[def.id]?.nearest) setDate(sum[def.id].nearest)
+      }
+    })()
   }, [])
+
+  // اختيار فرع ينقلك لأقرب يوم فيه حجز
+  const selectBranch = (bid) => {
+    setBranchId(bid)
+    const near = summary[bid]?.nearest
+    if (near) setDate(near)
+  }
 
   const load = useCallback(async () => {
     if (!branchId) return
@@ -151,10 +187,22 @@ export default function AppointmentsPage() {
 
       {/* تبويبات الفروع */}
       <div className="tabs" style={{ overflowX: 'auto' }}>
-        {branches.map(b => (
-          <button key={b.id} className={'tab' + (b.id === branchId ? ' on' : '')}
-            onClick={() => setBranchId(b.id)}>{b.name}</button>
-        ))}
+        {branches.map(b => {
+          const cnt = (summary[b.id]?.upcoming ?? 0) + (summary[b.id]?.pending ?? 0)
+          return (
+            <button key={b.id} className={'tab' + (b.id === branchId ? ' on' : '')}
+              onClick={() => selectBranch(b.id)}>
+              {b.name}
+              {cnt > 0 && (
+                <span style={{
+                  marginInlineStart: 6, fontSize: 11, fontWeight: 700,
+                  padding: '1px 7px', borderRadius: 20,
+                  background: 'var(--primary)', color: '#fff',
+                }}>{cnt}</span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* شريط اليوم */}
