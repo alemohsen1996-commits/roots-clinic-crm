@@ -5,6 +5,18 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { STAGE } from '../lib/stageCodes'
 
+// توحيد الأرقام السعودية للصيغة الدولية (+9665XXXXXXXX)
+// فيتساوى «05…» و«5…» و«9665…» مع «+9665…» ويتمنع تكرار نفس الرقم بصيغتين.
+// الأرقام غير السعودية المعروفة تُترك كما هي.
+export function canonSaudiPhone(raw) {
+  const orig = (raw || '').trim()
+  let d = orig.replace(/\D/g, '')
+  if (d.startsWith('00')) d = d.slice(2)
+  if (/^0?5\d{8}$/.test(d)) return '+966' + d.replace(/^0/, '')  // 05XXXXXXXX أو 5XXXXXXXX
+  if (/^9665\d{8}$/.test(d)) return '+' + d                       // 9665XXXXXXXX
+  return orig                                                     // مش سعودي معروف — يُترك كما هو
+}
+
 export default function AddLeadModal({ refs, onClose, onSaved }) {
   const { profile } = useAuth()
   const [form, setForm] = useState({
@@ -35,13 +47,16 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   async function checkDup() {
-    if (form.phone.replace(/\D/g, '').length < 8) { setDup(null); return }
-    const { data } = await supabase.rpc('check_duplicate_phone', { p_phone: form.phone })
+    const canon = canonSaudiPhone(form.phone)
+    if (canon !== form.phone) set('phone', canon)   // يعرض الصيغة الموحّدة للموظف
+    if (canon.replace(/\D/g, '').length < 8) { setDup(null); return }
+    const { data } = await supabase.rpc('check_duplicate_phone', { p_phone: canon })
     setDup(data?.length ? data[0] : null)
   }
 
   async function save() {
-    if (!form.full_name.trim() || !form.phone.trim()) {
+    const phone = canonSaudiPhone(form.phone)
+    if (!form.full_name.trim() || !phone.trim()) {
       setErr('الاسم والهاتف مطلوبان'); return
     }
     if (dup) { setErr('هذا الرقم مسجل بالفعل — افتح الملف الموجود بدلًا من التكرار'); return }
@@ -52,7 +67,7 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
 
     const { error } = await supabase.from('leads').insert({
       full_name: form.full_name.trim(),
-      phone: form.phone.trim(),
+      phone: phone,
       country: form.country || null,
       city: form.city || null,
       age: form.age ? Number(form.age) : null,
