@@ -183,6 +183,9 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const targetStage = refs.stages.find(s => s.id === Number(stageTo))
   const needsLostReason = targetStage?.code === STAGE.LOST
   const movingToFollowup = targetStage?.code === STAGE.FOLLOWUP && lead?.stages?.code !== STAGE.FOLLOWUP
+  // مراحل تُبقي المعاينة (المتابعة + حضر/لم يحضر المعاينة)؛ غيرها يلغي المعاينة
+  const attendedStage = refs.stages.find(s => s.name_ar === 'حضر المعاينة')
+  const noShowStage   = refs.stages.find(s => s.name_ar === 'لم يحضر المعاينة')
 
   // تحميل الخانات المتاحة عند تفعيل التحويل للمتابعة (بعد تعريف movingToFollowup)
   useEffect(() => {
@@ -284,8 +287,11 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         .update({ status: 'rescheduled', appt_date: null, appt_time: null, updated_at: new Date().toISOString() })
         .eq('lead_id', leadId).in('status', ['pending', 'booked']).neq('id', createdApptId)
     }
-    // خروج من مسار المعاينة (نقل لبورد المبيعات) — ألغِ أي معاينة نشطة من الجدول
-    if (!movingToFollowup && (targetStage?.board ?? 'sales') === 'sales') {
+    // خروج من مسار المعاينة (أي مرحلة غير المتابعة أو حضر/لم يحضر المعاينة) — ألغِ أي معاينة نشطة
+    const keepsAppt = targetStage?.code === STAGE.FOLLOWUP
+      || (attendedStage && targetStage?.id === attendedStage.id)
+      || (noShowStage && targetStage?.id === noShowStage.id)
+    if (!movingToFollowup && !keepsAppt) {
       await supabase.from('appointments')
         .update({ status: 'rescheduled', appt_date: null, appt_time: null, updated_at: new Date().toISOString() })
         .eq('lead_id', leadId).in('status', ['pending', 'booked'])

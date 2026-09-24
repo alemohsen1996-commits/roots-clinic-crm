@@ -1,6 +1,6 @@
 // شاشة المعاينات — عرض يومي لكل فرع (يستبدل جدول الإكسيل)
 // الخانات تُولّد من إعداد الفرع، والمحجوز من جدول appointments.
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useLeadRefs } from '../leads/useLeadRefs'
 import LeadDrawer from '../leads/LeadDrawer'
@@ -72,36 +72,40 @@ export default function AppointmentsPage() {
   const noShowStage   = stages.find(s => s.name_ar === 'لم يحضر المعاينة')
   const followupStage = stages.find(s => s.code === STAGE.FOLLOWUP)
 
+  // ملخّص الأعداد + أقرب حجز لكل فرع — قابل لإعادة الاستدعاء من Realtime
+  const refreshSummary = useCallback(async (branchList) => {
+    const list = branchList ?? branches
+    const today = todayStr()
+    const [{ data: up }, { data: pend }] = await Promise.all([
+      supabase.from('v_appointments').select('branch_id, appt_date')
+        .gte('appt_date', today).in('status', ['booked', 'attended']),
+      supabase.from('v_appointments').select('branch_id')
+        .is('appt_date', null).eq('status', 'pending'),
+    ])
+    const sum = {}
+    list.forEach(b => { sum[b.id] = { upcoming: 0, pending: 0, nearest: null } })
+    ;(up ?? []).forEach(r => {
+      const x = sum[r.branch_id]; if (!x) return
+      x.upcoming++
+      if (!x.nearest || r.appt_date < x.nearest) x.nearest = r.appt_date
+    })
+    ;(pend ?? []).forEach(r => { if (sum[r.branch_id]) sum[r.branch_id].pending++ })
+    setSummary(sum)
+    return sum
+  }, [branches])
+
   useEffect(() => {
     (async () => {
       const { data: br } = await supabase.from('branches')
         .select('id, name').eq('is_active', true).order('name')
       const list = br ?? []
       setBranches(list)
-
-      // ملخّص: أقرب حجز قادم + أعداد المحجوز/بدون موعد لكل فرع
-      const today = todayStr()
-      const [{ data: up }, { data: pend }] = await Promise.all([
-        supabase.from('v_appointments').select('branch_id, appt_date')
-          .gte('appt_date', today).in('status', ['booked', 'attended']),
-        supabase.from('v_appointments').select('branch_id')
-          .is('appt_date', null).eq('status', 'pending'),
-      ])
-      const sum = {}
-      list.forEach(b => { sum[b.id] = { upcoming: 0, pending: 0, nearest: null } })
-      ;(up ?? []).forEach(r => {
-        const x = sum[r.branch_id]; if (!x) return
-        x.upcoming++
-        if (!x.nearest || r.appt_date < x.nearest) x.nearest = r.appt_date
-      })
-      ;(pend ?? []).forEach(r => { if (sum[r.branch_id]) sum[r.branch_id].pending++ })
-      setSummary(sum)
-
-      // الافتراضي: الفرع صاحب أقرب حجز، واليوم = أقرب حجز له
+      const sum = await refreshSummary(list)
+      // الافتراضي: أول فرع فيه نشاط (حجز قادم أو بدون موعد)
       if (list.length) {
         const withNear = list.filter(b => sum[b.id]?.nearest)
           .sort((a, b) => sum[a.id].nearest.localeCompare(sum[b.id].nearest))
-        const withPending = list.filter(b => (sum[b.id]?.pending ?? 0) > 0)   // فروع فيها «بدون موعد»
+        const withPending = list.filter(b => (sum[b.id]?.pending ?? 0) > 0)
         const def = withNear[0] ?? withPending[0] ?? list[0]
         setBranchId(prev => prev ?? def.id)
         if (sum[def.id]?.nearest) setDate(sum[def.id].nearest)
@@ -133,6 +137,18 @@ export default function AppointmentsPage() {
   }, [branchId, date])
 
   useEffect(() => { load() }, [load])
+
+  // تحديث لحظي (Realtime): أي تغيير في المعاينات يعيد التحميل عند الجميع فورًا
+  const loadRef = useRef(load)
+  const sumRef = useRef(refreshSummary)
+  useEffect(() => { loadRef.current = load; sumRef.current = refreshSummary })
+  useEffect(() => {
+    const ch = supabase.channel('appointments-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' },
+        () => { loadRef.current(); sumRef.current() })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [])
 
   // خريطة الوقت → معاينة
   const byTime = Object.fromEntries(appts.filter(a => a.appt_time).map(a => [hhmm(a.appt_time), a]))
