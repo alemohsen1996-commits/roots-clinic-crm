@@ -292,9 +292,12 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
       || (attendedStage && targetStage?.id === attendedStage.id)
       || (noShowStage && targetStage?.id === noShowStage.id)
     if (!movingToFollowup && !keepsAppt) {
+      // العودة لبورد المبيعات (أدمن): خروج كامل من المسار — ألغِ أي معاينة (بدون موعد أو محجوزة)
+      // التقدّم لمرحلة تالية (ديل/عملية/خسارة…): شِل «بدون موعد» من قائمة الانتظار فقط — واترك المحجوزة على الجدول
+      const statuses = backToSales ? ['pending', 'booked'] : ['pending']
       await supabase.from('appointments')
         .update({ status: 'rescheduled', appt_date: null, appt_time: null, updated_at: new Date().toISOString() })
-        .eq('lead_id', leadId).in('status', ['pending', 'booked'])
+        .eq('lead_id', leadId).in('status', statuses)
     }
     await load()
     // نقل موضعي: العمود المصدر يشيله فورًا، والهدف يحدّث نفسه فقط
