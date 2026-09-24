@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useLeadRefs } from '../leads/useLeadRefs'
 import LeadDrawer from '../leads/LeadDrawer'
 import { emitBoardPatch } from '../leads/boardBus'
+import { STAGE } from '../lib/stageCodes'
 
 const STATUS = {
   booked:      { ar: 'محجوز',   bg: 'var(--primary)', soft: true },
@@ -55,6 +56,8 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState(true)
   const [openLead, setOpenLead] = useState(null)
   const [busyId, setBusyId] = useState(null)
+  const [noteFor, setNoteFor] = useState(null)   // { id, action, appt } عند طلب ملاحظة
+  const [noteText, setNoteText] = useState('')
   const [book, setBook] = useState(null)       // { apptId, date, time, slots }
   const [err, setErr] = useState('')
   const [q, setQ] = useState('')   // بحث بالاسم/الرقم
@@ -62,6 +65,7 @@ export default function AppointmentsPage() {
   // مراحل المعاينة (أكواد ديناميكية — نطابقها بالاسم)
   const attendedStage = stages.find(s => s.name_ar === 'حضر المعاينة')
   const noShowStage   = stages.find(s => s.name_ar === 'لم يحضر المعاينة')
+  const followupStage = stages.find(s => s.code === STAGE.FOLLOWUP)
 
   useEffect(() => {
     (async () => {
@@ -128,22 +132,36 @@ export default function AppointmentsPage() {
   const byTime = Object.fromEntries(appts.filter(a => a.appt_time).map(a => [hhmm(a.appt_time), a]))
   const slots = genSlots(sched, date)
 
-  async function setStatus(appt, newStatus) {
+  async function setStatus(appt, newStatus, note) {
     setBusyId(appt.id); setErr('')
     const patch = { status: newStatus, updated_at: new Date().toISOString() }
     if (newStatus === 'pending') { patch.appt_date = null; patch.appt_time = null }
+    if (note !== undefined) patch.coordinator_note = note
     const { error } = await supabase.from('appointments').update(patch).eq('id', appt.id)
-    if (!error) {
-      // مزامنة مرحلة الليد
-      const target = newStatus === 'attended' ? attendedStage
-                   : newStatus === 'no_show'  ? noShowStage : null
-      if (target) {
-        await supabase.from('leads').update({ stage_id: target.id }).eq('id', appt.lead_id)
-        emitBoardPatch({ refetch: [target.id] })
-      }
-    } else setErr('تعذّر تحديث الحالة')
+    if (error) { setErr('تعذّر تحديث الحالة'); setBusyId(null); return }
+    // مزامنة مرحلة الليد مع الحالة (يمكن التصحيح في أي وقت)
+    const target = newStatus === 'attended' ? attendedStage
+                 : newStatus === 'no_show'  ? noShowStage
+                 : newStatus === 'booked'   ? followupStage
+                 : null
+    if (target) {
+      await supabase.from('leads').update({ stage_id: target.id }).eq('id', appt.lead_id)
+      emitBoardPatch({ refetch: [target.id] })
+    }
     setBusyId(null)
+    setNoteFor(null); setNoteText('')
     await load()
+  }
+
+  // حضر/لم يحضر يتطلبان ملاحظة — نفتح مربّع ملاحظة أولًا
+  function askNote(appt, action) {
+    setNoteFor({ id: appt.id, action, appt })
+    setNoteText(appt.coordinator_note ?? '')
+    setErr('')
+  }
+  function confirmNote() {
+    if (!noteText.trim()) { setErr('الملاحظة مطلوبة قبل الحفظ'); return }
+    setStatus(noteFor.appt, noteFor.action, noteText.trim())
   }
 
   // فتح واجهة حجز لمعاينة "بدون موعد"
@@ -310,9 +328,9 @@ export default function AppointmentsPage() {
               <th style={{ width: 120 }}>الرقم</th>
               <th style={{ whiteSpace: 'nowrap' }}>المنسقة</th>
               <th style={{ whiteSpace: 'nowrap' }}>السيلز</th>
-              <th>ملاحظات الكول سنتر</th>
+              <th>ملاحظات</th>
               <th style={{ width: 90 }}>الحالة</th>
-              <th style={{ width: 200 }}>إجراء</th>
+              <th style={{ width: 240 }}>إجراء</th>
             </tr>
           </thead>
           <tbody>
@@ -337,15 +355,37 @@ export default function AppointmentsPage() {
                   <td dir="ltr" style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{a.patient_phone}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{a.coordinator_name ?? '—'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{a.owner_name ?? '—'}</td>
-                  <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.callcenter_note ?? '—'}</td>
+                  <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
+                    {a.callcenter_note && <div>{a.callcenter_note}</div>}
+                    {a.coordinator_note && <div style={{ color: 'var(--primary)', fontWeight: 500 }}>{a.coordinator_note}</div>}
+                    {!a.callcenter_note && !a.coordinator_note && '—'}
+                  </td>
                   <td><StatusBadge s={a.status} /></td>
                   <td>
-                    {(a.status === 'booked') && (
-                      <div style={{ display: 'flex', gap: 5 }}>
-                        <button className="btn" disabled={busy} onClick={() => setStatus(a, 'attended')}
-                          style={{ padding: '4px 10px', fontSize: 12, color: 'var(--ok)', borderColor: 'var(--ok)' }}>حضر</button>
-                        <button className="btn" disabled={busy} onClick={() => setStatus(a, 'no_show')}
-                          style={{ padding: '4px 10px', fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger)' }}>لم يحضر</button>
+                    {noteFor?.id === a.id ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 210 }}>
+                        <textarea value={noteText} onChange={e => setNoteText(e.target.value)} rows={2}
+                          placeholder={noteFor.action === 'attended' ? 'ملاحظة الحضور (مطلوبة)…' : 'سبب عدم الحضور (مطلوب)…'}
+                          style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--line)',
+                                   borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: 12.5, resize: 'vertical' }} />
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-primary" disabled={busy} onClick={confirmNote}
+                            style={{ padding: '4px 12px', fontSize: 12 }}>تأكيد</button>
+                          <button className="btn btn-ghost" onClick={() => { setNoteFor(null); setNoteText(''); setErr('') }}
+                            style={{ padding: '4px 10px', fontSize: 12 }}>إلغاء</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                        <button className="btn" disabled={busy} onClick={() => setStatus(a, 'booked')}
+                          style={{ padding: '4px 10px', fontSize: 12,
+                            ...(a.status === 'booked' ? { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' } : {}) }}>محجوز</button>
+                        <button className="btn" disabled={busy} onClick={() => askNote(a, 'attended')}
+                          style={{ padding: '4px 10px', fontSize: 12, color: 'var(--ok)', borderColor: 'var(--ok)',
+                            ...(a.status === 'attended' ? { background: 'var(--ok)', color: '#fff' } : {}) }}>حضر</button>
+                        <button className="btn" disabled={busy} onClick={() => askNote(a, 'no_show')}
+                          style={{ padding: '4px 10px', fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger)',
+                            ...(a.status === 'no_show' ? { background: 'var(--danger)', color: '#fff' } : {}) }}>لم يحضر</button>
                         <button className="btn" disabled={busy} onClick={() => setStatus(a, 'pending')}
                           style={{ padding: '4px 10px', fontSize: 12, color: 'var(--warn)', borderColor: 'var(--warn)' }}>تأجّل</button>
                       </div>
