@@ -1,8 +1,10 @@
 // مكالمات السنترال (Azeer) لليد واحد — تظهر في تبويب «السجل» في LeadDrawer
+// التسجيل الصوتي بيتشغّل مباشرة من سيرفر Azeer (مش بيتحمّل غير لما تدوس ▶)
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtDateTime } from '../lib/format'
 
+const REC_BASE = 'https://voice.mottasl.com/monitor/259921bba7e3cb16/'
 const fmtDur = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 export default function LeadCalls({ leadId }) {
@@ -13,7 +15,7 @@ export default function LeadCalls({ leadId }) {
     let alive = true
     setCalls(null)
     supabase.from('calls')
-      .select('id, called_at, direction, duration_seconds, answered, extension, agent:profiles!calls_user_id_fkey(full_name)')
+      .select('id, called_at, direction, duration_seconds, answered, extension, recording_path, agent:profiles!calls_user_id_fkey(full_name)')
       .eq('lead_id', leadId)
       .order('called_at', { ascending: false })
       .limit(50)
@@ -41,6 +43,10 @@ export default function LeadCalls({ leadId }) {
               style={{ color: c.answered ? 'var(--ok)' : 'var(--danger)', fontWeight: 600 }}>
               {c.answered ? `اتردّ — ${fmtDur(c.duration_seconds)}` : 'مردّش'}
             </div>
+            {c.answered && c.recording_path && (
+              <audio controls preload="none" src={REC_BASE + c.recording_path}
+                style={{ width: '100%', height: 34, marginTop: 6 }} />
+            )}
           </div>
         ))}
       </div>
