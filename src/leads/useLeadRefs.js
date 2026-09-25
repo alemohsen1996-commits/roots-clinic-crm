@@ -138,6 +138,14 @@ function applyFlagConds(q, filters) {
   return q
 }
 
+// حصر نطاق استعلامات v_lead_flags (يتخطّى الـ RLS) لِما يراه المستخدم فعلًا:
+// المدير = الكل، المنسقة = مرضاها، السيلز = ليداته + غير المُسندة — مطابق لـ chip_counts.
+function applyOwnerScope(q, filters) {
+  if (filters.mineCoordinator) return q.eq('coordinator_id', filters.mineCoordinator)
+  if (filters.mineOwner) return q.or(`owner_id.eq.${filters.mineOwner},owner_id.is.null`)
+  return q
+}
+
 // معرّفات الليدات المطابقة لفلاتر التاسكات داخل مراحل محددة، مع صفحة/ترتيب.
 // نجلب من v_lead_flags مباشرة (فيه stage_id و archived_at) بدل تمرير آلاف
 // المعرّفات عبر .in() التي تُقطع عند ~1000 فتختفي نتائج.
@@ -150,6 +158,7 @@ async function flagLeadIds({ stageIds, filters, from = 0, to = null, sort = 'rec
   // applyFilters يضيف شرط archived_at بنفسه (is null افتراضيًا).
   q = applyFilters(q, filters)
   q = applyFlagConds(q, filters)
+  q = applyOwnerScope(q, filters)
   q = q.order('next_due', { ascending: sort !== 'recent', nullsFirst: false })
   if (to !== null) q = q.range(from, to)
   const { data, error } = await q
@@ -164,6 +173,7 @@ async function flagCount({ stageIds, filters }) {
   // نفس الفلاتر الكاملة على العدّ — فيتساوى total مع عدد صفوف الصفحة
   q = applyFilters(q, filters)
   q = applyFlagConds(q, filters)
+  q = applyOwnerScope(q, filters)
   const { count } = await q
   return count ?? 0
 }

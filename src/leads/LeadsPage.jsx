@@ -88,8 +88,13 @@ export default function LeadsPage() {
   const effectiveFilters = useMemo(() => {
     const f = { ...filters, search: debouncedSearch }
     if (f.transferredToday && roleCode === 'coordinator') f.coordinatorId = profile.id
+    // حصر نطاق عدّ الأعمدة لِما يراه المستخدم فعلًا (v_lead_flags يتخطّى الـ RLS)
+    if (!isManager) {
+      if (roleCode === 'agent') f.mineOwner = profile.id
+      else if (roleCode === 'coordinator') f.mineCoordinator = profile.id
+    }
     return f
-  }, [filters, debouncedSearch, roleCode, profile])
+  }, [filters, debouncedSearch, roleCode, profile, isManager])
 
   // quiet = تحديث هادئ بلا شاشة تحميل (الصفوف الحالية تبقى ظاهرة حتى تصل الجديدة)
   const loadTable = useCallback(async ({ quiet = false } = {}) => {
