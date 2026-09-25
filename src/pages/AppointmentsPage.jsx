@@ -366,6 +366,7 @@ export default function AppointmentsPage() {
       ) : slots.length === 0 ? (
         <div className="empty" style={{ padding: 24 }}>هذا اليوم إجازة لفرع «{branch?.name}».</div>
       ) : (
+        <div className="card appt-table-wrap">
         <table className="table appt-table">
           <thead>
             <tr>
@@ -448,6 +449,7 @@ export default function AppointmentsPage() {
             })}
           </tbody>
         </table>
+        </div>
       )}
 
       {openLead && stages.length > 0 && (
