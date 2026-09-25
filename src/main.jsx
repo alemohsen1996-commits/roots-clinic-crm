@@ -19,6 +19,7 @@ import InstallmentsPage from './finance/InstallmentsPage'
 import PrpPage from './prp/PrpPage'
 import AppointmentsPage from './pages/AppointmentsPage'
 import ReportsPage from './reports/ReportsPage'
+import CallsPage from './calls/CallsPage'
 import ArchivePage from './archive/ArchivePage'
 import SettingsPage from './settings/SettingsPage'
 
@@ -41,6 +42,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="payments" element={<PaymentsPage />} />
             <Route path="installments" element={<InstallmentsPage />} />
             <Route path="reports" element={<RequireManager><ReportsPage /></RequireManager>} />
+            <Route path="calls" element={<RequireManager><CallsPage /></RequireManager>} />
             <Route path="archive" element={<RequireManager><ArchivePage /></RequireManager>} />
             <Route path="settings" element={<RequireManager><SettingsPage /></RequireManager>} />
           </Route>

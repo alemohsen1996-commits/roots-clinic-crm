@@ -17,6 +17,7 @@ const I = {
   install:   <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></>,
   team:      <><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.2 2.9-5.3 6.5-5.3s6.5 2.1 6.5 5.3"/><path d="M17 5.5a3.2 3.2 0 0 1 0 6"/><path d="M18.5 14.5c1.9.7 3 2.2 3 4"/></>,
   reports:   <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
+  calls:     <><path d="M5 4h3.5l1.8 4.5-2.3 1.4a11 11 0 0 0 6.1 6.1l1.4-2.3L20 15.5V19a1.5 1.5 0 0 1-1.6 1.5A16 16 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4z"/></>,
   archive:   <><rect x="3" y="4" width="18" height="4.5" rx="1.5"/><path d="M5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5"/><path d="M10 13h4"/></>,
   settings:  <><circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1v.3a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-2.8-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7h-.3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.1-2.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5v-.3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7h.3a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.5 1z"/></>,
 }
@@ -51,6 +52,7 @@ const NAV = [
   { section: 'الإدارة', items: [
     { to: '/team',     label: 'الموظفون',      icon: 'team',     roles: ['super_admin'] },
     { to: '/reports',  label: 'التقارير',       icon: 'reports',  roles: ['super_admin','sales_manager'] },
+    { to: '/calls',    label: 'المكالمات',      icon: 'calls',    roles: ['super_admin','sales_manager'] },
     { to: '/archive',  label: 'أرشيف الشهور',   icon: 'archive',  roles: ['super_admin','sales_manager'] },
     { to: '/settings', label: 'إعدادات النظام', icon: 'settings', roles: ['super_admin'] },
   ]},

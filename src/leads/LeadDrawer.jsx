@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext'
 import { fmtDateTime, fmtNum, openWhatsApp } from '../lib/format'
 import { emitBoardPatch } from './boardBus'
 import TaskSection from './TaskSection'
+import LeadCalls from '../calls/LeadCalls'
 
 const ACTIVITY_LABEL = {
   call: 'مكالمة', note: 'ملاحظة', whatsapp: 'واتساب', sms: 'رسالة نصية',
@@ -1224,6 +1225,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         {tab === 'log' && (
         <div className="drawer-section">
           <h3>السجل</h3>
+          <LeadCalls leadId={leadId} />
           <div className="tabs" style={{ marginBottom: 10 }}>
             {[
               { k: 'all',  l: 'الكل' },
