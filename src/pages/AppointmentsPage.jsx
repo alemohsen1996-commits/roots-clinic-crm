@@ -229,6 +229,43 @@ export default function AppointmentsPage() {
   // السيلز يفتح/يؤجّل ليداته فقط؛ المدير والمنسقة للكل
   const mine = (a) => isManager || roleCode === 'coordinator' || a.owner_id === profile?.id
 
+  const isMobile = useIsMobile()
+
+  // أزرار الإجراء (حضر/لم يحضر/تأجّل) أو محرّر الملاحظة — مشتركة بين الجدول والكروت
+  function apptActions(a, busy) {
+    return noteFor?.id === a.id ? (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 210 }}>
+        <textarea value={noteText} onChange={e => setNoteText(e.target.value)} rows={2}
+          placeholder={noteFor.action === 'attended' ? 'ملاحظة الحضور (مطلوبة)…' : 'سبب عدم الحضور (مطلوب)…'}
+          style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--line)',
+                   borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: 12.5, resize: 'vertical' }} />
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+          <button className="btn btn-primary" disabled={busy} onClick={confirmNote}
+            style={{ padding: '4px 12px', fontSize: 12 }}>تأكيد</button>
+          <button className="btn btn-ghost" onClick={() => { setNoteFor(null); setNoteText(''); setErr('') }}
+            style={{ padding: '4px 10px', fontSize: 12 }}>إلغاء</button>
+        </div>
+      </div>
+    ) : (
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {canAttend && (
+          <button className="btn" disabled={busy} onClick={() => askNote(a, 'attended')}
+            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--ok)', borderColor: 'var(--ok)',
+              ...(a.status === 'attended' ? { background: 'var(--ok)', color: '#fff' } : {}) }}>حضر</button>
+        )}
+        {canAttend && (
+          <button className="btn" disabled={busy} onClick={() => askNote(a, 'no_show')}
+            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--danger)', borderColor: 'var(--danger)',
+              ...(a.status === 'no_show' ? { background: 'var(--danger)', color: '#fff' } : {}) }}>لم يحضر</button>
+        )}
+        {mine(a) && (
+          <button className="btn" disabled={busy} onClick={() => setStatus(a, 'pending')}
+            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--warn)', borderColor: 'var(--warn)' }}>تأجّل</button>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="page-head">
@@ -365,6 +402,47 @@ export default function AppointmentsPage() {
         </div>
       ) : slots.length === 0 ? (
         <div className="empty" style={{ padding: 24 }}>هذا اليوم إجازة لفرع «{branch?.name}».</div>
+      ) : isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {slots.map(t => {
+            const a = byTime[hhmm(t)]
+            if (filtering && (!a || !passFilters(a))) return null
+            if (!a) return (
+              <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', color: 'var(--ink-soft)', fontSize: 12 }}>
+                <span style={{ fontFamily: 'monospace' }}>{hhmm(t)}</span><span>— خانة فارغة —</span>
+              </div>
+            )
+            const busy = busyId === a.id
+            return (
+              <div key={t} className="card" style={{ padding: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14 }}>{hhmm(t)}</span>
+                  <StatusBadge s={a.status} />
+                </div>
+                {mine(a) ? (
+                  <button className="link-name" style={{ fontWeight: 700, fontSize: 15, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)', padding: 0 }}
+                    onClick={() => setOpenLead(a.lead_id)}>{a.patient_name}</button>
+                ) : (
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>{a.patient_name}</span>
+                )}
+                <div dir="ltr" style={{ fontFamily: 'monospace', fontSize: 13, color: 'var(--ink-soft)', margin: '2px 0 6px' }}>{a.patient_phone}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 14px', fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 6 }}>
+                  <span>المنسقة: {a.coordinator_name ?? '—'}</span>
+                  <span>السيلز: {a.owner_name ?? '—'}</span>
+                </div>
+                {(a.callcenter_note || a.coordinator_note) && (
+                  <div style={{ fontSize: 12.5, marginBottom: 8, paddingInlineStart: 8, borderInlineStart: '2px solid var(--line)' }}>
+                    {a.callcenter_note && <div>{a.callcenter_note}</div>}
+                    {a.coordinator_note && <div style={{ color: 'var(--primary)', fontWeight: 500 }}>{a.coordinator_note}</div>}
+                  </div>
+                )}
+                <div style={{ borderTop: '1px solid var(--line-soft)', paddingTop: 8 }}>
+                  {apptActions(a, busy)}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       ) : (
         <div className="card appt-table-wrap">
         <table className="table appt-table">
@@ -412,37 +490,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td><StatusBadge s={a.status} /></td>
                   <td>
-                    {noteFor?.id === a.id ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 210 }}>
-                        <textarea value={noteText} onChange={e => setNoteText(e.target.value)} rows={2}
-                          placeholder={noteFor.action === 'attended' ? 'ملاحظة الحضور (مطلوبة)…' : 'سبب عدم الحضور (مطلوب)…'}
-                          style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--line)',
-                                   borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: 12.5, resize: 'vertical' }} />
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                          <button className="btn btn-primary" disabled={busy} onClick={confirmNote}
-                            style={{ padding: '4px 12px', fontSize: 12 }}>تأكيد</button>
-                          <button className="btn btn-ghost" onClick={() => { setNoteFor(null); setNoteText(''); setErr('') }}
-                            style={{ padding: '4px 10px', fontSize: 12 }}>إلغاء</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {canAttend && (
-                          <button className="btn" disabled={busy} onClick={() => askNote(a, 'attended')}
-                            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--ok)', borderColor: 'var(--ok)',
-                              ...(a.status === 'attended' ? { background: 'var(--ok)', color: '#fff' } : {}) }}>حضر</button>
-                        )}
-                        {canAttend && (
-                          <button className="btn" disabled={busy} onClick={() => askNote(a, 'no_show')}
-                            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--danger)', borderColor: 'var(--danger)',
-                              ...(a.status === 'no_show' ? { background: 'var(--danger)', color: '#fff' } : {}) }}>لم يحضر</button>
-                        )}
-                        {mine(a) && (
-                          <button className="btn" disabled={busy} onClick={() => setStatus(a, 'pending')}
-                            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--warn)', borderColor: 'var(--warn)' }}>تأجّل</button>
-                        )}
-                      </div>
-                    )}
+                    {apptActions(a, busy)}
                   </td>
                 </tr>
               )
@@ -467,4 +515,19 @@ function shiftDay(dateStr, delta) {
   const d = new Date(dateStr + 'T00:00:00')
   d.setDate(d.getDate() + delta)
   return localYMD(d)
+}
+
+// عرض كروت على الموبايل بدل الجدول (نفس نقطة الكسر 900px المستخدمة في التطبيق)
+function useIsMobile(bp = 900) {
+  const [m, setM] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(`(max-width:${bp}px)`).matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width:${bp}px)`)
+    const on = () => setM(mq.matches)
+    mq.addEventListener('change', on)
+    setM(mq.matches)
+    return () => mq.removeEventListener('change', on)
+  }, [bp])
+  return m
 }
