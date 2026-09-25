@@ -418,8 +418,8 @@ export default function LeadsPage() {
             </div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
-            «اتحرّك» = أي نشاط في السجل أو مكالمة سنترال في الفترة. «عدد المكالمات» من مكالمات Azeer —
-            اكتب 0 في الاتنين عشان تطلع الليدز اللي محدش كلّمها في الفترة.
+            «اتحرّك» = أي نشاط في السجل أو مكالمة سنترال في الفترة. تاريخ المكالمات لوحده = اتكلّم مرة على الأقل
+            في الفترة. اكتب عدد عشان تحدد أكتر، أو 0 في الاتنين عشان تطلع الليدز اللي محدش كلّمها.
           </div>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>

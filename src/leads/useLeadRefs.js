@@ -129,7 +129,8 @@ function applyFilters(q, filters) {
 // فبنكمّل عليهم نفس الـ select/الفلاتر/الترتيب/العدّ بتاع الجدول بالظبط
 export function hasRangeFilter(f = {}) {
   const has = (v) => v !== '' && v != null
-  return !!(f.movedFrom || f.movedTo || has(f.callsMin) || has(f.callsMax))
+  return !!(f.movedFrom || f.movedTo || has(f.callsMin) || has(f.callsMax)
+    || f.callsFrom || f.callsTo || f.callsAnswered)
 }
 const dayStart = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd) }
 const dayEnd = (d) => { const x = dayStart(d); x.setDate(x.getDate() + 1); return x }   // حصري
@@ -144,6 +145,8 @@ function rangeParams(f) {
   if (f.callsTo)   p.p_calls_to   = dayEnd(f.callsTo).toISOString()
   if (has(f.callsMin)) p.p_min_calls = Number(f.callsMin)
   if (has(f.callsMax)) p.p_max_calls = Number(f.callsMax)
+  // تاريخ مكالمات (أو «اتردّ عليها بس») من غير عدد = «اتكلّم مرة على الأقل في الفترة»
+  if (!has(f.callsMin) && !has(f.callsMax) && (f.callsFrom || f.callsTo || f.callsAnswered)) p.p_min_calls = 1
   if (f.callsAnswered) p.p_answered_only = true
   return p
 }
