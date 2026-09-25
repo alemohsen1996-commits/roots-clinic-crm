@@ -125,40 +125,45 @@ function applyFilters(q, filters) {
 }
 
 // ---------- فلاتر الفترات (حركة/مكالمات) — بتتحسب في القاعدة عبر RPC ----------
-// leads_activity_filter بترجع setof leads، فبنكمّل عليها نفس الـ select/الفلاتر/الترتيب/العدّ
+// leads_activity_filter / lead_flags_activity_filter بيرجعوا setof صفوف،
+// فبنكمّل عليهم نفس الـ select/الفلاتر/الترتيب/العدّ بتاع الجدول بالظبط
 export function hasRangeFilter(f = {}) {
-  return !!(f.movedFrom || f.movedTo || f.callsMin !== '' && f.callsMin != null
-    || f.callsMax !== '' && f.callsMax != null)
+  const has = (v) => v !== '' && v != null
+  return !!(f.movedFrom || f.movedTo || has(f.callsMin) || has(f.callsMax))
 }
 const dayStart = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd) }
 const dayEnd = (d) => { const x = dayStart(d); x.setDate(x.getDate() + 1); return x }   // حصري
 
 function rangeParams(f) {
   const has = (v) => v !== '' && v != null
-  return {
-    p_moved_from: f.movedFrom ? dayStart(f.movedFrom).toISOString() : null,
-    p_moved_to:   f.movedTo   ? dayEnd(f.movedTo).toISOString()     : null,
-    p_calls_from: f.callsFrom ? dayStart(f.callsFrom).toISOString() : null,
-    p_calls_to:   f.callsTo   ? dayEnd(f.callsTo).toISOString()     : null,
-    p_min_calls:  has(f.callsMin) ? Number(f.callsMin) : null,
-    p_max_calls:  has(f.callsMax) ? Number(f.callsMax) : null,
-    p_answered_only: !!f.callsAnswered,
-  }
+  // بنبعت بس القيم الموجودة — الباقي بياخد null الافتراضي في الدالة
+  const p = {}
+  if (f.movedFrom) p.p_moved_from = dayStart(f.movedFrom).toISOString()
+  if (f.movedTo)   p.p_moved_to   = dayEnd(f.movedTo).toISOString()
+  if (f.callsFrom) p.p_calls_from = dayStart(f.callsFrom).toISOString()
+  if (f.callsTo)   p.p_calls_to   = dayEnd(f.callsTo).toISOString()
+  if (has(f.callsMin)) p.p_min_calls = Number(f.callsMin)
+  if (has(f.callsMax)) p.p_max_calls = Number(f.callsMax)
+  if (f.callsAnswered) p.p_answered_only = true
+  return p
+}
+
+// head:true في rpc بيحوّل الطلب لـ HEAD والمعاملات للرابط — فبدلها: صف واحد + count
+function rangeRpc(fn, filters, columns, opts = {}) {
+  const { head, ...rest } = opts
+  const q = supabase.rpc(fn, rangeParams(filters), rest).select(columns)
+  return head ? q.range(0, 0) : q
 }
 
 // نقطة البداية لأي استعلام ليدز: الجدول مباشرة، أو الـ RPC لو فيه فلتر فترة
 function leadsFrom(filters, columns, opts) {
-  if (hasRangeFilter(filters)) {
-    return supabase.rpc('leads_activity_filter', rangeParams(filters), opts).select(columns)
-  }
+  if (hasRangeFilter(filters)) return rangeRpc('leads_activity_filter', filters, columns, opts)
   return supabase.from('leads').select(columns, opts)
 }
 
-// نفس الفكرة لـ v_lead_flags (فلاتر التاسكات) — عشان الصفحة والعدّ يحترموا فلتر الفترة كمان
+// نفس الفكرة لـ v_lead_flags (فلاتر التاسكات) — عشان صفحة/عدّ فلاتر التاسكات يحترموا الفترة
 function flagsFrom(filters, columns, opts) {
-  if (hasRangeFilter(filters)) {
-    return supabase.rpc('lead_flags_activity_filter', rangeParams(filters), opts).select(columns)
-  }
+  if (hasRangeFilter(filters)) return rangeRpc('lead_flags_activity_filter', filters, columns, opts)
   return supabase.from('v_lead_flags').select(columns, opts)
 }
 
