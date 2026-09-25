@@ -124,6 +124,44 @@ function applyFilters(q, filters) {
   return q
 }
 
+// ---------- فلاتر الفترات (حركة/مكالمات) — بتتحسب في القاعدة عبر RPC ----------
+// leads_activity_filter بترجع setof leads، فبنكمّل عليها نفس الـ select/الفلاتر/الترتيب/العدّ
+export function hasRangeFilter(f = {}) {
+  return !!(f.movedFrom || f.movedTo || f.callsMin !== '' && f.callsMin != null
+    || f.callsMax !== '' && f.callsMax != null)
+}
+const dayStart = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd) }
+const dayEnd = (d) => { const x = dayStart(d); x.setDate(x.getDate() + 1); return x }   // حصري
+
+function rangeParams(f) {
+  const has = (v) => v !== '' && v != null
+  return {
+    p_moved_from: f.movedFrom ? dayStart(f.movedFrom).toISOString() : null,
+    p_moved_to:   f.movedTo   ? dayEnd(f.movedTo).toISOString()     : null,
+    p_calls_from: f.callsFrom ? dayStart(f.callsFrom).toISOString() : null,
+    p_calls_to:   f.callsTo   ? dayEnd(f.callsTo).toISOString()     : null,
+    p_min_calls:  has(f.callsMin) ? Number(f.callsMin) : null,
+    p_max_calls:  has(f.callsMax) ? Number(f.callsMax) : null,
+    p_answered_only: !!f.callsAnswered,
+  }
+}
+
+// نقطة البداية لأي استعلام ليدز: الجدول مباشرة، أو الـ RPC لو فيه فلتر فترة
+function leadsFrom(filters, columns, opts) {
+  if (hasRangeFilter(filters)) {
+    return supabase.rpc('leads_activity_filter', rangeParams(filters), opts).select(columns)
+  }
+  return supabase.from('leads').select(columns, opts)
+}
+
+// نفس الفكرة لـ v_lead_flags (فلاتر التاسكات) — عشان الصفحة والعدّ يحترموا فلتر الفترة كمان
+function flagsFrom(filters, columns, opts) {
+  if (hasRangeFilter(filters)) {
+    return supabase.rpc('lead_flags_activity_filter', rangeParams(filters), opts).select(columns)
+  }
+  return supabase.from('v_lead_flags').select(columns, opts)
+}
+
 // هل الفلاتر تتضمّن شرطًا معتمدًا على التاسكات؟
 export function hasTaskFilter(f = {}) {
   return !!(f.alertOnly || f.taskToday || f.taskOverdue || f.noTask)
@@ -150,8 +188,7 @@ function applyOwnerScope(q, filters) {
 // نجلب من v_lead_flags مباشرة (فيه stage_id و archived_at) بدل تمرير آلاف
 // المعرّفات عبر .in() التي تُقطع عند ~1000 فتختفي نتائج.
 async function flagLeadIds({ stageIds, filters, from = 0, to = null, sort = 'recent' }) {
-  let q = supabase.from('v_lead_flags')
-    .select('lead_id, next_due')
+  let q = flagsFrom(filters, 'lead_id, next_due')
     .in('stage_id', stageIds)
   // الـ view صار يحوي كل أعمدة الفلترة، فنطبّق الفلاتر كاملةً هنا —
   // بذلك يتطابق ترقيم الصفحة مع أي فلتر مدموج (مصدر/بحث/تاريخ…).
@@ -167,8 +204,7 @@ async function flagLeadIds({ stageIds, filters, from = 0, to = null, sort = 'rec
 }
 
 async function flagCount({ stageIds, filters }) {
-  let q = supabase.from('v_lead_flags')
-    .select('lead_id', { count: 'exact', head: true })
+  let q = flagsFrom(filters, 'lead_id', { count: 'exact', head: true })
     .in('stage_id', stageIds)
   // نفس الفلاتر الكاملة على العدّ — فيتساوى total مع عدد صفوف الصفحة
   q = applyFilters(q, filters)
@@ -232,36 +268,6 @@ function hasTaskOverdue(lead) {
   const now = Date.now()
   return (lead.tasks ?? []).some(t =>
     t.status === 'open' && new Date(t.due_at).getTime() < now)
-}
-
-// ---------- فلاتر الفترات (حركة/مكالمات) — بتتحسب في القاعدة عبر RPC ----------
-// leads_activity_filter بترجع setof leads، فبنكمّل عليها نفس الـ select/الفلاتر/الترتيب/العدّ
-export function hasRangeFilter(f = {}) {
-  return !!(f.movedFrom || f.movedTo || f.callsMin !== '' && f.callsMin != null
-    || f.callsMax !== '' && f.callsMax != null)
-}
-const dayStart = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd) }
-const dayEnd = (d) => { const x = dayStart(d); x.setDate(x.getDate() + 1); return x }   // حصري
-
-function rangeParams(f) {
-  const has = (v) => v !== '' && v != null
-  return {
-    p_moved_from: f.movedFrom ? dayStart(f.movedFrom).toISOString() : null,
-    p_moved_to:   f.movedTo   ? dayEnd(f.movedTo).toISOString()     : null,
-    p_calls_from: f.callsFrom ? dayStart(f.callsFrom).toISOString() : null,
-    p_calls_to:   f.callsTo   ? dayEnd(f.callsTo).toISOString()     : null,
-    p_min_calls:  has(f.callsMin) ? Number(f.callsMin) : null,
-    p_max_calls:  has(f.callsMax) ? Number(f.callsMax) : null,
-    p_answered_only: !!f.callsAnswered,
-  }
-}
-
-// نقطة البداية لأي استعلام ليدز: الجدول مباشرة، أو الـ RPC لو فيه فلتر فترة
-function leadsFrom(filters, columns, opts) {
-  if (hasRangeFilter(filters)) {
-    return supabase.rpc('leads_activity_filter', rangeParams(filters), opts).select(columns)
-  }
-  return supabase.from('leads').select(columns, opts)
 }
 
 // ---------- الجدول: صفحة واحدة + إجمالي العدد ----------

@@ -547,6 +547,18 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
 }
 
 .timeline { display: flex; flex-direction: column; gap: 12px; }
+/* تبويبات الدرور على الموبايل: أضيق عشان الست تبويبات يكفّوا (وتلفّ لو لازم) */
+@media (max-width: 640px) {
+  .drawer .tabs { flex-wrap: wrap; row-gap: 2px; }
+  .drawer .tab { padding: 9px 10px; font-size: 13px; }
+}
+/* السجل ومكالمات السنترال: ارتفاع محدود مع سكرول داخلي بدل ما الدرور يطول بلا نهاية */
+.timeline-scroll {
+  max-height: min(460px, 55vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline-end: 6px;
+}
 .timeline-item {
   border-inline-start: 2px solid var(--line);
   padding-inline-start: 14px;

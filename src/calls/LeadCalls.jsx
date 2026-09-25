@@ -29,14 +29,14 @@ function Recording({ call, signedUrl }) {
   )
 }
 
-export default function LeadCalls({ leadId }) {
+export default function LeadCalls({ leadId, onCount }) {
   const [calls, setCalls] = useState(null)
   const [urls, setUrls] = useState({})
 
   useEffect(() => {
     if (!leadId) return
     let alive = true
-    setCalls(null); setUrls({})
+    setCalls(null); setUrls({}); onCount?.(null)
     ;(async () => {
       const { data } = await supabase.from('calls')
         .select('id, called_at, direction, duration_seconds, answered, extension, recording_path, recording_stored_path, agent:profiles!calls_user_id_fkey(full_name)')
@@ -46,6 +46,7 @@ export default function LeadCalls({ leadId }) {
       if (!alive) return
       const rows = data || []
       setCalls(rows)
+      onCount?.(rows.length)
       const paths = rows.map(c => c.recording_stored_path).filter(Boolean)
       if (paths.length) {
         const { data: signed } = await supabase.storage.from('call-recordings').createSignedUrls(paths, 3600)
@@ -56,7 +57,7 @@ export default function LeadCalls({ leadId }) {
       }
     })()
     return () => { alive = false }
-  }, [leadId])
+  }, [leadId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!calls || calls.length === 0) return null
   const answered = calls.filter(c => c.answered).length
@@ -64,8 +65,8 @@ export default function LeadCalls({ leadId }) {
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-soft)', marginBottom: 8 }}>
-        📞 مكالمات السنترال — {calls.length} مكالمة، اتردّ على {answered}
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 10 }}>
+        {calls.length} مكالمة — اتردّ على {answered}{calls.length >= 50 ? ' (آخر 50)' : ''}
       </div>
       <div className="timeline">
         {calls.map(c => {

@@ -73,6 +73,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
 
   const goTo = (l) => { if (l && onNavigate) { setTab('all'); onNavigate(l) } }
   const [actTab, setActTab] = useState('all')
+  const [callsCount, setCallsCount] = useState(null)   // عدد مكالمات السنترال (للتبويب)
 
   // تعديل بيانات العميل الشامل (inline في الهيدر)
   const [editing, setEditing] = useState(false)
@@ -1225,7 +1226,6 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         {tab === 'log' && (
         <div className="drawer-section">
           <h3>السجل</h3>
-          <LeadCalls leadId={leadId} />
           <div className="tabs" style={{ marginBottom: 10 }}>
             {[
               { k: 'all',  l: 'الكل' },
@@ -1233,12 +1233,19 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
               { k: 'note', l: 'ملاحظات' },
               { k: 'offer', l: 'العروض' },
               { k: 'sys',  l: 'تغييرات' },
+              { k: 'calls', l: `📞 السنترال${callsCount ? ` (${callsCount})` : ''}` },
             ].map(t => (
               <button key={t.k} className={'tab' + (actTab === t.k ? ' on' : '')}
                 onClick={() => setActTab(t.k)}>{t.l}</button>
             ))}
           </div>
-          <div className="timeline">
+          {/* مكالمات السنترال — متحمّلة دايمًا (للعدد في التبويب) وبتظهر في تبويبها بس */}
+          <div className="timeline-scroll" style={{ display: actTab === 'calls' ? 'block' : 'none' }}>
+            <LeadCalls leadId={leadId} onCount={setCallsCount} />
+            {callsCount === 0 && <div className="empty" style={{ padding: 20 }}>مفيش مكالمات سنترال لليد ده</div>}
+          </div>
+          {actTab !== 'calls' && (
+          <div className="timeline timeline-scroll">
             {shownActs.length === 0 && <div className="empty" style={{ padding: 20 }}>لا شيء هنا</div>}
             {shownActs.map(a => (
               <div className="timeline-item" key={a.id}>
@@ -1255,6 +1262,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
               </div>
             ))}
           </div>
+          )}
         </div>
         )}
 
