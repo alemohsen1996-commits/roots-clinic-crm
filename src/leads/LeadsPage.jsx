@@ -13,6 +13,9 @@ import { supabase } from '../lib/supabase'
 const EMPTY_FILTERS = {
   search: '', stage: '', source: '', owner: '', coordinator: '', branch: '', interest: '',
   createdFrom: '', createdTo: '',
+  // فترات: اتحرّك من/إلى + عدد مكالمات السنترال في فترة
+  movedFrom: '', movedTo: '',
+  callsFrom: '', callsTo: '', callsMin: '', callsMax: '', callsAnswered: false,
   priceFrom: '', priceTo: '', ageFrom: '', ageTo: '',
   // أعلام
   movedToday: false, stale: false, paused: false, noOwner: false,
@@ -210,7 +213,8 @@ export default function LeadsPage() {
     loadArchive(); refresh()
   }
 
-  const advancedCount = ['createdFrom','createdTo','branch','interest','priceFrom','priceTo','ageFrom','ageTo','movedToday','snoozed']
+  const advancedCount = ['createdFrom','createdTo','branch','interest','priceFrom','priceTo','ageFrom','ageTo','movedToday','snoozed',
+    'movedFrom','movedTo','callsFrom','callsTo','callsMin','callsMax','callsAnswered']
     .filter(k => filters[k]).length
 
   // كل الفلاتر النشطة — لتوضيح أن العدد المعروض مفلتَر
@@ -384,7 +388,45 @@ export default function LeadsPage() {
               <input type="number" value={filters.ageTo} onChange={e => set('ageTo', e.target.value)} />
             </div>
           </div>
+          {/* الحركة والمكالمات خلال فترة */}
+          <div className="af-grid" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line-soft)' }}>
+            <div className="field">
+              <label>اتحرّك من</label>
+              <input type="date" value={filters.movedFrom} onChange={e => set('movedFrom', e.target.value)} />
+            </div>
+            <div className="field">
+              <label>اتحرّك إلى</label>
+              <input type="date" value={filters.movedTo} onChange={e => set('movedTo', e.target.value)} />
+            </div>
+            <div className="field">
+              <label>مكالمات السنترال من تاريخ</label>
+              <input type="date" value={filters.callsFrom} onChange={e => set('callsFrom', e.target.value)} />
+            </div>
+            <div className="field">
+              <label>إلى تاريخ</label>
+              <input type="date" value={filters.callsTo} onChange={e => set('callsTo', e.target.value)} />
+            </div>
+            <div className="field">
+              <label>عدد المكالمات من</label>
+              <input type="number" min="0" placeholder="0" value={filters.callsMin}
+                onChange={e => set('callsMin', e.target.value)} />
+            </div>
+            <div className="field">
+              <label>عدد المكالمات إلى</label>
+              <input type="number" min="0" placeholder="بلا حد" value={filters.callsMax}
+                onChange={e => set('callsMax', e.target.value)} />
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
+            «اتحرّك» = أي نشاط في السجل أو مكالمة سنترال في الفترة. «عدد المكالمات» من مكالمات Azeer —
+            اكتب 0 في الاتنين عشان تطلع الليدز اللي محدش كلّمها في الفترة.
+          </div>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
+              <input type="checkbox" checked={filters.callsAnswered}
+                onChange={e => set('callsAnswered', e.target.checked)} style={{ width: 16, height: 16 }} />
+              المكالمات اللي اتردّ عليها بس
+            </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
               <input type="checkbox" checked={filters.movedToday}
                 onChange={e => set('movedToday', e.target.checked)} style={{ width: 16, height: 16 }} />

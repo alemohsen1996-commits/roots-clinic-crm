@@ -234,6 +234,36 @@ function hasTaskOverdue(lead) {
     t.status === 'open' && new Date(t.due_at).getTime() < now)
 }
 
+// ---------- فلاتر الفترات (حركة/مكالمات) — بتتحسب في القاعدة عبر RPC ----------
+// leads_activity_filter بترجع setof leads، فبنكمّل عليها نفس الـ select/الفلاتر/الترتيب/العدّ
+export function hasRangeFilter(f = {}) {
+  return !!(f.movedFrom || f.movedTo || f.callsMin !== '' && f.callsMin != null
+    || f.callsMax !== '' && f.callsMax != null)
+}
+const dayStart = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd) }
+const dayEnd = (d) => { const x = dayStart(d); x.setDate(x.getDate() + 1); return x }   // حصري
+
+function rangeParams(f) {
+  const has = (v) => v !== '' && v != null
+  return {
+    p_moved_from: f.movedFrom ? dayStart(f.movedFrom).toISOString() : null,
+    p_moved_to:   f.movedTo   ? dayEnd(f.movedTo).toISOString()     : null,
+    p_calls_from: f.callsFrom ? dayStart(f.callsFrom).toISOString() : null,
+    p_calls_to:   f.callsTo   ? dayEnd(f.callsTo).toISOString()     : null,
+    p_min_calls:  has(f.callsMin) ? Number(f.callsMin) : null,
+    p_max_calls:  has(f.callsMax) ? Number(f.callsMax) : null,
+    p_answered_only: !!f.callsAnswered,
+  }
+}
+
+// نقطة البداية لأي استعلام ليدز: الجدول مباشرة، أو الـ RPC لو فيه فلتر فترة
+function leadsFrom(filters, columns, opts) {
+  if (hasRangeFilter(filters)) {
+    return supabase.rpc('leads_activity_filter', rangeParams(filters), opts).select(columns)
+  }
+  return supabase.from('leads').select(columns, opts)
+}
+
 // ---------- الجدول: صفحة واحدة + إجمالي العدد ----------
 export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pageSize = 50 }) {
   const from = page * pageSize
@@ -248,7 +278,7 @@ export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pa
     const pageIds = await flagLeadIds({ stageIds, filters, from, to, sort: 'recent' })
     if (!pageIds.length) return { rows: [], total }
 
-    let q = supabase.from('leads').select(LEAD_COLUMNS).in('id', pageIds)
+    let q = leadsFrom(filters, LEAD_COLUMNS).in('id', pageIds)
     q = applyFilters(q, filters)
     const { data, error } = await q
     if (error) console.error(error)
@@ -258,9 +288,7 @@ export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pa
     return { rows, total }
   }
 
-  let q = supabase
-    .from('leads')
-    .select(LEAD_COLUMNS, { count: 'exact' })
+  let q = leadsFrom(filters, LEAD_COLUMNS, { count: 'exact' })
     .in('stage_id', boardStageIds)
     .order('last_activity', { ascending: false })
     .range(from, to)
@@ -282,7 +310,7 @@ export async function fetchStageColumn({ stageId, filters = {}, limit = 50, sort
     const ids = await flagLeadIds({ stageIds: [stageId], filters, from: 0, to: limit - 1, sort })
     if (!ids.length) return { rows: [], total }
 
-    let dataQ = supabase.from('leads').select(LEAD_COLUMNS).in('id', ids)
+    let dataQ = leadsFrom(filters, LEAD_COLUMNS).in('id', ids)
     dataQ = applyFilters(dataQ, filters)
     const { data } = await dataQ
     const order = Object.fromEntries(ids.map((id, i) => [id, i]))
@@ -293,9 +321,7 @@ export async function fetchStageColumn({ stageId, filters = {}, limit = 50, sort
   // استعلام واحد يرجّع صفحة العمود + العدد الحقيقي معًا (count: exact مع الصفحة)
   // بدل استعلامين لكل عمود.
   // sort: recent = الأحدث نشاطًا · oldest = الأقدم (المهملون أولًا)
-  let q = supabase
-    .from('leads')
-    .select(LEAD_COLUMNS, { count: 'exact' })
+  let q = leadsFrom(filters, LEAD_COLUMNS, { count: 'exact' })
     .eq('stage_id', stageId)
     .order('last_activity', { ascending: sort === 'oldest', nullsFirst: sort === 'oldest' })
     .limit(limit)
