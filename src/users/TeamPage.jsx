@@ -1,6 +1,6 @@
 // إدارة الموظفين (المدير العام فقط)
 // إضافة موظف (بالإيميل والباسورد) + تفعيل المعلّقين + نقل الليدات
-// + تغيير الإيميل/الباسورد + إيقاف/تنشيط
+// + تغيير الإيميل/الباسورد + إيقاف/تنشيط + رقم السنترال (Extension)
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import ActivateModal from './ActivateModal'
@@ -98,7 +98,7 @@ export default function TeamPage() {
           <table className="table" style={{ marginTop: 12 }}>
             <thead>
               <tr>
-                <th>الاسم</th><th>البريد</th><th>الدور</th>
+                <th>الاسم</th><th>البريد</th><th>الدور</th><th>Ext</th>
                 <th>الحالة</th><th style={{ textAlign: 'left' }}>إدارة الحساب</th>
               </tr>
             </thead>
@@ -108,6 +108,10 @@ export default function TeamPage() {
                   <td style={{ fontWeight: 600 }}>{p.full_name}</td>
                   <td dir="ltr" style={{ textAlign: 'right', fontSize: 12.5 }}>{p.email}</td>
                   <td>{p.roles?.name_ar ?? '—'}</td>
+                  <td>
+                    <ExtCell person={p} people={allPeople}
+                      onSaved={(t) => { flash(t); load() }} onError={flash} />
+                  </td>
                   <td>
                     <span className={'badge ' + (p.status === 'active' ? 'badge-active' : 'badge-suspended')}>
                       {p.status === 'active' ? 'نشط' : 'موقوف'}
@@ -166,5 +170,52 @@ export default function TeamPage() {
         />
       )}
     </>
+  )
+}
+
+// رقم السنترال (Azeer Extension) — تعديل مباشر من الجدول
+// تغييره أو مسحه مش بيأثر على المكالمات القديمة: بتفضل باسم الموظف اللي عملها
+function ExtCell({ person, people, onSaved, onError }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(person.phone_ext ?? '')
+  const [busy, setBusy] = useState(false)
+
+  async function save() {
+    const ext = val.trim()
+    if (ext === (person.phone_ext ?? '')) { setEditing(false); return }
+    if (ext && !/^\d{3,6}$/.test(ext)) { onError('رقم الـ Extension لازم يكون أرقام بس (من 3 لـ 6)'); return }
+    const owner = ext && people.find(x => x.phone_ext === ext && x.id !== person.id)
+    if (owner && !confirm(`الرقم ${ext} مربوط حاليًا بـ ${owner.full_name}. تنقله لـ ${person.full_name}؟`)) return
+    setBusy(true)
+    const { data, error } = await supabase.rpc('set_phone_ext', { p_user: person.id, p_ext: ext })
+    setBusy(false)
+    if (error) { onError(error.message); return }
+    setEditing(false)
+    const linked = data?.users_linked ? ` — واتربطت ${data.users_linked} مكالمة قديمة` : ''
+    onSaved(ext ? `اتحفظ Ext ${ext} لـ ${person.full_name}${linked}` : `اتشال الـ Ext من ${person.full_name}`)
+  }
+
+  if (!editing) {
+    return (
+      <button className="btn btn-ghost btn-sm" style={{ minWidth: 64, direction: 'ltr' }}
+        title="تعديل رقم السنترال"
+        onClick={() => { setVal(person.phone_ext ?? ''); setEditing(true) }}>
+        {person.phone_ext || '+ إضافة'}
+      </button>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <input autoFocus value={val} inputMode="numeric" dir="ltr" placeholder="7000"
+        style={{ width: 80 }} disabled={busy}
+        onChange={e => setVal(e.target.value.replace(/\D/g, ''))}
+        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }} />
+      <button className="btn btn-primary btn-sm" disabled={busy} onClick={save}>حفظ</button>
+      {person.phone_ext && (
+        <button className="btn btn-ghost btn-sm" disabled={busy} title="إلغاء الربط"
+          onClick={() => setVal('')}>مسح</button>
+      )}
+      <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>✕</button>
+    </div>
   )
 }
