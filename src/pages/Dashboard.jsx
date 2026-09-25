@@ -1,6 +1,6 @@
 // لوحة التحكم — أرقام أي شهر (للموظف وللمدير)
 // تُحسب من الديلات والدفعات مباشرة، فتعمل لأي شهر مضى
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtMonth } from '../lib/format'
@@ -40,14 +40,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   // أداء الفريق — الشهر الجاري فقط
-  useEffect(() => {
+  const loadTeam = useCallback(async () => {
     if (!isManager) return
-    supabase.from('v_month_to_date').select('*')
-      .then(({ data }) => setRows(data ?? []))
+    const { data } = await supabase.from('v_month_to_date').select('*')
+    setRows(data ?? [])
   }, [isManager])
 
-  const loadSeries = useCallback(async () => {
-    setLoading(true)
+  const loadSeries = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true)
     const { data } = isManager
       ? await supabase.rpc('clinic_monthly_series')
       : await supabase.rpc('user_monthly_series', { p_user: profile?.id })
@@ -55,14 +55,36 @@ export default function Dashboard() {
     setLoading(false)
   }, [isManager, profile?.id])
 
-  useEffect(() => { loadSeries() }, [loadSeries])
-
   // الهدف الشهري قيمة واحدة في profiles — تخصّ الشهر الجاري فقط
-  useEffect(() => {
+  const loadTarget = useCallback(async () => {
     if (!profile?.id) return
-    supabase.from('profiles').select('monthly_target').eq('id', profile.id).maybeSingle()
-      .then(({ data }) => setTarget(Number(data?.monthly_target ?? 0)))
+    const { data } = await supabase.from('profiles')
+      .select('monthly_target').eq('id', profile.id).maybeSingle()
+    setTarget(Number(data?.monthly_target ?? 0))
   }, [profile?.id])
+
+  // تحميل أوّلي
+  useEffect(() => { loadTeam() }, [loadTeam])
+  useEffect(() => { loadSeries() }, [loadSeries])
+  useEffect(() => { loadTarget() }, [loadTarget])
+
+  // تحديث هادئ عند رجوع الصفحة للواجهة (focus / visibility) — بلا وميض تحميل
+  const lastRefresh = useRef(0)
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastRefresh.current < 1500) return   // تجنّب الإطلاق المزدوج focus+visibility
+      lastRefresh.current = now
+      loadTeam(); loadSeries({ quiet: true }); loadTarget()
+    }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [loadTeam, loadSeries, loadTarget])
 
   // قائمة الشهور المتاحة — مع ضمان وجود الشهر الجاري
   const months = useMemo(() => {
