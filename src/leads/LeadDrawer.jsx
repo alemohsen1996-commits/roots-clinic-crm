@@ -58,7 +58,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const [undo, setUndo] = useState(null)          // { fromStage, toStage } — تراجع سريع بعد نقل سريع
   const [busy, setBusy] = useState(false)
 
-  const [tab, setTab] = useState('all')           // all | log
+  const [tab, setTab] = useState('all')           // all | log | calls
 
   // زر "غير مهتم": يكشف مربّع سبب سريع قبل النقل لمرحلة الخسارة
   const [notInterestedOpen, setNotInterestedOpen] = useState(false)
@@ -908,15 +908,25 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
           </div>
         )}
 
-        {/* ===== تبويبان فقط ===== */}
+        {/* ===== التبويبات: الكل | السجل | متصل ===== */}
         <div className="tabs drawer-tabs">
           {[
             { k: 'all', l: 'الكل' },
             { k: 'log', l: 'السجل' },
+            { k: 'calls', l: `📞 متصل${callsCount ? ` (${callsCount})` : ''}` },
           ].map(t => (
             <button key={t.k} className={'tab' + (tab === t.k ? ' on' : '')}
               onClick={() => setTab(t.k)}>{t.l}</button>
           ))}
+        </div>
+
+        {/* متصل — مكالمات السنترال: متحمّلة دايمًا (عشان العدد في التبويب) وبتظهر في تبويبها بس */}
+        <div className="drawer-section" style={{ display: tab === 'calls' ? 'block' : 'none' }}>
+          <h3>متصل</h3>
+          <div className="timeline-scroll">
+            <LeadCalls leadId={leadId} onCount={setCallsCount} />
+            {callsCount === 0 && <div className="empty" style={{ padding: 20 }}>مفيش مكالمات سنترال لليد ده</div>}
+          </div>
         </div>
 
         {tab === 'all' && (<>
@@ -1233,18 +1243,11 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
               { k: 'note', l: 'ملاحظات' },
               { k: 'offer', l: 'العروض' },
               { k: 'sys',  l: 'تغييرات' },
-              { k: 'calls', l: `📞 السنترال${callsCount ? ` (${callsCount})` : ''}` },
             ].map(t => (
               <button key={t.k} className={'tab' + (actTab === t.k ? ' on' : '')}
                 onClick={() => setActTab(t.k)}>{t.l}</button>
             ))}
           </div>
-          {/* مكالمات السنترال — متحمّلة دايمًا (للعدد في التبويب) وبتظهر في تبويبها بس */}
-          <div className="timeline-scroll" style={{ display: actTab === 'calls' ? 'block' : 'none' }}>
-            <LeadCalls leadId={leadId} onCount={setCallsCount} />
-            {callsCount === 0 && <div className="empty" style={{ padding: 20 }}>مفيش مكالمات سنترال لليد ده</div>}
-          </div>
-          {actTab !== 'calls' && (
           <div className="timeline timeline-scroll">
             {shownActs.length === 0 && <div className="empty" style={{ padding: 20 }}>لا شيء هنا</div>}
             {shownActs.map(a => (
@@ -1262,7 +1265,6 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
               </div>
             ))}
           </div>
-          )}
         </div>
         )}
 
