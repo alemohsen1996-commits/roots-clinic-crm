@@ -72,6 +72,31 @@ export default function AppointmentsPage() {
   const noShowStage   = stages.find(s => s.name_ar === 'لم يحضر المعاينة')
   const followupStage = stages.find(s => s.code === STAGE.FOLLOWUP)
 
+  // بعد «حضر»: لو الليد اتنقل لمرحلة أبعد في بورد المنسقات (ديل / تمت العملية / خسارة / انتظار...)
+  // نعرضها جنب الحالة — عشان الجدول يوضّح المعاينة انتهت بإيه، مش بس إنه حضر
+  const outcomeOf = (a) => {
+    if (a.status !== 'attended' || !a.lead_stage_id) return null
+    const st = stages.find(x => x.id === a.lead_stage_id)
+    if (!st || st.board !== 'coordinator') return null
+    if (st.id === attendedStage?.id || st.id === noShowStage?.id || st.code === STAGE.FOLLOWUP) return null
+    return st
+  }
+  const statusCell = (a) => {
+    const o = outcomeOf(a)
+    return (
+      <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+        <StatusBadge s={a.status} />
+        {o && (
+          <span title="مرحلة الليد الحالية بعد المعاينة" style={{
+            fontSize: 11.5, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
+            background: (o.color || 'var(--primary)') + '22', color: o.color || 'var(--primary)',
+            whiteSpace: 'nowrap',
+          }}>← {o.name_ar}</span>
+        )}
+      </span>
+    )
+  }
+
   // ملخّص الأعداد + أقرب حجز لكل فرع — قابل لإعادة الاستدعاء من Realtime
   const refreshSummary = useCallback(async (branchList) => {
     const list = branchList ?? branches
@@ -417,7 +442,7 @@ export default function AppointmentsPage() {
               <div key={t} className="card" style={{ padding: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
                   <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14 }}>{hhmm(t)}</span>
-                  <StatusBadge s={a.status} />
+                  {statusCell(a)}
                 </div>
                 {mine(a) ? (
                   <button className="link-name" style={{ fontWeight: 700, fontSize: 15, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)', padding: 0 }}
@@ -488,7 +513,7 @@ export default function AppointmentsPage() {
                     {a.coordinator_note && <div style={{ color: 'var(--primary)', fontWeight: 500 }}>{a.coordinator_note}</div>}
                     {!a.callcenter_note && !a.coordinator_note && '—'}
                   </td>
-                  <td><StatusBadge s={a.status} /></td>
+                  <td>{statusCell(a)}</td>
                   <td>
                     {apptActions(a, busy)}
                   </td>
