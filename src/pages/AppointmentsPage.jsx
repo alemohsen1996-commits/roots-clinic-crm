@@ -72,10 +72,12 @@ export default function AppointmentsPage() {
   const noShowStage   = stages.find(s => s.name_ar === 'لم يحضر المعاينة')
   const followupStage = stages.find(s => s.code === STAGE.FOLLOWUP)
 
-  // بعد «حضر»: لو الليد اتنقل لمرحلة أبعد في بورد المنسقات (ديل / تمت العملية / خسارة / انتظار...)
-  // نعرضها جنب الحالة — عشان الجدول يوضّح المعاينة انتهت بإيه، مش بس إنه حضر
+  // بعد المعاينة: لو الليد اتنقل لمرحلة أبعد في بورد المنسقات (ديل / تمت العملية / خسارة / انتظار...)
+  // نعرضها جنب الحالة — «حضر ← تمت العملية»، أو «لم يحضر ← تمت العملية» لعملية قديمة اتسجّلت متأخر.
+  // (لو اتسجّل لم يحضر وبعدها عمل العملية فعلًا، قاعدة البيانات بتحوّله «حضر» لوحدها)
+  const OUTCOME_STATUSES = ['attended', 'no_show', 'rescheduled']
   const outcomeOf = (a) => {
-    if (a.status !== 'attended' || !a.lead_stage_id) return null
+    if (!OUTCOME_STATUSES.includes(a.status) || !a.lead_stage_id) return null
     const st = stages.find(x => x.id === a.lead_stage_id)
     if (!st || st.board !== 'coordinator') return null
     if (st.id === attendedStage?.id || st.id === noShowStage?.id || st.code === STAGE.FOLLOWUP) return null
