@@ -46,6 +46,9 @@ export default function CallsPage() {
   const [to, setTo] = useState(today())
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
+  // فلتر الموظف: 'u:<uuid>' لموظف مربوط (يشمل كل Extensions اللي استخدمها قبل كده)،
+  // أو 'e:<ext>' لـ Extension مش مربوط. فاضي = كل الموظفين (الجدول المجمّع)
+  const [who, setWho] = useState('')
 
   const loadMapping = useCallback(async () => {
     const [{ data: profs }, { data: calls }] = await Promise.all([
@@ -110,6 +113,17 @@ export default function CallsPage() {
   const mapped = profiles.filter(p => p.phone_ext)
     .sort((a, b) => a.phone_ext.localeCompare(b.phone_ext))
 
+  // خيارات فلتر الموظف: كل اللي ليهم مكالمات في الفترة (مربوطين وغير مربوطين) + المربوطين حاليًا
+  const whoOptions = useMemo(() => {
+    const opts = new Map()
+    rows.forEach(r => {
+      if (r.user_id) opts.set('u:' + r.user_id, `${r.full_name} (${r.extension})`)
+      else opts.set('e:' + r.extension, `غير مربوط — Ext ${r.extension}`)
+    })
+    mapped.forEach(p => { if (!opts.has('u:' + p.id)) opts.set('u:' + p.id, `${p.full_name} (${p.phone_ext})`) })
+    return [...opts].sort((a, b) => a[1].localeCompare(b[1], 'ar'))
+  }, [rows, mapped])
+
   return (
     <>
       <div className="page-head">
@@ -150,9 +164,16 @@ export default function CallsPage() {
         <input type="date" value={to} onChange={e => setTo(e.target.value)} />
         <button className="btn btn-ghost" onClick={() => { setFrom(today()); setTo(today()) }}>النهارده</button>
         <button className="btn btn-ghost" onClick={() => { setFrom(monthStart()); setTo(today()) }}>الشهر الجاري</button>
+        <select value={who} onChange={e => setWho(e.target.value)} style={{ minWidth: 200 }}>
+          <option value="">كل الموظفين</option>
+          {whoOptions.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
       </div>
 
-      <div className="card">
+      {who && <EmployeeCalls who={who} from={from} to={to}
+        label={whoOptions.find(([k]) => k === who)?.[1] ?? ''} onBack={() => setWho('')} />}
+
+      {!who && <div className="card">
         {loading ? <div className="empty">جارٍ التحميل…</div>
         : rows.length === 0 ? <div className="empty">مفيش مكالمات في الفترة دي — استورد ملف Azeer من فوق</div>
         : (
@@ -166,7 +187,8 @@ export default function CallsPage() {
               </thead>
               <tbody>
                 {rows.map(r => (
-                  <tr key={r.extension}>
+                  <tr key={r.extension} style={{ cursor: 'pointer' }} title="تفاصيل الموظف"
+                    onClick={() => setWho(r.user_id ? 'u:' + r.user_id : 'e:' + r.extension)}>
                     <td style={{ fontWeight: 600 }}>
                       {r.full_name || <span style={{ color: 'var(--danger)' }}>غير مربوط</span>}
                     </td>
@@ -191,7 +213,7 @@ export default function CallsPage() {
             </table>
           </div>
         )}
-      </div>
+      </div>}
 
       {mapped.length > 0 && (
         <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 12, lineHeight: 1.8 }}>
@@ -200,4 +222,170 @@ export default function CallsPage() {
       )}
     </>
   )
+}
+
+// ─────────────────────────────────────────────────────────────
+// تفاصيل موظف واحد: ملخّص + توزيع يومي + كل مكالماته في الفترة (بالتسجيلات)
+// ─────────────────────────────────────────────────────────────
+const REC_BASE = 'https://voice.mottasl.com/monitor/259921bba7e3cb16/'
+const AZEER_KEEP_DAYS = 30
+const DETAIL_LIMIT = 1000
+const localDay = (iso) => new Date(iso).toLocaleDateString('en-CA')
+const dayBounds = (from, to) => {
+  const [y1, m1, d1] = from.split('-').map(Number), [y2, m2, d2] = to.split('-').map(Number)
+  return [new Date(y1, m1 - 1, d1).toISOString(), new Date(y2, m2 - 1, d2 + 1).toISOString()]
+}
+const fmtTime = (iso) => new Date(iso).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+
+function EmployeeCalls({ who, from, to, label, onBack }) {
+  const [calls, setCalls] = useState(null)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    setCalls(null); setErr('')
+    const [start, end] = dayBounds(from, to)
+    let q = supabase.from('calls')
+      .select('id, called_at, direction, client_phone, extension, duration_seconds, answered, recording_path, recording_stored_path, lead:leads(id, full_name, file_no)')
+      .gte('called_at', start).lt('called_at', end)
+      .order('called_at', { ascending: false }).limit(DETAIL_LIMIT)
+    q = who.startsWith('u:') ? q.eq('user_id', who.slice(2)) : q.eq('extension', who.slice(2)).is('user_id', null)
+    q.then(({ data, error }) => {
+      if (!alive) return
+      if (error) setErr(error.message)
+      setCalls(data || [])
+    })
+    return () => { alive = false }
+  }, [who, from, to])
+
+  const stats = useMemo(() => {
+    const t = { total: 0, answered: 0, talk: 0, leads: new Set(), unlinked: 0 }
+    const byDay = {}
+    ;(calls || []).forEach(c => {
+      t.total++; if (c.answered) t.answered++; t.talk += c.duration_seconds
+      if (c.lead) t.leads.add(c.lead.id); else t.unlinked++
+      const d = localDay(c.called_at)
+      byDay[d] ??= { total: 0, answered: 0, talk: 0 }
+      byDay[d].total++; if (c.answered) byDay[d].answered++; byDay[d].talk += c.duration_seconds
+    })
+    return { ...t, leads: t.leads.size, days: Object.entries(byDay).sort((a, b) => b[0].localeCompare(a[0])) }
+  }, [calls])
+
+  const card = (l, v, color) => (
+    <div style={{ minWidth: 110 }}>
+      <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{l}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: color || 'var(--ink)' }}>{v}</div>
+    </div>
+  )
+
+  return (
+    <>
+      <div className="card" style={{ padding: 16, marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: 17, margin: 0, flex: 1 }}>📞 {label}</h2>
+          <button className="btn btn-ghost" onClick={onBack}>← كل الموظفين</button>
+        </div>
+        {err && <div className="alert alert-error">{err}</div>}
+        {!calls ? <div className="empty">جارٍ التحميل…</div> : (
+          <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+            {card('مكالمات', fmtNum(stats.total))}
+            {card('اتردّ عليها', fmtNum(stats.answered), 'var(--ok)')}
+            {card('مردّش', fmtNum(stats.total - stats.answered), 'var(--danger)')}
+            {card('نسبة الرد', pct(stats.answered, stats.total))}
+            {card('وقت الكلام', fmtDur(stats.talk))}
+            {card('متوسط المكالمة', fmtDur(stats.answered ? Math.round(stats.talk / stats.answered) : 0))}
+            {card('ليدز مختلفة', fmtNum(stats.leads))}
+            {card('أرقام مش في الليدز', fmtNum(stats.unlinked), 'var(--ink-soft)')}
+          </div>
+        )}
+        {calls?.length >= DETAIL_LIMIT && (
+          <p style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 10 }}>
+            معروض أحدث {fmtNum(DETAIL_LIMIT)} مكالمة بس — صغّر الفترة عشان تشوف الباقي.</p>
+        )}
+      </div>
+
+      {calls?.length > 0 && stats.days.length > 1 && (
+        <div className="card" style={{ marginBottom: 18 }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table">
+              <thead><tr><th>اليوم</th><th>مكالمات</th><th>اتردّ عليها</th><th>نسبة الرد</th><th>وقت الكلام</th></tr></thead>
+              <tbody>
+                {stats.days.map(([d, v]) => (
+                  <tr key={d}>
+                    <td style={{ fontWeight: 600 }}>{new Date(d + 'T12:00').toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'short' })}</td>
+                    <td>{fmtNum(v.total)}</td>
+                    <td style={{ color: 'var(--ok)' }}>{fmtNum(v.answered)}</td>
+                    <td>{pct(v.answered, v.total)}</td>
+                    <td>{fmtDur(v.talk)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {calls && (
+        <div className="card">
+          {calls.length === 0 ? <div className="empty">مفيش مكالمات للموظف ده في الفترة دي</div> : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table">
+                <thead><tr><th>الوقت</th><th>النوع</th><th>العميل</th><th>النتيجة</th><th>التسجيل</th></tr></thead>
+                <tbody>
+                  {calls.map(c => (
+                    <tr key={c.id}>
+                      <td style={{ whiteSpace: 'nowrap' }}>{fmtTime(c.called_at)}</td>
+                      <td>{c.direction === 'in' ? 'واردة' : 'صادرة'}</td>
+                      <td>
+                        {c.lead ? <><b>{c.lead.full_name}</b> <span style={{ color: 'var(--ink-soft)', fontSize: 12 }}>{c.lead.file_no}</span></>
+                          : <span style={{ color: 'var(--ink-soft)' }}>مش في الليدز</span>}
+                        <div style={{ fontSize: 12, color: 'var(--ink-soft)', direction: 'ltr', textAlign: 'right' }}>+{c.client_phone}</div>
+                      </td>
+                      <td style={{ color: c.answered ? 'var(--ok)' : 'var(--danger)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {c.answered ? `اتردّ — ${fmtDur(c.duration_seconds)}` : 'مردّش'}
+                      </td>
+                      <td style={{ minWidth: 220 }}><PlayRecording call={c} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+// زرار ▶ بيجهّز الرابط وقت الضغط بس (مش مئات روابط مؤقتة مرة واحدة):
+// الأرشيف الخاص (رابط مؤقت) ← وإلا Azeer (.wav ثم .mp3) لو المكالمة أحدث من 30 يوم
+function PlayRecording({ call }) {
+  const [src, setSrc] = useState(null)
+  const [state, setState] = useState('idle')   // idle | loading | ready | none
+  const fromAzeer = REC_BASE + (call.recording_path || '')
+  const azeerOk = call.recording_path && Date.now() - new Date(call.called_at).getTime() < AZEER_KEEP_DAYS * 864e5
+
+  if (!call.answered || (!call.recording_stored_path && !azeerOk)) {
+    return <span style={{ color: 'var(--ink-soft)', fontSize: 12 }}>—</span>
+  }
+
+  const play = async () => {
+    setState('loading')
+    if (call.recording_stored_path) {
+      const { data } = await supabase.storage.from('call-recordings').createSignedUrl(call.recording_stored_path, 3600)
+      if (data?.signedUrl) { setSrc(data.signedUrl); setState('ready'); return }
+    }
+    if (azeerOk) { setSrc(fromAzeer); setState('ready') } else setState('none')
+  }
+  const onError = () => {
+    if (src?.endsWith('.wav')) setSrc(src.replace(/\.wav$/, '.mp3'))
+    else setState('none')
+  }
+
+  if (state === 'none') return <span style={{ color: 'var(--ink-soft)', fontSize: 12 }}>التسجيل مش متاح</span>
+  if (state !== 'ready') {
+    return <button className="btn btn-ghost btn-sm" disabled={state === 'loading'} onClick={play}>
+      {state === 'loading' ? '…' : '▶ تشغيل'}</button>
+  }
+  return <audio controls autoPlay src={src} onError={onError} style={{ width: '100%', height: 32 }} />
 }
