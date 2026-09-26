@@ -1,5 +1,7 @@
-// المكالمات (للمديرين) — استيراد تقرير Azeer (CSV) + ربط الـ Extensions بالموظفين + تقرير لكل موظف
+// المكالمات (للمديرين) — تقرير لكل موظف + استيراد تقرير Azeer (CSV) احتياطي
+// ربط الـ Extensions بالموظفين بقى من صفحة فريق العمل؛ هنا تنبيه بس لو فيه أرقام مش مربوطة
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { fmtNum } from '../lib/format'
@@ -99,13 +101,6 @@ export default function CallsPage() {
     }
   }
 
-  const assignExt = async (ext, userId) => {
-    if (!userId) return
-    const { error } = await supabase.rpc('set_phone_ext', { p_user: userId, p_ext: ext })
-    if (error) { setErr(error.message); return }
-    await Promise.all([loadMapping(), loadReport()])
-  }
-
   const totals = useMemo(() => rows.reduce((t, r) => ({
     total: t.total + Number(r.total), answered: t.answered + Number(r.answered),
     missed: t.missed + Number(r.missed), talk: t.talk + Number(r.talk_seconds),
@@ -137,29 +132,14 @@ export default function CallsPage() {
         </div>
       )}
 
-      {/* Extensions غير مربوطة بموظف */}
+      {/* تنبيه صغير لو فيه Extensions مش مربوطة — الربط نفسه من صفحة فريق العمل */}
       {unmapped.length > 0 && (
-        <div className="card" style={{ padding: 16, marginBottom: 18 }}>
-          <h2 style={{ fontSize: 16 }}>Extensions مش مربوطة بموظف</h2>
-          <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', margin: '4px 0 12px', lineHeight: 1.6 }}>
-            اختار الموظف لكل رقم — مكالماته القديمة والجديدة هتتربط بيه فورًا.
-          </p>
-          <div style={{ display: 'grid', gap: 8 }}>
-            {unmapped.map(([ext, n]) => (
-              <div key={ext} className="filters-bar" style={{ margin: 0, padding: 0, border: 'none', boxShadow: 'none' }}>
-                <b style={{ minWidth: 96, direction: 'ltr', textAlign: 'right' }}>{ext}</b>
-                <span style={{ minWidth: 80, fontSize: 13, color: 'var(--ink-soft)' }}>{fmtNum(n)} مكالمة</span>
-                <select defaultValue="" onChange={e => assignExt(ext, e.target.value)}>
-                  <option value="">— اختار موظف —</option>
-                  {profiles.filter(p => p.status === 'active').map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.full_name}{p.phone_ext ? ` (حاليًا ${p.phone_ext})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
-          </div>
+        <div className="alert" style={{ background: 'var(--warn-soft, #fff7e6)', color: 'var(--ink)', lineHeight: 1.8 }}>
+          ⚠️ فيه {unmapped.length} Extension مش مربوطين بموظف، ومكالماتهم بتظهر «غير مربوط»:{' '}
+          <b style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>
+            {unmapped.map(([ext, n]) => `${ext} (${fmtNum(n)})`).join('، ')}
+          </b>
+          {' — '}<Link to="/team">اربطهم من فريق العمل</Link>
         </div>
       )}
 
