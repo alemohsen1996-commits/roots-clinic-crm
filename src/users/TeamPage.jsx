@@ -1,7 +1,7 @@
 // إدارة الموظفين (المدير العام فقط)
 // إضافة موظف (بالإيميل والباسورد) + تفعيل المعلّقين + نقل الليدات
 // + تغيير الإيميل/الباسورد + إيقاف/تنشيط + رقم السنترال (Extension)
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import ActivateModal from './ActivateModal'
 import BulkReassignModal from './BulkReassignModal'
@@ -17,6 +17,11 @@ export default function TeamPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [accountAction, setAccountAction] = useState(null)  // { person, mode }
   const [msg, setMsg] = useState('')
+  // فلاتر فريق العمل
+  const [q, setQ] = useState('')
+  const [roleF, setRoleF] = useState('')
+  const [statusF, setStatusF] = useState('')     // '' | active | suspended
+  const [extF, setExtF] = useState('')           // '' | has | none
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -41,6 +46,31 @@ export default function TeamPage() {
   }
 
   const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 4000) }
+
+  // الأدوار الموجودة فعلًا في الفريق (للقايمة)
+  const roleOptions = useMemo(() => {
+    const m = new Map()
+    active.forEach(p => { if (p.roles?.code) m.set(p.roles.code, p.roles.name_ar) })
+    return [...m]
+  }, [active])
+
+  const filtersOn = !!(q || roleF || statusF || extF)
+  const shown = useMemo(() => {
+    const term = q.trim().toLowerCase()
+    return active.filter(p => {
+      if (roleF && p.roles?.code !== roleF) return false
+      if (statusF && p.status !== statusF) return false
+      if (extF === 'has' && !p.phone_ext) return false
+      if (extF === 'none' && p.phone_ext) return false
+      if (term) {
+        const hay = `${p.full_name ?? ''} ${p.email ?? ''} ${p.phone_ext ?? ''}`.toLowerCase()
+        if (!hay.includes(term)) return false
+      }
+      return true
+    })
+  }, [active, q, roleF, statusF, extF])
+
+  const clearFilters = () => { setQ(''); setRoleF(''); setStatusF(''); setExtF('') }
 
   return (
     <>
@@ -92,11 +122,39 @@ export default function TeamPage() {
 
       {/* الموظفون النشطون */}
       <div className="card">
-        <div style={{ padding: '16px 16px 0' }}>
+        <div style={{ padding: '16px 16px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={{ fontSize: 16 }}>فريق العمل</h2>
+          <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
+            {filtersOn ? `${shown.length} من ${active.length}` : active.length}
+          </span>
         </div>
+
+        {active.length > 0 && (
+          <div className="filters-bar" style={{ margin: '12px 16px 0', padding: 0, border: 'none', boxShadow: 'none' }}>
+            <input placeholder="بحث بالاسم أو البريد أو الـ Ext…" value={q}
+              onChange={e => setQ(e.target.value)} style={{ minWidth: 220, flex: 1 }} />
+            <select value={roleF} onChange={e => setRoleF(e.target.value)}>
+              <option value="">كل الأدوار</option>
+              {roleOptions.map(([c, n]) => <option key={c} value={c}>{n}</option>)}
+            </select>
+            <select value={statusF} onChange={e => setStatusF(e.target.value)}>
+              <option value="">كل الحالات</option>
+              <option value="active">نشط</option>
+              <option value="suspended">موقوف</option>
+            </select>
+            <select value={extF} onChange={e => setExtF(e.target.value)}>
+              <option value="">Ext: الكل</option>
+              <option value="has">ليه Ext</option>
+              <option value="none">من غير Ext</option>
+            </select>
+            {filtersOn && <button className="btn btn-ghost btn-sm" onClick={clearFilters}>مسح</button>}
+          </div>
+        )}
+
         {active.length === 0 ? (
           <div className="empty"><strong>لا يوجد موظفون بعد</strong>ابدأ بإضافة موظف</div>
+        ) : shown.length === 0 ? (
+          <div className="empty">مفيش موظفين بالفلاتر دي</div>
         ) : (
           <table className="table" style={{ marginTop: 12 }}>
             <thead>
@@ -106,7 +164,7 @@ export default function TeamPage() {
               </tr>
             </thead>
             <tbody>
-              {active.map(p => (
+              {shown.map(p => (
                 <tr key={p.id}>
                   <td style={{ fontWeight: 600 }}>{p.full_name}</td>
                   <td dir="ltr" style={{ textAlign: 'right', fontSize: 12.5 }}>{p.email}</td>
