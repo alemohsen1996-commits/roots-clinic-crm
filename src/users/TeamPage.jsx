@@ -24,9 +24,12 @@ export default function TeamPage() {
       .select('*, roles(code, name_ar), teams:team_id(name)')
       .order('created_at', { ascending: false })
     const rows = data ?? []
+    // allPeople فيها الكل (لفحص تعارض الـ Extensions)، أما القوايم المعروضة
+    // فمخفي منها المدير العام عشان صلاحياته متتعدّلش بالغلط (ومحمي كمان في قاعدة البيانات)
     setAllPeople(rows)
-    setPending(rows.filter(p => p.status === 'pending'))
-    setActive(rows.filter(p => p.status !== 'pending'))
+    const shown = rows.filter(p => p.roles?.code !== 'super_admin')
+    setPending(shown.filter(p => p.status === 'pending'))
+    setActive(shown.filter(p => p.status !== 'pending'))
   }, [])
 
   useEffect(() => { load() }, [load])
