@@ -13,9 +13,9 @@ import { supabase } from '../lib/supabase'
 const EMPTY_FILTERS = {
   search: '', stage: '', source: '', owner: '', coordinator: '', branch: '', interest: '',
   createdFrom: '', createdTo: '',
-  // فترات: اتحرّك من/إلى + عدد مكالمات السنترال في فترة
+  // فترات: اتحرّك من/إلى + «متصل» (مكالمات السنترال: موظف/فترة/عدد)
   movedFrom: '', movedTo: '',
-  callsFrom: '', callsTo: '', callsMin: '', callsMax: '', callsAnswered: false,
+  callsBy: '', callsFrom: '', callsTo: '', callsMin: '', callsMax: '', callsAnswered: false,
   priceFrom: '', priceTo: '', ageFrom: '', ageTo: '',
   // أعلام
   movedToday: false, stale: false, paused: false, noOwner: false,
@@ -214,7 +214,7 @@ export default function LeadsPage() {
   }
 
   const advancedCount = ['createdFrom','createdTo','branch','interest','priceFrom','priceTo','ageFrom','ageTo','movedToday','snoozed',
-    'movedFrom','movedTo','callsFrom','callsTo','callsMin','callsMax','callsAnswered']
+    'movedFrom','movedTo','callsBy','callsFrom','callsTo','callsMin','callsMax','callsAnswered']
     .filter(k => filters[k]).length
 
   // كل الفلاتر النشطة — لتوضيح أن العدد المعروض مفلتَر
@@ -398,34 +398,48 @@ export default function LeadsPage() {
               <label>اتحرّك إلى</label>
               <input type="date" value={filters.movedTo} onChange={e => set('movedTo', e.target.value)} />
             </div>
+          </div>
+
+          {/* «متصل» — مكالمات السنترال (Azeer) */}
+          <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>📞 متصل</div>
+          <div className="af-grid" style={{ marginTop: 8 }}>
+            {isManager && (
+              <div className="field">
+                <label>الموظف اللي اتصل</label>
+                <select value={filters.callsBy} onChange={e => set('callsBy', e.target.value)}>
+                  <option value="">أي موظف</option>
+                  {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                </select>
+              </div>
+            )}
             <div className="field">
-              <label>مكالمات السنترال من تاريخ</label>
+              <label>متصل من</label>
               <input type="date" value={filters.callsFrom} onChange={e => set('callsFrom', e.target.value)} />
             </div>
             <div className="field">
-              <label>إلى تاريخ</label>
+              <label>متصل إلى</label>
               <input type="date" value={filters.callsTo} onChange={e => set('callsTo', e.target.value)} />
             </div>
             <div className="field">
-              <label>عدد المكالمات من</label>
-              <input type="number" min="0" placeholder="0" value={filters.callsMin}
+              <label>عدد مرات الاتصال من</label>
+              <input type="number" min="0" placeholder="1" value={filters.callsMin}
                 onChange={e => set('callsMin', e.target.value)} />
             </div>
             <div className="field">
-              <label>عدد المكالمات إلى</label>
+              <label>عدد مرات الاتصال إلى</label>
               <input type="number" min="0" placeholder="بلا حد" value={filters.callsMax}
                 onChange={e => set('callsMax', e.target.value)} />
             </div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
-            «اتحرّك» = أي نشاط في السجل أو مكالمة سنترال في الفترة. تاريخ المكالمات لوحده = اتكلّم مرة على الأقل
-            في الفترة. اكتب عدد عشان تحدد أكتر، أو 0 في الاتنين عشان تطلع الليدز اللي محدش كلّمها.
+            «اتحرّك» = أي نشاط في السجل أو مكالمة سنترال في الفترة. «متصل» = الليدز اللي اتعملّها مكالمة سنترال
+            (من موظف معيّن و/أو في فترة) مرة على الأقل. اكتب عدد عشان تحدد أكتر، أو 0 في الاتنين للّي محدش كلّمها.
           </div>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
               <input type="checkbox" checked={filters.callsAnswered}
                 onChange={e => set('callsAnswered', e.target.checked)} style={{ width: 16, height: 16 }} />
-              المكالمات اللي اتردّ عليها بس
+              متصل واتردّ عليه بس
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
               <input type="checkbox" checked={filters.movedToday}
