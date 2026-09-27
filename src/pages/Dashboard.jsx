@@ -15,6 +15,15 @@ const thisMonth = () => monthKey(new Date())
 
 const monthLabel = (m) => fmtMonth(m)
 
+// تقسيم جدول أداء الفريق حسب الوظيفة
+const TEAM_GROUPS = [
+  { key: 'sales',       title: 'السيلز',    codes: ['sales'] },
+  { key: 'coordinator', title: 'المنسقات',  codes: ['coordinator'] },
+  { key: 'managers',    title: 'المديرين',  codes: ['super_admin', 'sales_manager'] },
+]
+const groupOf = (code) =>
+  TEAM_GROUPS.find(g => g.codes.includes(code))?.key ?? 'other'
+
 // سهم التغيّر مقارنة بالشهر السابق
 function Delta({ now, before }) {
   if (before === undefined || before === null) return null
@@ -42,8 +51,12 @@ export default function Dashboard() {
   // أداء الفريق — الشهر الجاري فقط
   const loadTeam = useCallback(async () => {
     if (!isManager) return
-    const { data } = await supabase.from('v_month_to_date').select('*')
-    setRows(data ?? [])
+    const [{ data }, { data: people }] = await Promise.all([
+      supabase.from('v_month_to_date').select('*'),
+      supabase.from('profiles').select('id, roles(code)'),
+    ])
+    const roleById = Object.fromEntries((people ?? []).map(p => [p.id, p.roles?.code]))
+    setRows((data ?? []).map(r => ({ ...r, role_code: roleById[r.user_id] ?? null })))
   }, [isManager])
 
   const loadSeries = useCallback(async ({ quiet = false } = {}) => {
@@ -273,26 +286,48 @@ export default function Dashboard() {
                   لذلك مجموع الصفوف أكبر من إجمالي العيادة بالأعلى
                 </div>
               </div>
-              <div className="table-scroll" style={{ marginTop: 12 }}>
-              <table className="table sticky-head">
-                <thead>
-                  <tr><th>الموظف</th><th>العمليات</th><th>الإيراد</th><th>المحصّل</th><th>الليدات</th></tr>
-                </thead>
-                <tbody>
-                  {[...rows]
-                    .sort((a, b) => Number(b.revenue) - Number(a.revenue))
-                    .map(r => (
-                      <tr key={r.user_id}>
-                        <td style={{ fontWeight: 600 }}>{r.full_name}</td>
-                        <td>{fmt(r.deals_count)}</td>
-                        <td style={{ color: 'var(--gold)', fontWeight: 600 }}>{fmt(r.revenue)} ر.س</td>
-                        <td>{fmt(r.collected)} ر.س</td>
-                        <td>{fmt(r.leads_received)}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-              </div>
+              {[...TEAM_GROUPS, { key: 'other', title: 'أخرى' }].map(g => {
+                const list = rows
+                  .filter(r => groupOf(r.role_code) === g.key)
+                  .sort((a, b) => Number(b.revenue) - Number(a.revenue))
+                if (!list.length) return null
+                const sum = (k) => list.reduce((t, r) => t + Number(r[k] ?? 0), 0)
+                return (
+                  <div key={g.key} style={{ marginTop: 16 }}>
+                    <h3 style={{ fontSize: 14, padding: '0 16px', color: 'var(--ink-soft)' }}>
+                      {g.title} ({list.length})
+                    </h3>
+                    <div className="table-scroll" style={{ marginTop: 8 }}>
+                    <table className="table sticky-head">
+                      <thead>
+                        <tr><th>الموظف</th><th>العمليات</th><th>الإيراد</th><th>المحصّل</th><th>الليدات</th></tr>
+                      </thead>
+                      <tbody>
+                        {list.map(r => (
+                          <tr key={r.user_id}>
+                            <td style={{ fontWeight: 600 }}>{r.full_name}</td>
+                            <td>{fmt(r.deals_count)}</td>
+                            <td style={{ color: 'var(--gold)', fontWeight: 600 }}>{fmt(r.revenue)} ر.س</td>
+                            <td>{fmt(r.collected)} ر.س</td>
+                            <td>{fmt(r.leads_received)}</td>
+                          </tr>
+                        ))}
+                        {list.length > 1 && (
+                          <tr style={{ fontWeight: 700, background: 'var(--surface-2, rgba(0,0,0,0.03))' }}>
+                            <td>إجمالي {g.title}</td>
+                            <td>{fmt(sum('deals_count'))}</td>
+                            <td style={{ color: 'var(--gold)' }}>{fmt(sum('revenue'))} ر.س</td>
+                            <td>{fmt(sum('collected'))} ر.س</td>
+                            <td>{fmt(sum('leads_received'))}</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                    </div>
+                  </div>
+                )
+              })}
+              <div style={{ height: 8 }} />
             </div>
           )}
         </>
