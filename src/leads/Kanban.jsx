@@ -50,7 +50,27 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick, sort, refreshKey
   // باقي الأعمدة لا تُلمَس — فلا refresh جماعي يعطّل مع النت البطيء.
   const loadRef = useRef(load)
   useEffect(() => { loadRef.current = load }, [load])
+
+  // نسخة حيّة من الصفوف — عشان نعرف الكارت موجود في العمود ده ولا لأ
+  const rowsRef = useRef(rows)
+  useEffect(() => { rowsRef.current = rows }, [rows])
+
+  // تحديث هادئ مؤجَّل: أحداث Realtime بتيجي دفعات (توزيع جماعي، رسايل واتساب ورا بعض)
+  // فنجمعها في نداء واحد للعمود بدل نداء لكل حدث
+  const timerRef = useRef(null)
+  const scheduleQuiet = useCallback((ms = 400) => {
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => loadRef.current({ quiet: true }), ms)
+  }, [])
+  useEffect(() => () => clearTimeout(timerRef.current), [])
+
   useEffect(() => onBoardPatch((d) => {
+    if (d.refetchAll) { scheduleQuiet(0); return }
+    if (d.realtime) {
+      const has = d.id != null && rowsRef.current.some(r => String(r.id) === String(d.id))
+      if (has || (Array.isArray(d.refetch) && d.refetch.includes(stage.id))) scheduleQuiet()
+      return
+    }
     if (d.removeId != null && d.removeFrom === stage.id) {
       setRows(rs => rs.filter(r => String(r.id) !== String(d.removeId)))
       setTotal(t => Math.max(0, t - 1))
@@ -58,7 +78,7 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick, sort, refreshKey
     if (Array.isArray(d.refetch) && d.refetch.includes(stage.id)) {
       loadRef.current({ quiet: true })
     }
-  }), [stage.id])
+  }), [stage.id, scheduleQuiet])
 
   const hidden = total - rows.length
 

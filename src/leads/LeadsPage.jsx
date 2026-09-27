@@ -9,6 +9,7 @@ import LeadDrawer from './LeadDrawer'
 import ExportLeadsModal from './ExportLeadsModal'
 import BulkActionsBar from './BulkActionsBar'
 import { supabase } from '../lib/supabase'
+import { emitBoardPatch } from './boardBus'
 
 const EMPTY_FILTERS = {
   search: '', stage: '', source: '', owner: '', coordinator: '', branch: '', interest: '',
@@ -69,6 +70,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
   const [chipCounts, setChipCounts] = useState({})
+  const [chipsTick, setChipsTick] = useState(0)   // إعادة حساب أعداد الشرائح بعد تغييرات Realtime
 
   useEffect(() => {
     import('../lib/supabase').then(({ supabase }) =>
@@ -140,10 +142,65 @@ export default function LeadsPage() {
       })
     })()
     return () => { cancelled = true }
-  }, [boardStageIds])
+  }, [boardStageIds, chipsTick])
   useEffect(() => { setPage(0) }, [filters, board, pageSize])
   // التحديد يخصّ الصفحة المعروضة — يُمسح عند أي تغيير في السياق
   useEffect(() => { setSelected(new Set()) }, [filters, board, pageSize, page, view, refreshKey])
+
+  // ---------- تحديث لحظي (Realtime) لجدول leads ----------
+  // أي تغيير من موظف تاني (ليد جديد من الواتساب، توزيع، نقل مرحلة، تعديل) يوصل فورًا:
+  //  • الكانبان: العمود اللي فيه الكارت + عمود المرحلة الجديدة بس هما اللي يحدّثوا (عبر boardBus)
+  //  • الجدول: تحديث هادئ للصفحة الحالية
+  //  • أعداد الشرائح: إعادة حساب مؤجَّلة
+  // الـ RLS بيتطبق على Realtime، فكل موظف بيوصله بس الليدات المسموح له يشوفها.
+  // الدرور المفتوح مش بيتلمس — بيفضل على بياناته لحد ما الموظف يقفله أو يتنقّل.
+  const viewRef = useRef(view)
+  useEffect(() => { viewRef.current = view }, [view])
+  useEffect(() => {
+    let tableTimer = null, chipsTimer = null
+    let subscribedOnce = false
+
+    const refreshAllQuiet = () => {
+      emitBoardPatch({ refetchAll: true })
+      if (viewRef.current === 'table') loadTableRef.current({ quiet: true })
+      setChipsTick(t => t + 1)
+    }
+
+    const ch = supabase.channel('leads-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (payload) => {
+        const id = payload.new?.id ?? payload.old?.id
+        const stageId = payload.new?.stage_id
+        emitBoardPatch({ realtime: true, id, refetch: stageId != null ? [stageId] : [] })
+        if (viewRef.current === 'table') {
+          clearTimeout(tableTimer)
+          tableTimer = setTimeout(() => loadTableRef.current({ quiet: true }), 600)
+        }
+        clearTimeout(chipsTimer)
+        chipsTimer = setTimeout(() => setChipsTick(t => t + 1), 1500)
+      })
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') return
+        // إعادة اتصال بعد انقطاع النت → فيه أحداث فاتتنا، نحدّث الكل مرة واحدة
+        if (subscribedOnce) refreshAllQuiet()
+        subscribedOnce = true
+      })
+
+    // احتياطي: لو التاب كان في الخلفية فترة، نحدّث بهدوء عند الرجوع
+    // (بيغطي كمان الليد اللي اتسحب من الموظف لغيره — الـ RLS بيمنع وصول حدثه له)
+    let hiddenAt = 0
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return }
+      if (hiddenAt && Date.now() - hiddenAt > 15000) refreshAllQuiet()
+      hiddenAt = 0
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      clearTimeout(tableTimer); clearTimeout(chipsTimer)
+      document.removeEventListener('visibilitychange', onVisibility)
+      supabase.removeChannel(ch)
+    }
+  }, [])
 
   // فتح ليد مع حفظ سياقه للتنقّل بالأسهم
   const openLeadWith = useCallback((lead, list) => {
