@@ -15,14 +15,20 @@ const thisMonth = () => monthKey(new Date())
 
 const monthLabel = (m) => fmtMonth(m)
 
-// تقسيم جدول أداء الفريق حسب الوظيفة
-const TEAM_GROUPS = [
-  { key: 'sales',       title: 'السيلز',    codes: ['sales'] },
-  { key: 'coordinator', title: 'المنسقات',  codes: ['coordinator'] },
-  { key: 'managers',    title: 'المديرين',  codes: ['super_admin', 'sales_manager'] },
+// تابات جدول أداء الفريق
+const TEAM_TABS = [
+  { key: 'all',         title: 'الكل' },
+  { key: 'sales',       title: 'السيلز' },
+  { key: 'coordinator', title: 'المنسقات' },
 ]
-const groupOf = (code) =>
-  TEAM_GROUPS.find(g => g.codes.includes(code))?.key ?? 'other'
+const ROLE_TITLE = {
+  agent: 'سيلز', coordinator: 'منسقة', super_admin: 'مدير',
+  sales_manager: 'مدير مبيعات', accountant: 'محاسب',
+}
+const tabOf = (code) =>
+  code === 'agent' ? 'sales' : code === 'coordinator' ? 'coordinator' : 'other'
+const hasNumbers = (r) =>
+  ['deals_count', 'revenue', 'collected', 'leads_received'].some(k => Number(r[k] ?? 0) > 0)
 
 // سهم التغيّر مقارنة بالشهر السابق
 function Delta({ now, before }) {
@@ -47,6 +53,7 @@ export default function Dashboard() {
   const [month, setMonth] = useState(thisMonth())
   const [target, setTarget] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [teamTab, setTeamTab] = useState('all')
 
   // أداء الفريق — الشهر الجاري فقط
   const loadTeam = useCallback(async () => {
@@ -286,47 +293,70 @@ export default function Dashboard() {
                   لذلك مجموع الصفوف أكبر من إجمالي العيادة بالأعلى
                 </div>
               </div>
-              {[...TEAM_GROUPS, { key: 'other', title: 'أخرى' }].map(g => {
+              {(() => {
+                const isAll = teamTab === 'all'
                 const list = rows
-                  .filter(r => groupOf(r.role_code) === g.key)
+                  .filter(r => isAll
+                    // الكل: السيلز والمنسقات دايمًا، وأي وظيفة تانية لو ليها أرقام
+                    ? (tabOf(r.role_code) !== 'other' || hasNumbers(r))
+                    : tabOf(r.role_code) === teamTab)
                   .sort((a, b) => Number(b.revenue) - Number(a.revenue))
-                if (!list.length) return null
                 const sum = (k) => list.reduce((t, r) => t + Number(r[k] ?? 0), 0)
                 return (
-                  <div key={g.key} style={{ marginTop: 16 }}>
-                    <h3 style={{ fontSize: 14, padding: '0 16px', color: 'var(--ink-soft)' }}>
-                      {g.title} ({list.length})
-                    </h3>
-                    <div className="table-scroll" style={{ marginTop: 8 }}>
-                    <table className="table sticky-head">
-                      <thead>
-                        <tr><th>الموظف</th><th>العمليات</th><th>الإيراد</th><th>المحصّل</th><th>الليدات</th></tr>
-                      </thead>
-                      <tbody>
-                        {list.map(r => (
-                          <tr key={r.user_id}>
-                            <td style={{ fontWeight: 600 }}>{r.full_name}</td>
-                            <td>{fmt(r.deals_count)}</td>
-                            <td style={{ color: 'var(--gold)', fontWeight: 600 }}>{fmt(r.revenue)} ر.س</td>
-                            <td>{fmt(r.collected)} ر.س</td>
-                            <td>{fmt(r.leads_received)}</td>
-                          </tr>
-                        ))}
-                        {list.length > 1 && (
-                          <tr style={{ fontWeight: 700, background: 'var(--surface-2, rgba(0,0,0,0.03))' }}>
-                            <td>إجمالي {g.title}</td>
-                            <td>{fmt(sum('deals_count'))}</td>
-                            <td style={{ color: 'var(--gold)' }}>{fmt(sum('revenue'))} ر.س</td>
-                            <td>{fmt(sum('collected'))} ر.س</td>
-                            <td>{fmt(sum('leads_received'))}</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                  <>
+                    <div className="tabs" style={{ margin: '12px 16px 0' }}>
+                      {TEAM_TABS.map(t => (
+                        <button key={t.key} type="button"
+                          className={'tab' + (teamTab === t.key ? ' on' : '')}
+                          onClick={() => setTeamTab(t.key)}>
+                          {t.title}
+                        </button>
+                      ))}
                     </div>
-                  </div>
+                    {!list.length ? (
+                      <div className="hint" style={{ padding: 16 }}>لا توجد أرقام لهذا الشهر</div>
+                    ) : (
+                      <div className="table-scroll" style={{ marginTop: 8 }}>
+                      <table className="table sticky-head">
+                        <thead>
+                          <tr>
+                            <th>الموظف</th>
+                            {isAll && <th>الوظيفة</th>}
+                            <th>العمليات</th><th>الإيراد</th><th>المحصّل</th><th>الليدات</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {list.map(r => (
+                            <tr key={r.user_id}>
+                              <td style={{ fontWeight: 600 }}>{r.full_name}</td>
+                              {isAll && (
+                                <td style={{ color: 'var(--ink-soft)' }}>
+                                  {ROLE_TITLE[r.role_code] ?? r.role_code ?? '—'}
+                                </td>
+                              )}
+                              <td>{fmt(r.deals_count)}</td>
+                              <td style={{ color: 'var(--gold)', fontWeight: 600 }}>{fmt(r.revenue)} ر.س</td>
+                              <td>{fmt(r.collected)} ر.س</td>
+                              <td>{fmt(r.leads_received)}</td>
+                            </tr>
+                          ))}
+                          {/* الإجمالي في تاب الوظيفة بس — في "الكل" هيبقى مكرر (العملية للسيلز والمنسقة) */}
+                          {!isAll && list.length > 1 && (
+                            <tr style={{ fontWeight: 700, background: 'var(--surface-2, rgba(0,0,0,0.03))' }}>
+                              <td>الإجمالي</td>
+                              <td>{fmt(sum('deals_count'))}</td>
+                              <td style={{ color: 'var(--gold)' }}>{fmt(sum('revenue'))} ر.س</td>
+                              <td>{fmt(sum('collected'))} ر.س</td>
+                              <td>{fmt(sum('leads_received'))}</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                      </div>
+                    )}
+                  </>
                 )
-              })}
+              })()}
               <div style={{ height: 8 }} />
             </div>
           )}
