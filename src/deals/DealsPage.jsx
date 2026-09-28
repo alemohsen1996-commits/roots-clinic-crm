@@ -33,8 +33,9 @@ export default function DealsPage() {
   // لو جاي من شاشة الليدات بعد نقل ليد للديل: ?lead=ID يفتح نموذج التعاقد جاهزًا
   const preloadLead = params.get('lead')
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  // quiet = تحديث هادئ بعد أي إجراء في الديل: الجدول يفضل ظاهر لحد ما البيانات الجديدة توصل
+  const load = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true)
     const { rows, total } = await fetchDeals({
       status, agent: agentId, coordinator: coordId, search: debounced, page, pageSize,
     })
@@ -44,6 +45,7 @@ export default function DealsPage() {
   }, [status, agentId, coordId, debounced, page, pageSize])
 
   useEffect(() => { load() }, [load])
+  const reloadQuiet = useCallback(() => load({ quiet: true }), [load])
   // أي تغيير في الفلاتر يرجّع لأول صفحة
   useEffect(() => { setPage(0) }, [status, agentId, coordId, debounced, pageSize])
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -172,7 +174,7 @@ export default function DealsPage() {
           refs={refs}
           preloadLeadId={preloadLead}
           onClose={() => { setShowNew(false); if (preloadLead) setParams({}) }}
-          onSaved={() => { setShowNew(false); if (preloadLead) setParams({}); load() }}
+          onSaved={() => { setShowNew(false); if (preloadLead) setParams({}); reloadQuiet() }}
         />
       )}
 
@@ -180,8 +182,10 @@ export default function DealsPage() {
         <DealDrawer
           dealId={openDeal.id}
           refs={refs}
+          siblings={deals}
+          onNavigate={setOpenDeal}
           onClose={() => setOpenDeal(null)}
-          onChanged={load}
+          onChanged={reloadQuiet}
         />
       )}
     </>

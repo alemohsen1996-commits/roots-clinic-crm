@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext'
 import { fetchDealFinance, DEAL_STATUS, PAY_STATUS } from './useDealRefs'
 import { fmtNum, fmtDate } from '../lib/format'
 
-export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
+export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose, onChanged }) {
   const { isManager, isSuperAdmin, roleCode, profile } = useAuth()
   const [deal, setDeal] = useState(null)
   const [fin, setFin] = useState(null)
@@ -43,6 +43,34 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
   }, [dealId])
 
   useEffect(() => { load() }, [load])
+
+  // عند التنقّل لديل تاني: نقفل أي تعديل أو تأكيد مفتوح من الديل السابق
+  useEffect(() => {
+    setEditing(false); setConfirmOutcome(null); setErr(''); setFlash('')
+  }, [dealId])
+
+  // التنقّل بين الديلات المعروضة في الصفحة الحالية — يحترم الفلاتر
+  const navList = Array.isArray(siblings) ? siblings : []
+  const navIndex = navList.findIndex(x => Number(x.id) === Number(dealId))
+  const hasNav = navList.length > 1 && navIndex !== -1
+  const prevDeal = hasNav && navIndex > 0 ? navList[navIndex - 1] : null
+  const nextDeal = hasNav && navIndex < navList.length - 1 ? navList[navIndex + 1] : null
+  const goTo = (d) => { if (d && onNavigate) onNavigate(d) }
+
+  // ← و → للتنقّل، Esc للإغلاق — ما لم يكن المؤشر داخل حقل إدخال
+  useEffect(() => {
+    const onKey = (e) => {
+      const t = e.target?.tagName
+      if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return
+      if (e.key === 'Escape') { onClose(); return }
+      if (!hasNav || editing) return
+      // في الواجهة العربية: السهم الأيسر يتقدّم للتالي
+      if (e.key === 'ArrowLeft')  goTo(nextDeal)
+      if (e.key === 'ArrowRight') goTo(prevDeal)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   async function setOutcome(status) {
     setErr('')
@@ -174,7 +202,18 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
               {deal.is_locked && <span className="badge badge-pending">مقفول 🔒</span>}
             </div>
           </div>
-          <button className="btn btn-ghost" onClick={onClose}>إغلاق</button>
+          <div className="head-actions">
+            {hasNav && (
+              <div className="nav-pager" title="استخدم ← و → للتنقّل">
+                <button className="icon-btn" disabled={!prevDeal}
+                  onClick={() => goTo(prevDeal)} title="السابق">→</button>
+                <span className="nav-pos">{navIndex + 1} من {navList.length}</span>
+                <button className="icon-btn" disabled={!nextDeal}
+                  onClick={() => goTo(nextDeal)} title="التالي">←</button>
+              </div>
+            )}
+            <button className="btn btn-ghost" onClick={onClose}>إغلاق</button>
+          </div>
         </header>
 
         {err && <div className="alert alert-error">{err}</div>}
