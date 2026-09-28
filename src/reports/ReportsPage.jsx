@@ -1,15 +1,12 @@
 // التقارير (للمديرين) — فترة زمنية + قمع + ترتيب الفريق + تفصيلات + تصدير CSV
-// إصلاحات: استبعاد الدفعات الملغاة · إزالة سقف 5000 · إدراج المنسقات ·
-//          فصل معدل التحويل الحقيقي · قمع بوضعين · أسماء من profiles
-import { useCallback, useEffect, useMemo, useState } from 'react'
+// الحسابات كلها في القاعدة (report_summary) — نداء واحد مهما كانت الفترة
+// التواريخ بتوقيت السعودية · ترتيب الفريق بتابات (الكل / السيلز / المنسقات)
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtNum } from '../lib/format'
 import { exportCsv } from '../lib/exportCsv'
 import Funnel from './Funnel'
 import Breakdowns from './Breakdowns'
-
-const BATCH = 1000
-const CAP = 100000   // حاجز أمان
 
 // التواريخ بتوقيت السعودية — toISOString كان بيحوّل لجرينتش فيرجّع 3 ساعات
 // ("الشهر الجاري" كان بيبدأ من آخر يوم في الشهر اللي فات)
@@ -18,23 +15,6 @@ const riyadhDate = (d = new Date()) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(d)   // YYYY-MM-DD
 const monthStart = () => riyadhDate().slice(0, 8) + '01'
 const today = () => riyadhDate()
-
-// جلب كل الصفوف على دفعات — بديل limit(5000) الذي كان يقطع البيانات بصمت
-async function fetchAll(build, onProgress) {
-  const out = []
-  let offset = 0
-  for (;;) {
-    const { data, error } = await build(offset, offset + BATCH - 1)
-    if (error) throw error
-    const batch = data ?? []
-    out.push(...batch)
-    onProgress?.(out.length)
-    if (batch.length < BATCH) break
-    offset += BATCH
-    if (offset >= CAP) return { rows: out, truncated: true }
-  }
-  return { rows: out, truncated: false }
-}
 
 // تابات ترتيب الفريق — نفس فكرة لوحة التحكم
 const TEAM_TABS = [
@@ -63,164 +43,54 @@ export default function ReportsPage() {
     leads: 0, deals: 0, revenue: 0, collected: 0, cohortDeals: 0,
   })
   const [loading, setLoading] = useState(true)
-  const [progress, setProgress] = useState(0)
-  const [warn, setWarn] = useState('')
   const [err, setErr] = useState('')
 
+  // كل الحسابات في القاعدة (report_summary) — نداء واحد بدل ما نجيب كل الليدات للمتصفح
   const load = useCallback(async () => {
     if (from > to) {
       setErr('تاريخ البداية بعد تاريخ النهاية'); setLoading(false)
       return
     }
-    setLoading(true); setErr(''); setWarn(''); setProgress(0)
-    // حدود اليوم بتوقيت السعودية (من غير المنطقة القاعدة كانت بتعتبرها جرينتش)
+    setLoading(true); setErr('')
+    // حدود اليوم بتوقيت السعودية
     const fromTs = from + 'T00:00:00' + TZ
     const toTs = to + 'T23:59:59.999' + TZ
 
-    try {
-      // ---------- المراجع ----------
-      const [{ data: st }, { data: sources }, { data: reasons }, { data: people }] =
-        await Promise.all([
-          supabase.from('stages').select('*').eq('is_active', true).order('sort_order'),
-          supabase.from('lead_sources').select('id, name_ar'),
-          supabase.from('lost_reasons').select('id, name_ar'),
-          // كل الموظفين — لا النشطين فقط، حتى لا تختفي أسماء من غادروا
-          supabase.from('profiles').select('id, full_name, status, roles(code)'),
-        ])
-      setStages(st ?? [])
-
-      // ---------- الليدات (كل الفترة، بلا سقف) ----------
-      const leadsRes = await fetchAll(
-        (a, b) => supabase.from('leads')
-          .select('id, stage_id, source_id, lost_reason_id, owner_id, coordinator_id, created_at')
-          .gte('created_at', fromTs).lte('created_at', toTs)
-          .order('created_at', { ascending: true })
-          .range(a, b),
-        setProgress
-      )
-      const leads = leadsRes.rows
-      if (leadsRes.truncated) {
-        setWarn(`الفترة تحتوي أكثر من ${CAP.toLocaleString('en-US')} ليد — التقرير يعرض جزءًا منها فقط. قلّص الفترة لنتيجة دقيقة.`)
-      }
-
-      // ---------- الديلات المنتهية في الفترة ----------
-      const dealsRes = await fetchAll((a, b) => supabase.from('deals')
-        .select('id, net_amount, agent_id, coordinator_id, outcome_at, lead_id')
-        .eq('status', 'done')
-        .gte('outcome_at', fromTs).lte('outcome_at', toTs)
-        .order('outcome_at', { ascending: true })
-        .range(a, b))
-      const deals = dealsRes.rows
-
-      // ---------- الدفعات النشطة فقط (كانت تشمل الملغاة) ----------
-      const paysRes = await fetchAll((a, b) => supabase.from('payments')
-        .select('amount, paid_at')
-        .eq('status', 'active')
-        .gte('paid_at', fromTs).lte('paid_at', toTs)
-        .order('paid_at', { ascending: true })
-        .range(a, b))
-      const pays = paysRes.rows
-
-      // ---------- تحويل الفوج: ليدات الفترة التي وصلت لعملية ----------
-      const cohortRes = await fetchAll((a, b) => supabase.from('deals')
-        .select('id, lead_id, leads!inner(created_at)')
-        .eq('status', 'done')
-        .gte('leads.created_at', fromTs).lte('leads.created_at', toTs)
-        .range(a, b))
-      const cohortLeadIds = new Set(cohortRes.rows.map(d => d.lead_id))
-
-      // ---------- القمع: التوزيع الحالي ----------
-      const sc = {}
-      for (const l of leads) sc[l.stage_id] = (sc[l.stage_id] ?? 0) + 1
-      setStageCounts(sc)
-
-      // ---------- القمع: من مرّ فعلًا بكل مرحلة ----------
-      const actsRes = await fetchAll((a, b) => supabase.from('activities')
-        .select('lead_id, to_stage')
-        .eq('type', 'stage_change')
-        .gte('created_at', fromTs).lte('created_at', toTs)
-        .not('to_stage', 'is', null)
-        .range(a, b))
-      const reachedSets = {}
-      for (const a of actsRes.rows) {
-        (reachedSets[a.to_stage] ??= new Set()).add(a.lead_id)
-      }
-      // الليد يُحسب أيضًا في مرحلته الحالية حتى لو لم يُسجَّل له انتقال
-      for (const l of leads) (reachedSets[l.stage_id] ??= new Set()).add(l.id)
-      setReachedCounts(Object.fromEntries(
-        Object.entries(reachedSets).map(([k, v]) => [k, v.size])
-      ))
-
-      // ---------- حسب المصدر ----------
-      const srcMap = Object.fromEntries((sources ?? []).map(s => [s.id, s.name_ar]))
-      const srcCount = {}
-      for (const l of leads) {
-        const k = srcMap[l.source_id] ?? 'غير محدد'
-        srcCount[k] = (srcCount[k] ?? 0) + 1
-      }
-      setBySource(Object.entries(srcCount)
-        .map(([label, count]) => ({ label, count }))
-        .sort((a, b) => b.count - a.count))
-
-      // ---------- أسباب الخسارة ----------
-      const rMap = Object.fromEntries((reasons ?? []).map(r => [r.id, r.name_ar]))
-      const rCount = {}
-      for (const l of leads) {
-        if (!l.lost_reason_id) continue
-        const k = rMap[l.lost_reason_id] ?? 'أخرى'
-        rCount[k] = (rCount[k] ?? 0) + 1
-      }
-      setByLost(Object.entries(rCount)
-        .map(([label, count]) => ({ label, count }))
-        .sort((a, b) => b.count - a.count))
-
-      // ---------- الإجماليات ----------
-      setTotals({
-        leads: leads.length,
-        deals: deals.length,
-        revenue: deals.reduce((a, d) => a + Number(d.net_amount ?? 0), 0),
-        collected: pays.reduce((a, p) => a + Number(p.amount ?? 0), 0),
-        cohortDeals: cohortLeadIds.size,
-      })
-
-      // ---------- ترتيب الفريق (مبيعات + منسقات) ----------
-      const nameMap = Object.fromEntries((people ?? [])
-        .map(p => [p.id, { name: p.full_name, role: p.roles?.code, status: p.status }]))
-
-      const byPerson = {}
-      const ensure = (id) => (byPerson[id] ??= { leads: 0, deals: 0, revenue: 0 })
-
-      // السيلز: الليدات اللي هو مسؤول عنها · المنسقة: الليدات اللي اتحولتلها
-      for (const l of leads) {
-        if (l.owner_id) ensure(l.owner_id).leads++
-        if (l.coordinator_id && l.coordinator_id !== l.owner_id) ensure(l.coordinator_id).leads++
-      }
-
-      // العملية تُنسب للسيلز والمنسقة معًا — أساس العمولة (كما في لوحة التحكم)
-      for (const d of deals) {
-        const amount = Number(d.net_amount ?? 0)
-        if (d.agent_id) { const p = ensure(d.agent_id); p.deals++; p.revenue += amount }
-        if (d.coordinator_id && d.coordinator_id !== d.agent_id) {
-          const p = ensure(d.coordinator_id); p.deals++; p.revenue += amount
-        }
-      }
-
-      setTeam(Object.entries(byPerson)
-        .map(([id, v]) => ({
-          name: nameMap[id]?.name ?? '—',
-          role: ROLE_AR[nameMap[id]?.role] ?? '—',
-          roleCode: nameMap[id]?.role ?? null,
-          inactive: nameMap[id]?.status && nameMap[id].status !== 'active',
-          ...v,
-          ratio: v.leads ? Math.round((v.deals / v.leads) * 100) : null,
-        }))
-        .sort((a, b) => b.revenue - a.revenue))
-
+    const [{ data: st }, { data: r, error }] = await Promise.all([
+      supabase.from('stages').select('*').eq('is_active', true).order('sort_order'),
+      supabase.rpc('report_summary', { p_from: fromTs, p_to: toTs }),
+    ])
+    if (error || !r) {
+      setErr('تعذر تحميل التقرير — ' + (error?.message || ''))
       setLoading(false)
-    } catch (e) {
-      setErr('تعذر تحميل التقرير — ' + (e.message || ''))
-      setLoading(false)
+      return
     }
+
+    setStages(st ?? [])
+    setStageCounts(r.stage_counts ?? {})
+    setReachedCounts(r.reached_counts ?? {})
+    setBySource(r.by_source ?? [])
+    setByLost(r.by_lost ?? [])
+    setTotals({
+      leads: Number(r.leads ?? 0),
+      deals: Number(r.deals ?? 0),
+      revenue: Number(r.revenue ?? 0),
+      collected: Number(r.collected ?? 0),
+      cohortDeals: Number(r.cohort_deals ?? 0),
+    })
+    setTeam((r.team ?? []).map(t => {
+      const leads = Number(t.leads ?? 0), deals = Number(t.deals ?? 0)
+      return {
+        name: t.name ?? '—',
+        role: ROLE_AR[t.role] ?? '—',
+        roleCode: t.role ?? null,
+        inactive: t.status && t.status !== 'active',
+        leads, deals,
+        revenue: Number(t.revenue ?? 0),
+        ratio: leads ? Math.round((deals / leads) * 100) : null,
+      }
+    }))
+    setLoading(false)
   }, [from, to])
 
   useEffect(() => { load() }, [load])
@@ -262,11 +132,10 @@ export default function ReportsPage() {
       </div>
 
       {err && <div className="alert alert-error">{err}</div>}
-      {warn && <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>{warn}</div>}
 
       {loading ? (
         <div className="empty">
-          جارٍ التحميل…{progress > 0 && ` (${progress.toLocaleString('en-US')} ليد)`}
+          جارٍ التحميل…
         </div>
       ) : (
         <>
