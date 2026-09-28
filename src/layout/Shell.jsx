@@ -57,7 +57,7 @@ const NAV = [
     { to: '/reports',  label: 'التقارير',       icon: 'reports',  roles: ['super_admin','sales_manager'] },
     { to: '/calls',    label: 'المكالمات',      icon: 'calls',    roles: ['super_admin','sales_manager'] },
     { to: '/archive',  label: 'أرشيف الشهور',   icon: 'archive',  roles: ['super_admin','sales_manager'] },
-    { to: '/settings', label: 'إعدادات النظام', icon: 'settings', roles: ['super_admin'] },
+    { to: '/settings', label: 'إعدادات النظام', icon: 'settings', roles: ['super_admin','sales_manager'] },
   ]},
 ]
 

@@ -6,7 +6,7 @@ import './styles.css'
 
 import { AuthProvider } from './auth/AuthContext'
 import ConnectionBanner from './layout/ConnectionBanner'
-import { RequireAuth, RequireManager, RequireSuperAdmin } from './auth/guards'
+import { RequireAuth, RequireManager } from './auth/guards'
 import Login from './auth/Login'
 import Shell from './layout/Shell'
 import Dashboard from './pages/Dashboard'
@@ -46,7 +46,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="calls" element={<RequireManager><CallsPage /></RequireManager>} />
             <Route path="archive" element={<RequireManager><ArchivePage /></RequireManager>} />
             <Route path="distribute" element={<RequireManager><DistributePage /></RequireManager>} />
-            <Route path="settings" element={<RequireSuperAdmin><SettingsPage /></RequireSuperAdmin>} />
+            <Route path="settings" element={<RequireManager><SettingsPage /></RequireManager>} />
           </Route>
 
           {/* أي مسار غير معروف (ومنه /register القديم) يعود للرئيسية */}
