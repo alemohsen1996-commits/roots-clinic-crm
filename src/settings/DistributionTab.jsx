@@ -1,5 +1,5 @@
 // إعدادات توزيع الليدات — النمط + مهلة إعادة التوزيع + نظرة على الفريق
-// ملاحظة: التوزيع التلقائي غير مفعّل حاليًا — العمل يتم عبر «توزيع يدوي»
+// ملاحظة: التوزيع التلقائي غير مفعّل حاليًا — العمل يتم عبر صفحة «توزيع الليدات» (/distribute)
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -59,7 +59,7 @@ export default function DistributionTab() {
         <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--warn)', lineHeight: 1.8 }}>
           <b>التوزيع التلقائي غير مفعّل حاليًا.</b><br />
           الأنماط أدناه محفوظة كإعداد فقط ولا يُنفَّذ أي توزيع تلقائي على الليدات
-          الواردة. توزيع الليدات يتم من تبويب «توزيع يدوي».
+          الواردة. توزيع الليدات يتم من صفحة «توزيع الليدات» في القائمة الجانبية.
         </div>
 
         {msg && (
@@ -92,7 +92,7 @@ export default function DistributionTab() {
         <div style={{ padding: '16px 16px 0' }}>
           <h2 style={{ fontSize: 15 }}>الفريق ({inRotation.length})</h2>
           <p style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-            الوزن والحد اليومي يُستخدمان في زر «وزّع حسب الوزن» بالتوزيع اليدوي
+            الوزن والحد اليومي يُستخدمان في زر «وزّع حسب الوزن» في صفحة توزيع الليدات
           </p>
         </div>
         {inRotation.length === 0 ? (

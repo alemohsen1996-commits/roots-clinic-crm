@@ -65,3 +65,11 @@ export function RequireManager({ children }) {
   if (!isManager) return <Navigate to="/" replace />
   return children
 }
+
+// حارس: المدير العام فقط (إعدادات النظام)
+export function RequireSuperAdmin({ children }) {
+  const { isSuperAdmin, loading, profile } = useAuth()
+  if (loading || !profile) return null
+  if (!isSuperAdmin) return <Navigate to="/" replace />
+  return children
+}

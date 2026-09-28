@@ -20,6 +20,7 @@ const I = {
   reports:   <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
   calls:     <><path d="M5 4h3.5l1.8 4.5-2.3 1.4a11 11 0 0 0 6.1 6.1l1.4-2.3L20 15.5V19a1.5 1.5 0 0 1-1.6 1.5A16 16 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4z"/></>,
   archive:   <><rect x="3" y="4" width="18" height="4.5" rx="1.5"/><path d="M5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5"/><path d="M10 13h4"/></>,
+  distribute: <><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4M12 11.5 6.5 17M12 11.5l5.5 5.5"/></>,
   settings:  <><circle cx="12" cy="12" r="3.2"/><path d="M19.4 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1v.3a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-2.8-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7h-.3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.1-2.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5v-.3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7h.3a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.5 1z"/></>,
 }
 
@@ -52,6 +53,7 @@ const NAV = [
   ]},
   { section: 'الإدارة', items: [
     { to: '/team',     label: 'الموظفون',      icon: 'team',     roles: ['super_admin'] },
+    { to: '/distribute', label: 'توزيع الليدات', icon: 'distribute', roles: ['super_admin','sales_manager'] },
     { to: '/reports',  label: 'التقارير',       icon: 'reports',  roles: ['super_admin','sales_manager'] },
     { to: '/calls',    label: 'المكالمات',      icon: 'calls',    roles: ['super_admin','sales_manager'] },
     { to: '/archive',  label: 'أرشيف الشهور',   icon: 'archive',  roles: ['super_admin','sales_manager'] },
