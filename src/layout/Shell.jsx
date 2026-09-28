@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { supabase } from '../lib/supabase'
+import { THEMES, getLocalTheme, applyTheme } from '../lib/theme'
 
 // أيقونات خطّية موحّدة — التعرّف عليها أسرع من قراءة النص
 const I = {
@@ -60,6 +61,20 @@ const NAV = [
 
 export default function Shell() {
   const { profile, roleCode, signOut } = useAuth()
+
+  // الثيم: المحفوظ على الجهاز يتطبق فورًا (من index.html)، وبعد تحميل الـ profile
+  // لو الموظف مختار ثيم من جهاز تاني نطبقه هنا
+  const [theme, setTheme] = useState(getLocalTheme)
+  useEffect(() => {
+    if (!profile) return
+    const saved = profile.theme ?? 'default'
+    if (saved !== getLocalTheme()) setTheme(applyTheme(saved))
+  }, [profile?.id, profile?.theme])
+  const chooseTheme = useCallback(async (key) => {
+    setTheme(applyTheme(key))
+    const { error } = await supabase.rpc('set_my_theme', { p_theme: key })
+    if (error) console.error(error)
+  }, [])
   const [navOpen, setNavOpen] = useState(false)
   const [dueTasks, setDueTasks] = useState(0)
   const location = useLocation()
@@ -147,6 +162,16 @@ export default function Shell() {
         <div className="foot">
           <div className="name">{profile?.full_name}</div>
           <div className="role">{profile?.roles?.name_ar}</div>
+          <div className="theme-picker" role="radiogroup" aria-label="ثيم الواجهة">
+            {THEMES.map(t => (
+              <button key={t.key} type="button" title={t.label} aria-label={t.label}
+                role="radio" aria-checked={theme === t.key}
+                className={theme === t.key ? 'on' : ''}
+                onClick={() => chooseTheme(t.key)}>
+                {t.swatch.map(c => <i key={c} style={{ background: c }} />)}
+              </button>
+            ))}
+          </div>
           <button onClick={signOut}>تسجيل الخروج</button>
         </div>
       </aside>

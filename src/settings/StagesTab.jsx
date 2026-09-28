@@ -140,7 +140,7 @@ export default function StagesTab() {
                   <button className="btn btn-ghost" style={{ padding: '2px 8px' }} onClick={() => move(s, 1)}>↓</button>
                 </td>
                 <td>
-                  <span className="badge" style={{ background: s.color + '22', color: s.color }}>
+                  <span className="badge stage-pill" style={{ '--stage': s.color }}>
                     ● {s.name_ar}
                   </span>
                   {s.is_core && (

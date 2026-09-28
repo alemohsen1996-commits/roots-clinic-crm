@@ -72,10 +72,7 @@ export default function LeadsTable({ leads, onOpen, selectable, selected, onTogg
                 <td style={{ fontWeight: 600 }}>{l.full_name}</td>
                 <td><PhoneCell phone={l.phone} /></td>
                 <td>
-                  <span className="badge" style={{
-                    background: (l.stages?.color ?? '#888') + '22',
-                    color: l.stages?.color ?? '#888',
-                  }}>
+                  <span className="badge stage-pill" style={{ '--stage': l.stages?.color ?? '#888' }}>
                     {l.stages?.name_ar}
                   </span>
                 </td>

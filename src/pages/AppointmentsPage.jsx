@@ -89,9 +89,9 @@ export default function AppointmentsPage() {
       <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
         <StatusBadge s={a.status} />
         {o && (
-          <span title="مرحلة الليد الحالية بعد المعاينة" style={{
+          <span title="مرحلة الليد الحالية بعد المعاينة" className="stage-pill" style={{
+            '--stage': o.color || 'var(--primary)',
             fontSize: 11.5, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
-            background: (o.color || 'var(--primary)') + '22', color: o.color || 'var(--primary)',
             whiteSpace: 'nowrap',
           }}>← {o.name_ar}</span>
         )}

@@ -148,7 +148,7 @@ export default function CallsPage() {
 
       {/* تنبيه صغير لو فيه Extensions مش مربوطة — الربط نفسه من صفحة فريق العمل */}
       {unmapped.length > 0 && (
-        <div className="alert" style={{ background: 'var(--warn-soft, #fff7e6)', color: 'var(--ink)', lineHeight: 1.8 }}>
+        <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--ink)', lineHeight: 1.8 }}>
           ⚠️ فيه {unmapped.length} Extension مش مربوطين بموظف، ومكالماتهم بتظهر «غير مربوط»:{' '}
           <b style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>
             {unmapped.map(([ext, n]) => `${ext} (${fmtNum(n)})`).join('، ')}

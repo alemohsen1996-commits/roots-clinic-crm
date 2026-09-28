@@ -22,9 +22,9 @@ function daysOverdue(due) {
 
 function bucket(days) {
   if (days <= 30) return { label: '1-30 يوم', color: 'var(--warn)' }
-  if (days <= 60) return { label: '31-60 يوم', color: '#c2410c' }
+  if (days <= 60) return { label: '31-60 يوم', color: 'color-mix(in srgb, var(--warn) 45%, var(--danger))' }
   if (days <= 90) return { label: '61-90 يوم', color: 'var(--danger)' }
-  return { label: 'أكثر من 90 يوم', color: '#7f1d1d' }
+  return { label: 'أكثر من 90 يوم', color: 'color-mix(in srgb, var(--danger) 70%, var(--ink))' }
 }
 
 const remainingOf = (i) => Number(i.amount) - Number(i.paid_amount ?? 0)
@@ -152,7 +152,7 @@ export default function InstallmentsPage() {
                         </td>
                         <td>{fmtDate(r.due_date)}</td>
                         <td>
-                          <span className="badge" style={{ background: b.color + '22', color: b.color }}>
+                          <span className="badge stage-pill" style={{ '--stage': b.color }}>
                             {d} يوم · {b.label}
                           </span>
                         </td>

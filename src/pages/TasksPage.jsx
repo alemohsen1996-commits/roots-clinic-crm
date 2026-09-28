@@ -153,10 +153,7 @@ export default function TasksPage() {
           )}
         </td>
         <td>
-          <span className="badge" style={{
-            background: (t.leads?.stages?.color ?? '#888') + '22',
-            color: t.leads?.stages?.color ?? '#888',
-          }}>
+          <span className="badge stage-pill" style={{ '--stage': t.leads?.stages?.color ?? '#888' }}>
             {t.leads?.stages?.name_ar}
           </span>
         </td>
@@ -296,10 +293,7 @@ export default function TasksPage() {
                       </small>
                     </td>
                     <td>
-                      <span className="badge" style={{
-                        background: (t.leads?.stages?.color ?? '#888') + '22',
-                        color: t.leads?.stages?.color ?? '#888',
-                      }}>
+                      <span className="badge stage-pill" style={{ '--stage': t.leads?.stages?.color ?? '#888' }}>
                         {t.leads?.stages?.name_ar}
                       </span>
                     </td>

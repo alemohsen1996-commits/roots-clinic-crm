@@ -342,7 +342,7 @@ export default function Dashboard() {
                           ))}
                           {/* الإجمالي في تاب الوظيفة بس — في "الكل" هيبقى مكرر (العملية للسيلز والمنسقة) */}
                           {!isAll && list.length > 1 && (
-                            <tr style={{ fontWeight: 700, background: 'var(--surface-2, rgba(0,0,0,0.03))' }}>
+                            <tr style={{ fontWeight: 700, background: 'var(--line-soft)' }}>
                               <td>الإجمالي</td>
                               <td>{fmt(sum('deals_count'))}</td>
                               <td style={{ color: 'var(--gold)' }}>{fmt(sum('revenue'))} ر.س</td>

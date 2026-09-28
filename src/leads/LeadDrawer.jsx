@@ -651,10 +651,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
 
             {/* الحالة الحالية */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-              <span className="badge" style={{
-                background: (lead.stages?.color ?? '#888') + '22',
-                color: lead.stages?.color ?? '#888',
-              }}>
+              <span className="badge stage-pill" style={{ '--stage': lead.stages?.color ?? '#888' }}>
                 {lead.stages?.name_ar}
               </span>
               {paused ? (
