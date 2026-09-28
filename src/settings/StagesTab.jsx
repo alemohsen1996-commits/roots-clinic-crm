@@ -15,7 +15,29 @@ const BOARDS = [
   { v: 'coordinator', label: 'بورد المنسقات' },
 ]
 
-const empty = { code: '', name_ar: '', color: '#1a3a5c', category: 'open', board: 'sales', sla_hours: '', requires_note: false }
+// عداد الإهمال (العلامة الحمراء) — متحكم فيه بالكامل من هنا
+//   daily → يعد كل يوم من آخر نشاط · sla → يبدأ بعد مهلة بالساعات · none → من غير عداد
+const ALERT_MODES = [
+  { v: 'sla',   label: 'يبدأ بعد مهلة' },
+  { v: 'daily', label: 'يعد كل يوم من آخر نشاط' },
+  { v: 'none',  label: 'من غير عداد' },
+]
+const FINISHED = ['won', 'lost']   // المراحل المنتهية مفيهاش عداد أصلًا
+
+const alertModeOf = (s) => s.no_alert ? 'none' : (s.sla_hours ? 'sla' : 'daily')
+
+// ملخص العداد في جدول المراحل
+function alertSummary(s) {
+  if (FINISHED.includes(s.category)) return '—'
+  if (s.no_alert) return 'من غير عداد'
+  if (s.sla_hours) return `بعد ${s.sla_hours} ساعة`
+  return 'يومي'
+}
+
+const empty = {
+  code: '', name_ar: '', color: '#1a3a5c', category: 'open', board: 'sales',
+  alert_mode: 'daily', sla_hours: '', requires_note: false,
+}
 
 export default function StagesTab() {
   const [stages, setStages] = useState([])
@@ -40,13 +62,20 @@ export default function StagesTab() {
 
   async function save() {
     if (!form.name_ar.trim()) { setErr('اكتب اسم المرحلة'); return }
+    const finished = FINISHED.includes(form.category)
+    const sla = Number(form.sla_hours)
+    if (!finished && form.alert_mode === 'sla' && !(sla > 0)) {
+      setErr('اكتب مهلة العداد بالساعات (رقم أكبر من صفر)'); return
+    }
     setErr('')
     const payload = {
       name_ar: form.name_ar.trim(),
       color: form.color,
       category: form.category,
       board: form.board,
-      sla_hours: form.sla_hours ? Number(form.sla_hours) : null,
+      // المرحلة المنتهية: من غير عداد ومن غير مهلة
+      sla_hours: !finished && form.alert_mode === 'sla' ? sla : null,
+      no_alert: !finished && form.alert_mode === 'none',
       requires_note: form.requires_note,
     }
     let error
@@ -115,7 +144,8 @@ export default function StagesTab() {
     setForm({
       code: s.code, name_ar: s.name_ar, color: s.color,
       category: s.category, board: s.board ?? 'sales',
-      sla_hours: s.sla_hours ?? '', requires_note: s.requires_note,
+      alert_mode: alertModeOf(s), sla_hours: s.sla_hours ?? '',
+      requires_note: s.requires_note,
     })
   }
 
@@ -129,7 +159,7 @@ export default function StagesTab() {
           <thead>
             <tr>
               <th>الترتيب</th><th>المرحلة</th><th>البورد</th>
-              <th>التصنيف</th><th>الليدات</th><th>الحالة</th><th></th>
+              <th>التصنيف</th><th>عداد الإهمال</th><th>الليدات</th><th>الحالة</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -150,6 +180,7 @@ export default function StagesTab() {
                 </td>
                 <td style={{ fontSize: 12.5 }}>{s.board === 'coordinator' ? 'المنسقات' : 'المبيعات'}</td>
                 <td style={{ fontSize: 12.5 }}>{CATEGORIES.find(c => c.v === s.category)?.label}</td>
+                <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{alertSummary(s)}</td>
                 <td style={{ fontWeight: 600 }}>{(counts[s.id] ?? 0).toLocaleString('en-US')}</td>
                 <td>{s.is_active ? 'فعالة' : 'معطلة'}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
@@ -177,7 +208,7 @@ export default function StagesTab() {
         {err && <div className="alert alert-error">{err}</div>}
         {editingStage?.is_core && (
           <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
-            🔒 مرحلة جوهرية — يمكن تغيير الاسم واللون والتصنيف فقط
+            🔒 مرحلة جوهرية — يمكن تغيير الاسم واللون والتصنيف وعداد الإهمال فقط
           </div>
         )}
 
@@ -203,21 +234,46 @@ export default function StagesTab() {
             {BOARDS.map(b => <option key={b.v} value={b.v}>{b.label}</option>)}
           </select>
         </div>
-        <div className="grid-2">
-          <div className="field">
-            <label>اللون</label>
-            <input type="color" value={form.color} onChange={e => set('color', e.target.value)} style={{ height: 42, padding: 4 }} />
-          </div>
-          <div className="field">
-            <label>مهلة SLA (ساعات)</label>
-            <input type="number" min={0} value={form.sla_hours} onChange={e => set('sla_hours', e.target.value)} placeholder="بدون" />
-          </div>
+        <div className="field">
+          <label>اللون</label>
+          <input type="color" value={form.color} onChange={e => set('color', e.target.value)} style={{ height: 42, padding: 4 }} />
         </div>
         <div className="field">
           <label>التصنيف</label>
           <select value={form.category} onChange={e => set('category', e.target.value)}>
             {CATEGORIES.map(c => <option key={c.v} value={c.v}>{c.label}</option>)}
           </select>
+        </div>
+
+        {/* عداد الإهمال — العلامة الحمراء على الكارت */}
+        <div className="field">
+          <label>عداد الإهمال (العلامة الحمراء)</label>
+          {FINISHED.includes(form.category) ? (
+            <small style={{ color: 'var(--ink-soft)', lineHeight: 1.7 }}>
+              مرحلة منتهية (نجاح أو خسارة) — مفيش عداد إهمال فيها
+            </small>
+          ) : (
+            <>
+              <select value={form.alert_mode} onChange={e => set('alert_mode', e.target.value)}>
+                {ALERT_MODES.map(m => <option key={m.v} value={m.v}>{m.label}</option>)}
+              </select>
+              {form.alert_mode === 'sla' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                  <input type="number" min={1} value={form.sla_hours}
+                    onChange={e => set('sla_hours', e.target.value)} placeholder="48" style={{ width: 100 }} />
+                  <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>ساعة من آخر نشاط</span>
+                </div>
+              )}
+              <small style={{ color: 'var(--ink-soft)', lineHeight: 1.7, marginTop: 6 }}>
+                {form.alert_mode === 'sla' && (form.sla_hours
+                  ? `مفيش علامة أول ${form.sla_hours} ساعة، وبعدها بتظهر 1 وتزيد 1 كل 24 ساعة`
+                  : 'اكتب المهلة بالساعات')}
+                {form.alert_mode === 'daily' && 'العلامة بتظهر بعد يوم من آخر نشاط، وتزيد 1 كل يوم'}
+                {form.alert_mode === 'none' && 'الليدات في المرحلة دي مش هيظهر عليها عداد إهمال خالص'}
+                {' — '}ولو الليد عليه مهمة، العداد بيمشي على ميعاد المهمة
+              </small>
+            </>
+          )}
         </div>
         <div className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <input type="checkbox" id="rn" checked={form.requires_note}

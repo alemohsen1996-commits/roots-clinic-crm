@@ -22,5 +22,7 @@ export const QUIET_STAGES = [STAGE.DEAD, STAGE.LOST, STAGE.DONE, 'won']
 // من الإعدادات بكود ديناميكي (stage_…) زي "عمليات قبل شهر سبتمبر"
 export const QUIET_CATEGORIES = ['won', 'lost']
 
+// أو المدير قافل العداد للمرحلة من الإعدادات (no_alert)
 export const isQuietStage = (stage) =>
-  !!stage && (QUIET_STAGES.includes(stage.code) || QUIET_CATEGORIES.includes(stage.category))
+  !!stage && (QUIET_STAGES.includes(stage.code) || QUIET_CATEGORIES.includes(stage.category)
+              || stage.no_alert === true)
