@@ -46,7 +46,8 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
         .from('deals').select('lead_id').in('status', ['active', 'waiting'])
       const taken = new Set((activeDeals ?? []).map(d => d.lead_id))
 
-      const { data: pastDeals } = await supabase.from('deals').select('lead_id')
+      // عدد العمليات اللي تمت فعلًا — نفس منطق الترقيم في الداتابيز
+      const { data: pastDeals } = await supabase.from('deals').select('lead_id').eq('status', 'done')
       const counts = {}
       for (const d of pastDeals ?? []) counts[d.lead_id] = (counts[d.lead_id] ?? 0) + 1
 
@@ -112,7 +113,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
 
     const { error } = await supabase.from('deals').insert({
       lead_id: Number(form.lead_id),
-      procedure_no: (selected?.past ?? 0) + 1,
+      // procedure_no بيتحسب تلقائي في الداتابيز (trg_deal_procedure_no)
       agent_id: lead.owner_id ?? profile.id,     // صاحب الإيراد = مالك الليد
       coordinator_id: form.coordinator_id,
       procedure_type_id: form.procedure_type_id ? Number(form.procedure_type_id) : null,
