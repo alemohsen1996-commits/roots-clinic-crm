@@ -46,6 +46,10 @@ export default function StagesTab() {
   const [editing, setEditing] = useState(null)
   const [err, setErr] = useState('')
   const [ok, setOk] = useState('')
+  // البورد المعروض + السحب والإفلات لترتيب المراحل
+  const [boardTab, setBoardTab] = useState('sales')
+  const [dragId, setDragId] = useState(null)
+  const [overId, setOverId] = useState(null)
 
   const load = useCallback(async () => {
     const [{ data }, { data: c }] = await Promise.all([
@@ -104,20 +108,49 @@ export default function StagesTab() {
       return
     }
     say(editing ? 'تم حفظ التعديل' : 'تمت إضافة المرحلة')
-    setForm(empty); setEditing(null); load()
+    setForm({ ...empty, board: boardTab }); setEditing(null); load()
   }
 
-  async function move(s, dir) {
-    const sorted = [...stages].sort((a, b) => a.sort_order - b.sort_order)
-    const i = sorted.findIndex(x => x.id === s.id)
-    const j = i + dir
-    if (j < 0 || j >= sorted.length) return
-    const other = sorted[j]
-    await Promise.all([
-      supabase.from('stages').update({ sort_order: other.sort_order }).eq('id', s.id),
-      supabase.from('stages').update({ sort_order: s.sort_order }).eq('id', other.id),
-    ])
+  // المراحل مترتبة جوه كل بورد
+  const byBoard = (board) => stages
+    .filter(x => (x.board ?? 'sales') === board)
+    .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
+
+  // حفظ الترتيب: بورد المبيعات الأول وبعده المنسقات، بأرقام متتالية 1..N
+  // (بيصلّح كمان أي أرقام مكررة قديمة) — وبنحدّث بس المراحل اللي رقمها اتغيّر
+  async function saveOrder(board, ids) {
+    const sales = board === 'sales' ? ids : byBoard('sales').map(x => x.id)
+    const coord = board === 'coordinator' ? ids : byBoard('coordinator').map(x => x.id)
+    const next = Object.fromEntries([...sales, ...coord].map((id, i) => [id, i + 1]))
+    // تحديث فوري على الشاشة، والحفظ في الخلفية
+    setStages(list => list.map(x => next[x.id] ? { ...x, sort_order: next[x.id] } : x))
+    const changed = stages.filter(x => next[x.id] && next[x.id] !== x.sort_order)
+    const results = await Promise.all(changed.map(x =>
+      supabase.from('stages').update({ sort_order: next[x.id] }).eq('id', x.id)))
+    const failed = results.find(r => r.error)
+    if (failed) setErr('تعذر حفظ الترتيب — ' + failed.error.message)
+    else say('تم حفظ الترتيب')
     load()
+  }
+
+  function move(s, dir) {
+    const ids = byBoard(s.board ?? 'sales').map(x => x.id)
+    const i = ids.indexOf(s.id)
+    const j = i + dir
+    if (j < 0 || j >= ids.length) return
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    saveOrder(s.board ?? 'sales', ids)
+  }
+
+  function dropOn(targetId) {
+    const from = dragId
+    setDragId(null); setOverId(null)
+    if (from == null || from === targetId) return
+    const ids = byBoard(boardTab).map(x => x.id)
+    const fi = ids.indexOf(from), ti = ids.indexOf(targetId)
+    if (fi < 0 || ti < 0) return
+    ids.splice(ti, 0, ids.splice(fi, 1)[0])
+    saveOrder(boardTab, ids)
   }
 
   async function toggleActive(s) {
@@ -155,19 +188,45 @@ export default function StagesTab() {
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, alignItems: 'start' }}>
       <div className="card">
         {ok && <div className="alert alert-ok" style={{ margin: 12 }}>{ok}</div>}
+        <div className="tabs" style={{ margin: '12px 16px 0' }}>
+          {BOARDS.map(b => (
+            <button key={b.v} type="button"
+              className={'tab' + (boardTab === b.v ? ' on' : '')}
+              onClick={() => { setBoardTab(b.v); if (!editing) set('board', b.v) }}>
+              {b.label} ({byBoard(b.v).length.toLocaleString('en-US')})
+            </button>
+          ))}
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--ink-soft)', padding: '0 16px', margin: '-8px 0 6px' }}>
+          اسحب المرحلة من ⋮⋮ وحطها في المكان اللي عاوزه — الترتيب هنا هو ترتيب أعمدة البورد
+        </p>
+        <div style={{ overflowX: 'auto' }}>
         <table className="table">
           <thead>
             <tr>
-              <th>الترتيب</th><th>المرحلة</th><th>البورد</th>
+              <th>الترتيب</th><th>المرحلة</th>
               <th>التصنيف</th><th>عداد الإهمال</th><th>الليدات</th><th>الحالة</th><th></th>
             </tr>
           </thead>
           <tbody>
-            {stages.map(s => (
-              <tr key={s.id} style={{ opacity: s.is_active ? 1 : .45 }}>
-                <td>
-                  <button className="btn btn-ghost" style={{ padding: '2px 8px' }} onClick={() => move(s, -1)}>↑</button>
-                  <button className="btn btn-ghost" style={{ padding: '2px 8px' }} onClick={() => move(s, 1)}>↓</button>
+            {byBoard(boardTab).map((s, idx, list) => (
+              <tr key={s.id}
+                draggable
+                onDragStart={e => { setDragId(s.id); e.dataTransfer.effectAllowed = 'move' }}
+                onDragOver={e => { e.preventDefault(); if (overId !== s.id) setOverId(s.id) }}
+                onDragLeave={() => setOverId(o => (o === s.id ? null : o))}
+                onDrop={e => { e.preventDefault(); dropOn(s.id) }}
+                onDragEnd={() => { setDragId(null); setOverId(null) }}
+                className={'stage-row' + (dragId === s.id ? ' dragging' : '')
+                  + (overId === s.id && dragId !== s.id ? ' over' : '')}
+                style={{ opacity: dragId === s.id ? .4 : (s.is_active ? 1 : .45) }}>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <span className="drag-handle" title="اسحب لإعادة الترتيب" style={{ cursor: 'grab', marginInlineEnd: 6 }}>⋮⋮</span>
+                  {/* الأسهم للموبايل — السحب مش شغال باللمس */}
+                  <button className="btn btn-ghost" style={{ padding: '2px 8px' }} disabled={idx === 0}
+                    onClick={() => move(s, -1)} aria-label="لفوق">↑</button>
+                  <button className="btn btn-ghost" style={{ padding: '2px 8px' }} disabled={idx === list.length - 1}
+                    onClick={() => move(s, 1)} aria-label="لتحت">↓</button>
                 </td>
                 <td>
                   <span className="badge stage-pill" style={{ '--stage': s.color }}>
@@ -178,7 +237,6 @@ export default function StagesTab() {
                       style={{ marginInlineStart: 6, fontSize: 12 }}>🔒</span>
                   )}
                 </td>
-                <td style={{ fontSize: 12.5 }}>{s.board === 'coordinator' ? 'المنسقات' : 'المبيعات'}</td>
                 <td style={{ fontSize: 12.5 }}>{CATEGORIES.find(c => c.v === s.category)?.label}</td>
                 <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{alertSummary(s)}</td>
                 <td style={{ fontWeight: 600 }}>{(counts[s.id] ?? 0).toLocaleString('en-US')}</td>
@@ -197,6 +255,7 @@ export default function StagesTab() {
             ))}
           </tbody>
         </table>
+        </div>
         <p style={{ fontSize: 12, color: 'var(--ink-soft)', padding: '0 16px 16px', lineHeight: 1.7 }}>
           🔒 المراحل المحمية يعتمد عليها النظام بالاسم البرمجي (سلسلة لا يرد، التحويل
           للمنسقة، فتح ملف التعاقد…) — يمكن تعديل اسمها ولونها فقط.
@@ -286,7 +345,7 @@ export default function StagesTab() {
             {editing ? 'حفظ التعديل' : 'إضافة المرحلة'}
           </button>
           {editing && (
-            <button className="btn btn-ghost" onClick={() => { setEditing(null); setForm(empty); setErr('') }}>إلغاء</button>
+            <button className="btn btn-ghost" onClick={() => { setEditing(null); setForm({ ...empty, board: boardTab }); setErr('') }}>إلغاء</button>
           )}
         </div>
       </div>
