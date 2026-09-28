@@ -45,6 +45,8 @@ function genSlots(sched, dateStr) {
   return out
 }
 
+const PENDING_PREVIEW = 5   // عدد اللي بيظهروا من «بدون موعد» قبل «عرض الكل»
+
 export default function AppointmentsPage() {
   const refs = useLeadRefs()
   const stages = refs.stages
@@ -65,6 +67,15 @@ export default function AppointmentsPage() {
   const [book, setBook] = useState(null)       // { apptId, date, time, slots }
   const [err, setErr] = useState('')
   const [q, setQ] = useState('')   // بحث بالاسم/الرقم
+  // "بدون موعد": أول 5 بس، وزرار عرض الكل — والقسم يتقفل ويتفتح (بيتفكر على الجهاز)
+  const [pendingAll, setPendingAll] = useState(false)
+  const [pendingOpen, setPendingOpen] = useState(() => {
+    try { return localStorage.getItem('appt-pending-open') !== '0' } catch { return true }
+  })
+  const togglePending = () => setPendingOpen(v => {
+    try { localStorage.setItem('appt-pending-open', v ? '0' : '1') } catch {}
+    return !v
+  })
   const [ownerFilter, setOwnerFilter] = useState('')   // فلتر باسم السيلز
 
   // مراحل المعاينة (أكواد ديناميكية — نطابقها بالاسم)
@@ -355,8 +366,21 @@ export default function AppointmentsPage() {
       {/* بدون موعد */}
       {pending.length > 0 && (
         <div className="drawer-section" style={{ marginBottom: 14 }}>
-          <h3>بدون موعد — بانتظار الحجز ({pending.length})</h3>
-          {pending.filter(passFilters).map(a => (
+          <button type="button" onClick={togglePending}
+            aria-expanded={pendingOpen}
+            style={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+            <h3 style={{ margin: 0 }}>بدون موعد — بانتظار الحجز ({pending.length})</h3>
+            <span style={{ marginInlineStart: 'auto', fontSize: 12.5, color: 'var(--ink-soft)', fontWeight: 600 }}>
+              {pendingOpen ? 'إخفاء ▴' : 'عرض ▾'}
+            </span>
+          </button>
+          {pendingOpen && (() => {
+            const list = pending.filter(passFilters)
+            // مع البحث أو فلتر السيلز: كل النتايج تظهر
+            const showAll = pendingAll || !!q.trim() || !!ownerFilter
+            const shown = showAll ? list : list.slice(0, PENDING_PREVIEW)
+            return (<>
+          {shown.map(a => (
             <div key={a.id} style={{
               display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
               padding: '8px 0', borderTop: '0.5px solid var(--line)',
@@ -376,6 +400,15 @@ export default function AppointmentsPage() {
               )}
             </div>
           ))}
+          {list.length > PENDING_PREVIEW && !q.trim() && !ownerFilter && (
+            <button type="button" className="btn btn-ghost"
+              style={{ width: '100%', marginTop: 6, padding: '7px 0', fontSize: 13 }}
+              onClick={() => setPendingAll(v => !v)}>
+              {pendingAll ? 'عرض أقل' : `عرض الكل (${list.length.toLocaleString('en-US')})`}
+            </button>
+          )}
+            </>)
+          })()}
 
           {book && (
             <div style={{ marginTop: 10, padding: 12, border: '1px solid var(--primary)', borderRadius: 10 }}>
@@ -389,7 +422,7 @@ export default function AppointmentsPage() {
                 <label>الوقت المتاح</label>
                 {!sched ? (
                   <div style={{ fontSize: 12.5, color: 'var(--warn)', fontWeight: 600 }}>
-                    فرع «{branch?.name}» غير مُعدّ — اضبط ساعاته من الإعدادات ← ساعات الفروع
+                    فرع «{branch?.name}» غير مُعدّ — اضبط ساعاته من الإعدادات ← الفروع وساعات العمل
                   </div>
                 ) : book.slots.length === 0 ? (
                   <div style={{ fontSize: 12.5, color: 'var(--warn)', fontWeight: 600 }}>
@@ -425,7 +458,7 @@ export default function AppointmentsPage() {
         <div className="empty" style={{ padding: 24 }}>جارٍ التحميل…</div>
       ) : !sched ? (
         <div className="empty" style={{ padding: 24 }}>
-          الفرع «{branch?.name}» غير مُعدّ بعد — اضبط ساعاته من الإعدادات ← ساعات الفروع.
+          الفرع «{branch?.name}» غير مُعدّ بعد — اضبط ساعاته من الإعدادات ← الفروع وساعات العمل.
         </div>
       ) : slots.length === 0 ? (
         <div className="empty" style={{ padding: 24 }}>هذا اليوم إجازة لفرع «{branch?.name}».</div>
