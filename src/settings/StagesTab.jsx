@@ -197,7 +197,7 @@ export default function StagesTab() {
             </button>
           ))}
         </div>
-        <p style={{ fontSize: 12, color: 'var(--ink-soft)', padding: '0 16px', margin: '-8px 0 6px' }}>
+        <p style={{ fontSize: 12, color: 'var(--ink-soft)', padding: '0 16px', margin: '0 0 6px' }}>
           اسحب المرحلة من ⋮⋮ وحطها في المكان اللي عاوزه — الترتيب هنا هو ترتيب أعمدة البورد
         </p>
         <div style={{ overflowX: 'auto' }}>
@@ -217,7 +217,7 @@ export default function StagesTab() {
                 onDragLeave={() => setOverId(o => (o === s.id ? null : o))}
                 onDrop={e => { e.preventDefault(); dropOn(s.id) }}
                 onDragEnd={() => { setDragId(null); setOverId(null) }}
-                className={'stage-row' + (dragId === s.id ? ' dragging' : '')
+                className={'stage-order-row' + (dragId === s.id ? ' dragging' : '')
                   + (overId === s.id && dragId !== s.id ? ' over' : '')}
                 style={{ opacity: dragId === s.id ? .4 : (s.is_active ? 1 : .45) }}>
                 <td style={{ whiteSpace: 'nowrap' }}>
@@ -241,7 +241,8 @@ export default function StagesTab() {
                 <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{alertSummary(s)}</td>
                 <td style={{ fontWeight: 600 }}>{(counts[s.id] ?? 0).toLocaleString('en-US')}</td>
                 <td>{s.is_active ? 'فعالة' : 'معطلة'}</td>
-                <td style={{ display: 'flex', gap: 6 }}>
+                <td>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <button className="btn btn-ghost" onClick={() => startEdit(s)}>تعديل</button>
                   {s.is_core ? (
                     <span style={{ fontSize: 12, color: 'var(--ink-soft)', alignSelf: 'center' }}>محمية</span>
@@ -250,6 +251,7 @@ export default function StagesTab() {
                       {s.is_active ? 'تعطيل' : 'تفعيل'}
                     </button>
                   )}
+                  </div>
                 </td>
               </tr>
             ))}
