@@ -20,7 +20,7 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
   const load = useCallback(async () => {
     const [{ data: d }, f] = await Promise.all([
       supabase.from('deals')
-        .select(`*, leads(file_no, full_name, phone),
+        .select(`*, leads(file_no, full_name, phone, branches(name)),
                  agent:profiles!deals_agent_id_fkey(full_name),
                  coordinator:profiles!deals_coordinator_id_fkey(full_name),
                  procedure_types(name_ar), techniques(name, name_ar), doctors(full_name)`)
@@ -314,6 +314,7 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
             <div><span>تاريخ العملية</span>{fmtDate(deal.operation_date)}</div>
             <div><span>موظف المبيعات</span>{deal.agent?.full_name}</div>
             <div><span>المنسقة</span>{deal.coordinator?.full_name ?? '—'}</div>
+            <div><span>الفرع</span>{deal.leads?.branches?.name ?? '—'}</div>
           </div>
         )}
 

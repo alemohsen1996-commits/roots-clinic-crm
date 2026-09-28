@@ -37,32 +37,41 @@ export function useDealRefs() {
 }
 
 // استعلام الديلات مع المالية — RLS تضمن أن كل دور يرى ما يخصه
-export async function fetchDeals(filters = {}) {
+// صفحة واحدة + العدد الكلي، والبحث في القاعدة (مش على أول 300 بس)
+export async function fetchDeals({ status, agent, coordinator, search, page = 0, pageSize = 50 } = {}) {
+  const term = (search ?? '').trim().replace(/[,()%*\\]/g, ' ').trim()
+  // مع البحث: inner join على الليد عشان الفلترة على بياناته تشيل الديلات اللي مش مطابقة
+  const leadRel = term ? 'leads!inner' : 'leads'
+
   let q = supabase
     .from('deals')
     .select(`
       id, lead_id, procedure_no, status, grafts, total_amount, tax_amount, net_amount,
       operation_date, is_locked, created_at,
-      leads(file_no, full_name, phone),
+      ${leadRel}(file_no, full_name, phone),
       agent:profiles!deals_agent_id_fkey(full_name),
       coordinator:profiles!deals_coordinator_id_fkey(full_name),
       procedure_types(name_ar),
       techniques(name),
       doctors(full_name)
-    `)
+    `, { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(300)
+    .range(page * pageSize, page * pageSize + pageSize - 1)
 
-  if (filters.status) q = q.eq('status', filters.status)
-  if (filters.coordinator) q = q.eq('coordinator_id', filters.coordinator)
-  if (filters.agent) q = q.eq('agent_id', filters.agent)
-  if (filters.search) {
-    // البحث عبر بيانات الليد يتطلب فلترة محلية — نكتفي هنا بالحد الأعلى ثم نفلتر في الواجهة
+  if (status) q = q.eq('status', status)
+  if (coordinator) q = q.eq('coordinator_id', coordinator)
+  if (agent) q = q.eq('agent_id', agent)
+  if (term) {
+    const conds = [`full_name.ilike.%${term}%`, `file_no.ilike.%${term}%`]
+    // الهاتف: أرقام بس، ومن غير الصفر الأول (0507… تلاقي 966507…)
+    const digits = term.replace(/\D/g, '').replace(/^0+/, '')
+    if (digits.length >= 3) conds.push(`phone_norm.ilike.%${digits}%`)
+    q = q.or(conds.join(','), { referencedTable: 'leads' })
   }
 
-  const { data, error } = await q
+  const { data, count, error } = await q
   if (error) console.error(error)
-  return data ?? []
+  return { rows: data ?? [], total: count ?? 0 }
 }
 
 // ملخص مالي لديل واحد من الـ View الجاهز

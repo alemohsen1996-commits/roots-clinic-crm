@@ -17,6 +17,15 @@ export default function DealsPage() {
   const [search, setSearch] = useState('')
   const [agentId, setAgentId] = useState('')
   const [coordId, setCoordId] = useState('')
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
+  const [total, setTotal] = useState(0)
+  // البحث بـ debounce — الاستعلام يستنى توقف الكتابة 300ms
+  const [debounced, setDebounced] = useState('')
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(search.trim()), 300)
+    return () => clearTimeout(id)
+  }, [search])
   const [showNew, setShowNew] = useState(false)
   const [openDeal, setOpenDeal] = useState(null)
 
@@ -25,27 +34,28 @@ export default function DealsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    setDeals(await fetchDeals({ status, agent: agentId, coordinator: coordId }))
+    const { rows, total } = await fetchDeals({
+      status, agent: agentId, coordinator: coordId, search: debounced, page, pageSize,
+    })
+    setDeals(rows)
+    setTotal(total)
     setLoading(false)
-  }, [status, agentId, coordId])
+  }, [status, agentId, coordId, debounced, page, pageSize])
 
   useEffect(() => { load() }, [load])
+  // أي تغيير في الفلاتر يرجّع لأول صفحة
+  useEffect(() => { setPage(0) }, [status, agentId, coordId, debounced, pageSize])
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
   useEffect(() => { if (preloadLead) setShowNew(true) }, [preloadLead])
 
-  const visible = deals.filter(d => {
-    if (!search.trim()) return true
-    const s = search.trim()
-    return d.leads?.full_name?.includes(s)
-        || d.leads?.phone?.includes(s)
-        || d.leads?.file_no?.includes(s)
-  })
+  const visible = deals
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1>الديلات</h1>
-          <div className="hint">{visible.length} تعاقد</div>
+          <div className="hint">{total.toLocaleString('en-US')} تعاقد</div>
         </div>
         <button className="btn btn-primary" onClick={() => setShowNew(true)}>+ ديل جديد</button>
       </div>
@@ -88,11 +98,11 @@ export default function DealsPage() {
           انقل عميلًا إلى مرحلة الديل ثم افتح له ملف تعاقد من هنا
         </div>
       ) : (
-        <div className="card">
+        <div className="card table-scroll">
           <table className="table">
             <thead>
               <tr>
-                <th>الملف</th><th>العميل</th><th>العملية</th><th>النوع</th><th>التقنية</th><th>البصيلات</th>
+                <th>الملف</th><th>العميل</th><th>الهاتف</th><th>العملية</th><th>النوع</th><th>التقنية</th><th>البصيلات</th>
                 <th>الصافي</th><th>السيلز</th><th>المنسقة</th><th>العملية</th><th>الحالة</th><th>الضريبة</th>
               </tr>
             </thead>
@@ -101,6 +111,7 @@ export default function DealsPage() {
                 <tr key={d.id} onClick={() => setOpenDeal(d)} style={{ cursor: 'pointer' }}>
                   <td style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{d.leads?.file_no}</td>
                   <td style={{ fontWeight: 600 }}>{d.leads?.full_name}</td>
+                  <td dir="ltr" style={{ fontSize: 12.5, whiteSpace: 'nowrap', textAlign: 'right' }}>{d.leads?.phone ?? '—'}</td>
                   <td>
                     {d.procedure_no > 1
                       ? <span className="badge" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
@@ -126,6 +137,30 @@ export default function DealsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && total > 0 && (
+        <div className="pager">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>لكل صفحة:</span>
+            <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} style={{ width: 80 }}>
+              <option value={30}>30</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+          {total > pageSize && (
+            <>
+              <button className="btn btn-ghost" disabled={page === 0}
+                onClick={() => setPage(p => Math.max(0, p - 1))}>← السابق</button>
+              <span className="pager-info">
+                صفحة {(page + 1).toLocaleString('en-US')} من {totalPages.toLocaleString('en-US')}
+              </span>
+              <button className="btn btn-ghost" disabled={page + 1 >= totalPages}
+                onClick={() => setPage(p => p + 1)}>التالي →</button>
+            </>
+          )}
         </div>
       )}
 
