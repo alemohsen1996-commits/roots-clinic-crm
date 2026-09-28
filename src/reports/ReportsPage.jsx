@@ -11,9 +11,13 @@ import Breakdowns from './Breakdowns'
 const BATCH = 1000
 const CAP = 100000   // حاجز أمان
 
-const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-  .toISOString().slice(0, 10)
-const today = () => new Date().toISOString().slice(0, 10)
+// التواريخ بتوقيت السعودية — toISOString كان بيحوّل لجرينتش فيرجّع 3 ساعات
+// ("الشهر الجاري" كان بيبدأ من آخر يوم في الشهر اللي فات)
+const TZ = '+03:00'
+const riyadhDate = (d = new Date()) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(d)   // YYYY-MM-DD
+const monthStart = () => riyadhDate().slice(0, 8) + '01'
+const today = () => riyadhDate()
 
 // جلب كل الصفوف على دفعات — بديل limit(5000) الذي كان يقطع البيانات بصمت
 async function fetchAll(build, onProgress) {
@@ -32,6 +36,13 @@ async function fetchAll(build, onProgress) {
   return { rows: out, truncated: false }
 }
 
+// تابات ترتيب الفريق — نفس فكرة لوحة التحكم
+const TEAM_TABS = [
+  { key: 'all',         title: 'الكل' },
+  { key: 'agent',       title: 'السيلز' },
+  { key: 'coordinator', title: 'المنسقات' },
+]
+
 const ROLE_AR = {
   agent: 'مبيعات', coordinator: 'منسقة', sales_manager: 'مدير مبيعات',
   super_admin: 'مدير عام', accountant: 'محاسب', prp_officer: 'بلازما',
@@ -47,6 +58,7 @@ export default function ReportsPage() {
   const [bySource, setBySource] = useState([])
   const [byLost, setByLost] = useState([])
   const [team, setTeam] = useState([])
+  const [teamTab, setTeamTab] = useState('all')
   const [totals, setTotals] = useState({
     leads: 0, deals: 0, revenue: 0, collected: 0, cohortDeals: 0,
   })
@@ -56,9 +68,14 @@ export default function ReportsPage() {
   const [err, setErr] = useState('')
 
   const load = useCallback(async () => {
+    if (from > to) {
+      setErr('تاريخ البداية بعد تاريخ النهاية'); setLoading(false)
+      return
+    }
     setLoading(true); setErr(''); setWarn(''); setProgress(0)
-    const fromTs = from + 'T00:00:00'
-    const toTs = to + 'T23:59:59'
+    // حدود اليوم بتوقيت السعودية (من غير المنطقة القاعدة كانت بتعتبرها جرينتش)
+    const fromTs = from + 'T00:00:00' + TZ
+    const toTs = to + 'T23:59:59.999' + TZ
 
     try {
       // ---------- المراجع ----------
@@ -75,7 +92,7 @@ export default function ReportsPage() {
       // ---------- الليدات (كل الفترة، بلا سقف) ----------
       const leadsRes = await fetchAll(
         (a, b) => supabase.from('leads')
-          .select('id, stage_id, source_id, lost_reason_id, owner_id, created_at')
+          .select('id, stage_id, source_id, lost_reason_id, owner_id, coordinator_id, created_at')
           .gte('created_at', fromTs).lte('created_at', toTs)
           .order('created_at', { ascending: true })
           .range(a, b),
@@ -173,7 +190,11 @@ export default function ReportsPage() {
       const byPerson = {}
       const ensure = (id) => (byPerson[id] ??= { leads: 0, deals: 0, revenue: 0 })
 
-      for (const l of leads) if (l.owner_id) ensure(l.owner_id).leads++
+      // السيلز: الليدات اللي هو مسؤول عنها · المنسقة: الليدات اللي اتحولتلها
+      for (const l of leads) {
+        if (l.owner_id) ensure(l.owner_id).leads++
+        if (l.coordinator_id && l.coordinator_id !== l.owner_id) ensure(l.coordinator_id).leads++
+      }
 
       // العملية تُنسب للسيلز والمنسقة معًا — أساس العمولة (كما في لوحة التحكم)
       for (const d of deals) {
@@ -188,6 +209,7 @@ export default function ReportsPage() {
         .map(([id, v]) => ({
           name: nameMap[id]?.name ?? '—',
           role: ROLE_AR[nameMap[id]?.role] ?? '—',
+          roleCode: nameMap[id]?.role ?? null,
           inactive: nameMap[id]?.status && nameMap[id].status !== 'active',
           ...v,
           ratio: v.leads ? Math.round((v.deals / v.leads) * 100) : null,
@@ -309,30 +331,60 @@ export default function ReportsPage() {
                   لذلك مجموع الصفوف أكبر من إجمالي العيادة
                 </p>
               </div>
-              {team.length === 0 ? <div className="empty">لا بيانات في الفترة</div> : (
-                <table className="table" style={{ marginTop: 10 }}>
-                  <thead>
-                    <tr><th>#</th><th>الموظف</th><th>الدور</th><th>ليدات</th><th>عمليات</th><th>الإيراد</th></tr>
-                  </thead>
-                  <tbody>
-                    {team.map((t, i) => (
-                      <tr key={t.name + i} style={{ opacity: t.inactive ? .55 : 1 }}>
-                        <td>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
-                        <td style={{ fontWeight: 600 }}>
-                          {t.name}
-                          {t.inactive && (
-                            <small style={{ color: 'var(--ink-soft)' }}> (موقوف)</small>
+              {(() => {
+                const isAll = teamTab === 'all'
+                const list = isAll ? team : team.filter(t => t.roleCode === teamTab)
+                const sum = (k) => list.reduce((a, t) => a + Number(t[k] ?? 0), 0)
+                return (
+                  <>
+                    <div className="tabs" style={{ margin: '12px 16px 0' }}>
+                      {TEAM_TABS.map(t => (
+                        <button key={t.key} type="button"
+                          className={'tab' + (teamTab === t.key ? ' on' : '')}
+                          onClick={() => setTeamTab(t.key)}>{t.title}</button>
+                      ))}
+                    </div>
+                    {list.length === 0 ? <div className="empty">لا بيانات في الفترة</div> : (
+                      <div style={{ overflowX: 'auto' }}>
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>#</th><th>الموظف</th>{isAll && <th>الدور</th>}
+                            <th>ليدات</th><th>عمليات</th><th>الإيراد</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {list.map((t, i) => (
+                            <tr key={t.name + i} style={{ opacity: t.inactive ? .55 : 1 }}>
+                              <td>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
+                              <td style={{ fontWeight: 600 }}>
+                                {t.name}
+                                {t.inactive && (
+                                  <small style={{ color: 'var(--ink-soft)' }}> (موقوف)</small>
+                                )}
+                              </td>
+                              {isAll && <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t.role}</td>}
+                              <td>{fmtNum(t.leads)}</td>
+                              <td>{fmtNum(t.deals)}</td>
+                              <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmtNum(t.revenue)}</td>
+                            </tr>
+                          ))}
+                          {/* الإجمالي في تاب الوظيفة بس — في "الكل" هيبقى مكرر */}
+                          {!isAll && list.length > 1 && (
+                            <tr style={{ fontWeight: 700, background: 'var(--line-soft)' }}>
+                              <td></td><td>الإجمالي</td>
+                              <td>{fmtNum(sum('leads'))}</td>
+                              <td>{fmtNum(sum('deals'))}</td>
+                              <td style={{ color: 'var(--gold)' }}>{fmtNum(sum('revenue'))}</td>
+                            </tr>
                           )}
-                        </td>
-                        <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t.role}</td>
-                        <td>{fmtNum(t.leads)}</td>
-                        <td>{fmtNum(t.deals)}</td>
-                        <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmtNum(t.revenue)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+                        </tbody>
+                      </table>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           </div>
 
