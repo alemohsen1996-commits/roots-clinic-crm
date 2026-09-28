@@ -22,73 +22,81 @@ export default function PrpPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [openPkg, setOpenPkg] = useState(null)
-  const [owners, setOwners] = useState({})     // package_id → { coordinator, agent, coordinator_id }
   const [mineOnly, setMineOnly] = useState(false)
   const [copied, setCopied] = useState(null)
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
+  const [total, setTotal] = useState(0)
+  const [mineCount, setMineCount] = useState(0)
+  const [staleCount, setStaleCount] = useState(0)
 
+  // البحث بـ debounce — الاستعلام يستنى توقف الكتابة 300ms
+  const [debounced, setDebounced] = useState('')
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(search.trim()), 300)
+    return () => clearTimeout(id)
+  }, [search])
+
+  const myId = profile?.id
+  const mineFilter = myId ? `coordinator_id.eq.${myId},agent_id.eq.${myId}` : null
+
+  // صفحة واحدة + العدد الكلي — البحث والفلاتر في القاعدة
   const load = useCallback(async () => {
     setLoading(true)
-    let q = supabase.from('v_prp_progress').select('*')
+    let q = supabase.from('v_prp_progress').select('*', { count: 'exact' })
     if (status) q = q.eq('status', status)
-    const [{ data: pr }, { data: rem }] = await Promise.all([
+    if (mineOnly && mineFilter) q = q.or(mineFilter)
+    const term = debounced.replace(/[,()%*\\]/g, ' ').trim()
+    if (term) {
+      const conds = [`full_name.ilike.%${term}%`, `file_no.ilike.%${term}%`]
+      const digits = term.replace(/\D/g, '').replace(/^0+/, '')
+      if (digits.length >= 3) conds.push(`phone_norm.ilike.%${digits}%`)
+      q = q.or(conds.join(','))
+    }
+    // الأقرب جلسة الأول، واللي من غير جلسة قادمة في الآخر (الأحدث قبل الأقدم)
+    q = q.order('next_session', { ascending: true, nullsFirst: false })
+         .order('package_id', { ascending: false })
+         .range(page * pageSize, page * pageSize + pageSize - 1)
+
+    // عدّادات مستقلة عن الصفحة: "مرضاي" والمنقطعين (نشطة وآخر جلسة من أكتر من 45 يوم)
+    let mineQ = supabase.from('v_prp_progress').select('package_id', { count: 'exact', head: true })
+    if (status) mineQ = mineQ.eq('status', status)
+    const staleQ = supabase.from('v_prp_progress').select('package_id', { count: 'exact', head: true })
+      .eq('status', 'active').gt('days_since_last', 45)
+
+    const [{ data: pr, count }, { data: rem }, mine, st] = await Promise.all([
       q,
       supabase.from('v_prp_upcoming_reminders').select('*').order('planned_date'),
+      mineFilter ? mineQ.or(mineFilter) : Promise.resolve({ count: 0 }),
+      staleQ,
     ])
     setRows(pr ?? [])
+    setTotal(count ?? 0)
     setReminders(rem ?? [])
-
-    // مسؤولو كل باقة — من الديل المرتبط بها
-    const ids = (pr ?? []).map(r => r.package_id)
-    if (ids.length) {
-      const { data: pk } = await supabase
-        .from('prp_packages')
-        .select(`id, deal_id,
-                 deals(agent_id, coordinator_id,
-                       agent:profiles!deals_agent_id_fkey(full_name),
-                       coordinator:profiles!deals_coordinator_id_fkey(full_name))`)
-        .in('id', ids)
-      setOwners(Object.fromEntries((pk ?? []).map(p => [p.id, {
-        agent: p.deals?.agent?.full_name ?? null,
-        coordinator: p.deals?.coordinator?.full_name ?? null,
-        coordinator_id: p.deals?.coordinator_id ?? null,
-        agent_id: p.deals?.agent_id ?? null,
-      }])))
-    } else setOwners({})
-
+    setMineCount(mine.count ?? 0)
+    setStaleCount(st.count ?? 0)
     setLoading(false)
-  }, [status])
+  }, [status, mineOnly, mineFilter, debounced, page, pageSize])
 
   useEffect(() => { load() }, [load])
+  // أي تغيير في الفلاتر يرجّع لأول صفحة
+  useEffect(() => { setPage(0) }, [status, mineOnly, debounced, pageSize])
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   // هل هذه الباقة تخصّني؟ (المنسقة تعدّل باقات ديلاتها فقط)
-  const isMine = (r) => {
-    const o = owners[r.package_id]
-    if (!o || !profile?.id) return false
-    return o.coordinator_id === profile.id || o.agent_id === profile.id
-  }
+  const isMine = (r) => !!myId && (r.coordinator_id === myId || r.agent_id === myId)
 
   // من يملك صلاحية التعديل على كل الباقات
   const canEditAll = isManager || roleCode === 'prp_officer'
 
-  const visible = rows.filter(r => {
-    const q = search.trim()
-    if (q && !(r.full_name?.includes(q) || r.file_no?.includes(q) || r.phone?.includes(q))) return false
-    if (mineOnly && !isMine(r)) return false
-    return true
-  })
-
-  const mineCount = rows.filter(isMine).length
-
-  // المنقطعون فعليًا: نشطة لكن آخر جلسة من أكثر من 45 يوم
-  const stale = rows.filter(r =>
-    r.status === 'active' && r.days_since_last !== null && r.days_since_last > 45)
+  const visible = rows
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1>قسم البلازما</h1>
-          <div className="hint">{visible.length} باقة — تُفتح تلقائيًا عند إتمام أي عملية (Done)</div>
+          <div className="hint">{total.toLocaleString('en-US')} باقة — تُفتح تلقائيًا عند إتمام أي عملية (Done)</div>
         </div>
       </div>
 
@@ -131,18 +139,18 @@ export default function PrpPage() {
       )}
 
       {/* منقطعون — فرص إعادة تنشيط */}
-      {stale.length > 0 && status === 'active' && (
+      {staleCount > 0 && status === 'active' && (
         <div className="card" style={{ marginBottom: 18, borderColor: 'var(--warn)', borderWidth: 1.5 }}>
           <div style={{ padding: '14px 16px 12px' }}>
             <h2 style={{ fontSize: 15, color: 'var(--warn)' }}>
-              {stale.length} مريض بلا جلسة منذ أكثر من ٤٥ يومًا — فرصة إعادة تواصل
+              {staleCount.toLocaleString('en-US')} مريض بلا جلسة منذ أكثر من ٤٥ يومًا — فرصة إعادة تواصل
             </h2>
           </div>
         </div>
       )}
 
       <div className="card filters-bar">
-        <input className="filter-search" placeholder="بحث بالاسم أو رقم الملف…"
+        <input className="filter-search" placeholder="بحث بالاسم أو الهاتف أو رقم الملف…"
           value={search} onChange={e => setSearch(e.target.value)} />
         <select value={status} onChange={e => setStatus(e.target.value)}>
           <option value="active">النشطة</option>
@@ -165,7 +173,7 @@ export default function PrpPage() {
           عند تحويل أي ديل إلى "تمت العملية" تُفتح باقة تلقائيًا بجلساتها
         </div>
       ) : (
-        <div className="card">
+        <div className="card" style={{ overflowX: 'auto' }}>
           <table className="table">
             <thead>
               <tr>
@@ -205,14 +213,14 @@ export default function PrpPage() {
                     </div>
                   </td>
                   <td style={{ fontSize: 12.5 }}>
-                    {owners[r.package_id]?.coordinator ?? '—'}
+                    {r.coordinator_name ?? '—'}
                     {isMine(r) && !canEditAll && (
                       <span className="badge badge-active" style={{ marginInlineStart: 6, fontSize: 11 }}>
                         مريضي
                       </span>
                     )}
                   </td>
-                  <td style={{ fontSize: 12.5 }}>{owners[r.package_id]?.agent ?? '—'}</td>
+                  <td style={{ fontSize: 12.5 }}>{r.agent_name ?? '—'}</td>
                   <td>
                     <ProgressDots done={r.sessions_done} total={r.sessions_total} />
                     <small style={{ color: 'var(--ink-soft)', marginInlineStart: 8 }}>
@@ -239,6 +247,30 @@ export default function PrpPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && total > 0 && (
+        <div className="pager">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>لكل صفحة:</span>
+            <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} style={{ width: 80 }}>
+              <option value={30}>30</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+          {total > pageSize && (
+            <>
+              <button className="btn btn-ghost" disabled={page === 0}
+                onClick={() => setPage(p => Math.max(0, p - 1))}>← السابق</button>
+              <span className="pager-info">
+                صفحة {(page + 1).toLocaleString('en-US')} من {totalPages.toLocaleString('en-US')}
+              </span>
+              <button className="btn btn-ghost" disabled={page + 1 >= totalPages}
+                onClick={() => setPage(p => p + 1)}>التالي →</button>
+            </>
+          )}
         </div>
       )}
 
