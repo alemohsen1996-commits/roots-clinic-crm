@@ -98,8 +98,7 @@ export default function DealsPage() {
           انقل عميلًا إلى مرحلة الديل ثم افتح له ملف تعاقد من هنا
         </div>
       ) : (
-        {/* تمرير أفقي بس لو الأعمدة أعرض من الشاشة — من غير سقف للارتفاع */}
-        <div className="card" style={{ overflowX: 'auto' }}>
+        <div className="card" style={{ overflowX: 'auto' /* تمرير أفقي بس — من غير سقف للارتفاع */ }}>
           <table className="table">
             <thead>
               <tr>
