@@ -1773,3 +1773,34 @@ button.kanban-more:disabled { opacity: .6; cursor: default; }
 .stage-order-row.over td { box-shadow: inset 0 2px 0 var(--primary); }
 .stage-order-row .drag-handle { color: var(--ink-soft); user-select: none; }
 .stage-order-row:active .drag-handle { cursor: grabbing; }
+
+/* ---------- كشوف الموظفين ---------- */
+.emp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.emp-card {
+  text-align: right;
+  font: inherit;
+  color: inherit;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color .15s, transform .15s;
+}
+.emp-card:hover { border-color: var(--gold); transform: translateY(-1px); }
+.emp-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-bottom: 10px; font-size: 15px;
+}
+.emp-card-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.emp-card-stats > div { font-weight: 800; font-size: 15px; }
+.emp-card-stats span {
+  display: block; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 2px;
+}
+.emp-card-stats .emp-gold { color: var(--gold); }

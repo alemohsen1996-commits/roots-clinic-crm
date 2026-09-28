@@ -66,6 +66,14 @@ export function RequireManager({ children }) {
   return children
 }
 
+// حارس: المالية — المديرين والمحاسب
+export function RequireFinance({ children }) {
+  const { isManager, roleCode, loading, profile } = useAuth()
+  if (loading || !profile) return null
+  if (!isManager && roleCode !== 'accountant') return <Navigate to="/" replace />
+  return children
+}
+
 // حارس: المدير العام فقط (إعدادات النظام)
 export function RequireSuperAdmin({ children }) {
   const { isSuperAdmin, loading, profile } = useAuth()

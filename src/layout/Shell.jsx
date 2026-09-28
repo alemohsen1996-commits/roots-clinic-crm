@@ -16,6 +16,7 @@ const I = {
   appts:     <><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><circle cx="12" cy="14.5" r="3.2"/><path d="M12 13v1.7l1.3.9"/></>,
   payments:  <><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/><path d="M6 15h4"/></>,
   install:   <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></>,
+  statements: <><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></>,
   team:      <><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.2 2.9-5.3 6.5-5.3s6.5 2.1 6.5 5.3"/><path d="M17 5.5a3.2 3.2 0 0 1 0 6"/><path d="M18.5 14.5c1.9.7 3 2.2 3 4"/></>,
   reports:   <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
   calls:     <><path d="M5 4h3.5l1.8 4.5-2.3 1.4a11 11 0 0 0 6.1 6.1l1.4-2.3L20 15.5V19a1.5 1.5 0 0 1-1.6 1.5A16 16 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4z"/></>,
@@ -49,6 +50,8 @@ const NAV = [
     { to: '/payments', label: 'التحصيلات', icon: 'payments',
       roles: ['super_admin','sales_manager','coordinator','accountant'] },
     { to: '/installments', label: 'الأقساط والمتأخرات', icon: 'install',
+      roles: ['super_admin','sales_manager','accountant'] },
+    { to: '/statements', label: 'كشوف الموظفين', icon: 'statements',
       roles: ['super_admin','sales_manager','accountant'] },
   ]},
   { section: 'الإدارة', items: [

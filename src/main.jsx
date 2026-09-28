@@ -6,7 +6,8 @@ import './styles.css'
 
 import { AuthProvider } from './auth/AuthContext'
 import ConnectionBanner from './layout/ConnectionBanner'
-import { RequireAuth, RequireManager } from './auth/guards'
+import { RequireAuth, RequireManager, RequireFinance } from './auth/guards'
+import StatementsPage from './finance/StatementsPage'
 import Login from './auth/Login'
 import Shell from './layout/Shell'
 import Dashboard from './pages/Dashboard'
@@ -42,6 +43,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="appointments" element={<AppointmentsPage />} />
             <Route path="payments" element={<PaymentsPage />} />
             <Route path="installments" element={<InstallmentsPage />} />
+            <Route path="statements" element={<RequireFinance><StatementsPage /></RequireFinance>} />
             <Route path="reports" element={<RequireManager><ReportsPage /></RequireManager>} />
             <Route path="calls" element={<RequireManager><CallsPage /></RequireManager>} />
             <Route path="archive" element={<RequireManager><ArchivePage /></RequireManager>} />
