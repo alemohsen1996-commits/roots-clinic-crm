@@ -2,7 +2,7 @@
 // مصمّم ليتحمّل عشرات الآلاف من الليدات بدون تعليق المتصفح
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { QUIET_STAGES } from '../lib/stageCodes'
+import { isQuietStage } from '../lib/stageCodes'
 
 export function useLeadRefs() {
   const [stages, setStages] = useState([])
@@ -233,9 +233,9 @@ export function computeAlert(lead) {
   // 1) متابعة موقوفة نهائيًا → لا إشعار
   if (lead.follow_paused) return 0
 
-  // 2) مرحلة لا تحتاج متابعة (ميت/خسارة/تمت) → لا إشعار
-  const code = lead.stages?.code
-  if (code && QUIET_STAGES.includes(code)) return 0
+  // 2) مرحلة منتهية (ميت/خسارة/تمت — بالكود أو بالفئة) → لا إشعار
+  //    نفس القاعدة في v_lead_flags عشان عدّاد الشرائح يطابق الكروت
+  if (isQuietStage(lead.stages)) return 0
 
   // 3) مؤجّل لوقت لم يأتِ بعد → لا إشعار
   if (lead.snooze_until && new Date(lead.snooze_until).getTime() > now) return 0
