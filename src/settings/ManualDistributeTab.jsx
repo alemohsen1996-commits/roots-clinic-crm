@@ -1,6 +1,7 @@
 // التوزيع اليدوي — المدير يوزّع ليداته والليدات بدون مسؤول على الموظفين
 // المصدر: ليدات المدير + بدون مسؤول فقط (لا تُسحب ليدات موظف آخر)
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { SALES_ROLES, salesLabel, sortSales } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 
@@ -37,13 +38,13 @@ export default function ManualDistributeTab() {
       supabase.from('branches').select('id, name').eq('is_active', true).order('id'),
       supabase.from('profiles')
         .select('id, full_name, weight, daily_cap, in_rotation, roles!inner(code)')
-        .eq('status', 'active').eq('roles.code', 'agent'),
+        .eq('status', 'active').in('roles.code', SALES_ROLES),
       supabase.rpc('agent_open_load'),
       supabase.from('distribution_batches').select('*').order('id', { ascending: false }).limit(10),
     ])
     setStages(st ?? [])
     setBranches(br ?? [])
-    setAgents(ag ?? [])
+    setAgents(sortSales(ag ?? []))
     setLoad(Object.fromEntries((ld ?? []).map(r => [r.user_id, r.open_leads])))
     setBatches(bt ?? [])
   }, [])
@@ -273,7 +274,7 @@ export default function ManualDistributeTab() {
                 return (
                   <tr key={a.id} style={{ opacity: picked[a.id] > 0 ? 1 : .6 }}>
                     <td style={{ fontWeight: 600 }}>
-                      {a.full_name}
+                      {salesLabel(a)}
                       {!a.in_rotation && (
                         <small style={{ color: 'var(--ink-soft)', marginRight: 6 }}>(خارج الدورة)</small>
                       )}

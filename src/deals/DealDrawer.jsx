@@ -1,6 +1,7 @@
 // اللوحة الجانبية للديل
 // الملخص المالي (من v_deal_finance) + تحديد النتيجة + تعديل المنسقة + القفل المحاسبي
 import { useCallback, useEffect, useState } from 'react'
+import { salesLabel } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fetchDealFinance, DEAL_STATUS, PAY_STATUS } from './useDealRefs'
@@ -338,7 +339,7 @@ export default function DealDrawer({ dealId, refs, onClose, onChanged }) {
           <div className="drawer-section">
             <h3>موظف المبيعات (السيلز)</h3>
             <select value={deal.agent_id ?? ''} onChange={e => changeAgent(e.target.value)}>
-              {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+              {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
             </select>
             <small style={{ color: 'var(--ink-soft)' }}>
               تغيير السيلز ينقل عمولة هذا الديل — متاح للمدير فقط

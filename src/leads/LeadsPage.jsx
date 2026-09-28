@@ -1,6 +1,7 @@
 // صفحة الليدات — شرائح فلترة سريعة + لوحة تفصيلية + بوردان + جدول مقسّم
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { isSalesPerson, salesLabel, sortSales } from '../lib/people'
 import { useLeadRefs, fetchLeadsPage } from './useLeadRefs'
 import Kanban from './Kanban'
 import LeadsTable from './LeadsTable'
@@ -84,9 +85,15 @@ export default function LeadsPage() {
   )
   const boardStageIds = useMemo(() => boardStages.map(s => s.id), [boardStages])
 
+  // السيلز + مديرين المبيعات (المدير بيشوف نفسه كـ «ليداتي» أول القائمة)
   const salesAgents = useMemo(
-    () => (refs.agents ?? []).filter(a => a.roles?.code === 'agent'),
+    () => sortSales((refs.agents ?? []).filter(isSalesPerson)),
     [refs.agents]
+  )
+  const iAmSales = salesAgents.some(a => a.id === profile?.id)
+  const otherSales = useMemo(
+    () => salesAgents.filter(a => a.id !== profile?.id),
+    [salesAgents, profile]
   )
 
   // إضافة coordinator_id للفلتر لو "اتحوّلولي اليوم" مفعّل ودور المستخدم منسقة
@@ -355,7 +362,8 @@ export default function LeadsPage() {
         {board === 'sales' && isManager && (
           <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
             <option value="">كل موظفي المبيعات</option>
-            {salesAgents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+            {iAmSales && <option value={profile.id}>ليداتي</option>}
+            {otherSales.map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
           </select>
         )}
 
@@ -376,7 +384,7 @@ export default function LeadsPage() {
             {(isManager || roleCode === 'coordinator') && (
               <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
                 <option value="">كل موظفي المبيعات</option>
-                {salesAgents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                {salesAgents.map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
               </select>
             )}
           </>
@@ -465,7 +473,7 @@ export default function LeadsPage() {
                 <label>الموظف اللي اتصل</label>
                 <select value={filters.callsBy} onChange={e => set('callsBy', e.target.value)}>
                   <option value="">أي موظف</option>
-                  {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                  {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
                 </select>
               </div>
             )}

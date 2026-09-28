@@ -1,6 +1,7 @@
 // إعدادات توزيع الليدات — النمط + مهلة إعادة التوزيع + نظرة على الفريق
 // ملاحظة: التوزيع التلقائي غير مفعّل حاليًا — العمل يتم عبر صفحة «توزيع الليدات» (/distribute)
 import { useCallback, useEffect, useState } from 'react'
+import { SALES_ROLES, salesLabel, sortSales } from '../lib/people'
 import { supabase } from '../lib/supabase'
 
 const MODES = [
@@ -23,11 +24,11 @@ export default function DistributionTab() {
       supabase.from('settings').select('value').eq('key', 'reassign_untouched_minutes').maybeSingle(),
       supabase.from('profiles')
         .select('full_name, weight, daily_cap, in_rotation, languages, roles!inner(code)')
-        .eq('status', 'active').eq('roles.code', 'agent'),
+        .eq('status', 'active').in('roles.code', SALES_ROLES),
     ])
     setMode(st?.mode ?? 'weighted')
     setMinutes(String(s?.value ?? 15))
-    setTeam(t ?? [])
+    setTeam(sortSales(t ?? []))
   }, [])
   useEffect(() => { load() }, [load])
 
@@ -108,7 +109,7 @@ export default function DistributionTab() {
             <tbody>
               {inRotation.map(t => (
                 <tr key={t.full_name}>
-                  <td style={{ fontWeight: 600 }}>{t.full_name}</td>
+                  <td style={{ fontWeight: 600 }}>{salesLabel(t)}</td>
                   <td>{t.weight}</td>
                   <td>{totalWeight ? Math.round((t.weight / totalWeight) * 100) + '٪' : '—'}</td>
                   <td>{t.daily_cap}/يوم</td>

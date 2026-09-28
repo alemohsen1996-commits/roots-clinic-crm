@@ -2,13 +2,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { salesLabel } from '../lib/people'
 import { useDealRefs, fetchDeals, DEAL_STATUS } from './useDealRefs'
 import { fmtNum, fmtDate } from '../lib/format'
 import NewDealModal from './NewDealModal'
 import DealDrawer from './DealDrawer'
 
 export default function DealsPage() {
-  const { isManager } = useAuth()
+  const { isManager, profile } = useAuth()
   const refs = useDealRefs()
   const [params, setParams] = useSearchParams()
   const [deals, setDeals] = useState([])
@@ -74,7 +75,9 @@ export default function DealsPage() {
         {/* فلاتر الأشخاص — تُمكّن المنسقة والمحاسب والمدير من التمييز */}
         <select value={agentId} onChange={e => setAgentId(e.target.value)}>
           <option value="">كل موظفي المبيعات</option>
-          {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+          {(refs.agents ?? []).some(a => a.id === profile?.id) && <option value={profile.id}>ديلاتي</option>}
+          {(refs.agents ?? []).filter(a => a.id !== profile?.id)
+            .map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
         </select>
 
         <select value={coordId} onChange={e => setCoordId(e.target.value)}>

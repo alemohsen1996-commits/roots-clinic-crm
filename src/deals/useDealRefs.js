@@ -1,6 +1,7 @@
 // البيانات المرجعية لوحدة الديلات: أنواع العمليات، الأطباء، المنسقات
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { SALES_ROLES, sortSales } from '../lib/people'
 
 export function useDealRefs() {
   const [procedures, setProcedures] = useState([])
@@ -22,13 +23,13 @@ export function useDealRefs() {
       supabase.from('profiles')
         .select('id, full_name, roles!inner(code)')
         .eq('status', 'active')
-        .eq('roles.code', 'agent'),
+        .in('roles.code', SALES_ROLES),
     ]).then(([p, t, d, c, ag]) => {
       setProcedures(p.data ?? [])
       setTechniques(t.data ?? [])
       setDoctors(d.data ?? [])
       setCoordinators(c.data ?? [])
-      setAgents(ag.data ?? [])
+      setAgents(sortSales(ag.data ?? []))
       setReady(true)
     })
   }, [])

@@ -1,6 +1,7 @@
 // اللوحة الجانبية لتفاصيل الليد — تبويبان: «الكل» (كل الأفعال) + «السجل»
 // الهيدر ثابت فوق التبويبين، وبه تعديل بيانات العميل الشامل inline
 import { useEffect, useState, useCallback } from 'react'
+import { isSalesPerson, salesLabel, sortSales } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import { STAGE } from '../lib/stageCodes'
 import { useAuth } from '../auth/AuthContext'
@@ -1223,7 +1224,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             <h3>إعادة الإسناد (موظف المبيعات)</h3>
             <select value={lead.owner_id ?? ''} onChange={e => reassign(e.target.value || null)}>
               <option value="">غير مسند (Pool)</option>
-              {refs.agents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+              {sortSales(refs.agents.filter(isSalesPerson)).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
             </select>
           </div>
         )}
