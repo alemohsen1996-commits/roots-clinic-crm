@@ -1,6 +1,7 @@
 // كشوف الموظفين — للمحاسب والمديرين
 // اختيار الشهر ← السيلز أو المنسقات ← الضغط على موظف يعرض عملياته في الشهر:
 // المرضى، الفروع، القيم، المحصّل والمتبقي، والعمولة
+// العمولة = شرائح على صافي العمليات اللي تمت في الشهر (مش على التحصيل)
 // تعريف "عمليات الشهر" = ديلات حالتها تمت وتاريخ النتيجة داخل الشهر (نفس منطق أرشيف الشهور)
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
@@ -201,7 +202,7 @@ export default function StatementsPage() {
               </div>
               <div className="emp-card-stats">
                 <div><span>العمليات</span>{fmtNum(p.count)}</div>
-                <div><span>قيمة التعاقدات</span>{fmtNum(p.total)}</div>
+                <div><span>صافي العمليات</span>{fmtNum(p.net)}</div>
                 <div><span>المحصّل في الشهر</span>{fmtNum(p.collectedMonth)}</div>
                 <div className="emp-gold">
                   <span>العمولة</span>{p.commission === undefined ? '—' : fmtNum(p.commission)}
@@ -247,7 +248,7 @@ function PersonStatement({ p, tab, finance, onBack, onExport, onOpenDeal }) {
         <div className="fin-grid" style={{ marginTop: 14 }}>
           <div><span>عدد العمليات</span>{fmtNum(p.count)}</div>
           <div><span>قيمة التعاقدات</span>{fmtNum(p.total)} ر.س</div>
-          <div><span>صافي العيادة</span>{fmtNum(p.net)} ر.س</div>
+          <div><span>صافي العمليات (أساس العمولة)</span>{fmtNum(p.net)} ر.س</div>
           <div><span>المحصّل في الشهر</span>{fmtNum(p.collectedMonth)} ر.س</div>
           <div className={p.remaining > 0 ? 'fin-danger' : ''}>
             <span>المتبقي على مرضى الشهر</span>{fmtNum(p.remaining)} ر.س
@@ -339,7 +340,8 @@ function PersonStatement({ p, tab, finance, onBack, onExport, onOpenDeal }) {
       <div className="card" style={{ overflowX: 'auto' }}>
         <h3 style={{ margin: '14px 16px 2px' }}>التحصيلات في الشهر</h3>
         <p style={{ margin: '0 16px 6px', fontSize: 12.5, color: 'var(--ink-soft)' }}>
-          كل الفلوس اللي اتحصلت في الشهر من مرضى الموظف (حتى لو العملية في شهر تاني) — وهي أساس حساب العمولة
+          للمتابعة فقط: كل الفلوس اللي اتحصلت في الشهر من مرضى الموظف. العمولة مش بتتحسب عليها —
+          بتتحسب على صافي العمليات اللي تمت فعلًا في الشهر، فالمريض اللي دفع ولسه معملش العملية مش بيدخل لحد ما تتم
         </p>
         {p.pays.length === 0 ? (
           <div className="empty">لا توجد تحصيلات في هذا الشهر</div>
