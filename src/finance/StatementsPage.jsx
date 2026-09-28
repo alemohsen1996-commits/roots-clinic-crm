@@ -28,7 +28,7 @@ function monthRange(ym) {
 const DEAL_SEL = `
   id, lead_id, agent_id, coordinator_id, procedure_no, grafts, operation_date, outcome_at,
   total_amount, tax_amount, net_amount,
-  leads(file_no, full_name, branches(name)),
+  leads(file_no, full_name, phone, branches(name)),
   procedure_types(name_ar), techniques(name),
   agent:profiles!deals_agent_id_fkey(full_name),
   coordinator:profiles!deals_coordinator_id_fkey(full_name)
@@ -65,7 +65,7 @@ export default function StatementsPage() {
         .eq('status', 'done').gte('outcome_at', fromTs).lt('outcome_at', toTs)
         .order('outcome_at', { ascending: true }),
       supabase.from('payments')
-        .select('id, amount, method, paid_at, receipt_no, status, deal_id, deals(agent_id, coordinator_id, leads(file_no, full_name))')
+        .select('id, amount, method, paid_at, receipt_no, status, deal_id, deals(agent_id, coordinator_id, leads(file_no, full_name, phone))')
         .neq('status', 'void').gte('paid_at', fromTs).lt('paid_at', toTs)
         .order('paid_at', { ascending: true }),
     ])
@@ -141,11 +141,11 @@ export default function StatementsPage() {
 
   function exportPerson(p) {
     exportCsv(`statement-${p.full_name}-${month}.csv`,
-      ['رقم الملف', 'المريض', 'الفرع', 'رقم العملية', 'تاريخ العملية', 'النوع', 'التقنية',
+      ['رقم الملف', 'المريض', 'الهاتف', 'الفرع', 'رقم العملية', 'تاريخ العملية', 'النوع', 'التقنية',
        'البصيلات', 'قيمة التعاقد', 'الضريبة', 'الصافي', 'المحصّل', 'المتبقي',
        tab === 'sales' ? 'المنسقة' : 'السيلز'],
       p.ops.map(d => [
-        d.leads?.file_no, d.leads?.full_name, branchOf(d), d.procedure_no,
+        d.leads?.file_no, d.leads?.full_name, d.leads?.phone ?? '', branchOf(d), d.procedure_no,
         d.operation_date ?? (d.outcome_at ?? '').slice(0, 10),
         d.procedure_types?.name_ar ?? '', d.techniques?.name ?? '', d.grafts ?? '',
         d.total_amount, d.tax_amount ?? 0, d.net_amount,
@@ -284,7 +284,7 @@ function PersonStatement({ p, tab, finance, onBack, onExport, onOpenDeal }) {
             <table className="table">
               <thead>
                 <tr>
-                  <th>الملف</th><th>المريض</th><th>الفرع</th><th>التاريخ</th><th>النوع</th>
+                  <th>الملف</th><th>المريض</th><th>الهاتف</th><th>الفرع</th><th>التاريخ</th><th>النوع</th>
                   <th>البصيلات</th><th>التعاقد</th><th>الضريبة</th><th>الصافي</th>
                   <th>المحصّل</th><th>المتبقي</th><th>{tab === 'sales' ? 'المنسقة' : 'السيلز'}</th>
                 </tr>
@@ -299,6 +299,7 @@ function PersonStatement({ p, tab, finance, onBack, onExport, onOpenDeal }) {
                         {d.leads?.full_name}
                         {d.procedure_no > 1 && <span className="badge" style={{ marginInlineStart: 6, background: 'var(--gold-soft)', color: 'var(--gold)' }}>عملية {d.procedure_no}</span>}
                       </td>
+                      <td dir="ltr" style={{ fontSize: 12.5, whiteSpace: 'nowrap', textAlign: 'right' }}>{d.leads?.phone ?? '—'}</td>
                       <td>{branchOf(d)}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(d.operation_date ?? d.outcome_at)}</td>
                       <td style={{ fontSize: 12.5 }}>
@@ -321,7 +322,7 @@ function PersonStatement({ p, tab, finance, onBack, onExport, onOpenDeal }) {
               </tbody>
               <tfoot>
                 <tr style={{ fontWeight: 800 }}>
-                  <td colSpan={6}>الإجمالي</td>
+                  <td colSpan={7}>الإجمالي</td>
                   <td>{fmtNum(p.total)}</td>
                   <td>{fmtNum(sum(p.ops, d => d.tax_amount))}</td>
                   <td style={{ color: 'var(--gold)' }}>{fmtNum(p.net)}</td>
@@ -344,7 +345,7 @@ function PersonStatement({ p, tab, finance, onBack, onExport, onOpenDeal }) {
           <div className="empty">لا توجد تحصيلات في هذا الشهر</div>
         ) : (
           <table className="table">
-            <thead><tr><th>الإيصال</th><th>المريض</th><th>المبلغ</th><th>الطريقة</th><th>التاريخ</th></tr></thead>
+            <thead><tr><th>الإيصال</th><th>المريض</th><th>الهاتف</th><th>المبلغ</th><th>الطريقة</th><th>التاريخ</th></tr></thead>
             <tbody>
               {p.pays.map(x => (
                 <tr key={x.id}>
@@ -353,6 +354,7 @@ function PersonStatement({ p, tab, finance, onBack, onExport, onOpenDeal }) {
                     {x.deals?.leads?.full_name}
                     <span style={{ color: 'var(--ink-soft)', fontSize: 12, marginInlineStart: 6 }}>{x.deals?.leads?.file_no}</span>
                   </td>
+                  <td dir="ltr" style={{ fontSize: 12.5, whiteSpace: 'nowrap', textAlign: 'right' }}>{x.deals?.leads?.phone ?? '—'}</td>
                   <td style={{ fontWeight: 700 }}>{fmtNum(x.amount)} ر.س</td>
                   <td>{METHOD_AR[x.method] ?? x.method}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(x.paid_at)}</td>
@@ -361,7 +363,7 @@ function PersonStatement({ p, tab, finance, onBack, onExport, onOpenDeal }) {
             </tbody>
             <tfoot>
               <tr style={{ fontWeight: 800 }}>
-                <td colSpan={2}>الإجمالي</td>
+                <td colSpan={3}>الإجمالي</td>
                 <td>{fmtNum(p.collectedMonth)} ر.س</td>
                 <td colSpan={2} />
               </tr>
