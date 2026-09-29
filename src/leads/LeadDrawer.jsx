@@ -174,8 +174,8 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const currentBoard = lead?.stages?.board ?? 'sales'
   const isSalesOwner = roleCode === 'agent' && lead?.owner_id === profile?.id
   const readOnlyForSales = isSalesOwner && currentBoard === 'coordinator'
-  // السيلز يقدر يصحّح تحويله (المنسقة/الفرع/الموعد) طول ما الليد لسه في المتابعة
-  const canFixHandoff = isSalesOwner && lead?.stages?.code === STAGE.FOLLOWUP
+  // السيلز صاحب الليد والمديرين يقدروا يصحّحوا التحويل (المنسقة/الفرع/الموعد) طول ما الليد لسه في المتابعة
+  const canFixHandoff = (isSalesOwner || isManager) && lead?.stages?.code === STAGE.FOLLOWUP
 
   // تحميل المعاينة النشطة لتعبئة نموذج التصحيح بالفرع/الموعد الحاليين
   useEffect(() => {
