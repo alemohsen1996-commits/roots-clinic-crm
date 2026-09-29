@@ -1,0 +1,7 @@
+-- "الموظف اللي حرّك": leads_activity_filter / lead_flags_activity_filter بقى ليهم p_mover
+-- الحركة (activities غير assignment + calls) بتتحصر في user_id = p_mover
+-- النص الكامل: نفس range_filters_plpgsql_no_correlation.sql مع:
+--   v_moved := ... or p_mover is not null
+--   and (p_mover is null or a.user_id = p_mover)   -- activities
+--   and (p_mover is null or c.user_id = p_mover)   -- calls
+-- (اتطبق على Supabase عبر migration: range_filters_mover_param — الدوال القديمة اتشالت علشان مفيش overload)

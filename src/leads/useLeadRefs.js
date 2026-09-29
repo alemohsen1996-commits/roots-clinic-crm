@@ -129,7 +129,7 @@ function applyFilters(q, filters) {
 // فبنكمّل عليهم نفس الـ select/الفلاتر/الترتيب/العدّ بتاع الجدول بالظبط
 export function hasRangeFilter(f = {}) {
   const has = (v) => v !== '' && v != null
-  return !!(f.movedFrom || f.movedTo || has(f.callsMin) || has(f.callsMax)
+  return !!(f.movedFrom || f.movedTo || f.movedBy || has(f.callsMin) || has(f.callsMax)
     || f.callsFrom || f.callsTo || f.callsAnswered || f.callsBy)
 }
 const dayStart = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd) }
@@ -141,6 +141,8 @@ function rangeParams(f) {
   const p = {}
   if (f.movedFrom) p.p_moved_from = dayStart(f.movedFrom).toISOString()
   if (f.movedTo)   p.p_moved_to   = dayEnd(f.movedTo).toISOString()
+  // «الموظف اللي حرّك»: الحركات/المكالمات اللي عملها هو بالظبط (مش صاحب الليد الحالي)
+  if (f.movedBy)   p.p_mover      = f.movedBy
   if (f.callsFrom) p.p_calls_from = dayStart(f.callsFrom).toISOString()
   if (f.callsTo)   p.p_calls_to   = dayEnd(f.callsTo).toISOString()
   if (has(f.callsMin)) p.p_min_calls = Number(f.callsMin)

@@ -16,7 +16,7 @@ const EMPTY_FILTERS = {
   search: '', stage: '', source: '', owner: '', coordinator: '', branch: '', interest: '',
   createdFrom: '', createdTo: '',
   // فترات: اتحرّك من/إلى + «متصل» (مكالمات السنترال: موظف/فترة/عدد)
-  movedFrom: '', movedTo: '',
+  movedFrom: '', movedTo: '', movedBy: '',
   callsBy: '', callsFrom: '', callsTo: '', callsMin: '', callsMax: '', callsAnswered: false,
   priceFrom: '', priceTo: '', ageFrom: '', ageTo: '',
   // أعلام
@@ -279,7 +279,7 @@ export default function LeadsPage() {
   }
 
   const advancedCount = ['createdFrom','createdTo','branch','interest','priceFrom','priceTo','ageFrom','ageTo','movedToday','snoozed',
-    'movedFrom','movedTo','callsBy','callsFrom','callsTo','callsMin','callsMax','callsAnswered']
+    'movedFrom','movedTo','movedBy','callsBy','callsFrom','callsTo','callsMin','callsMax','callsAnswered']
     .filter(k => filters[k]).length
 
   // كل الفلاتر النشطة — لتوضيح أن العدد المعروض مفلتَر
@@ -456,6 +456,15 @@ export default function LeadsPage() {
           </div>
           {/* الحركة والمكالمات خلال فترة */}
           <div className="af-grid" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line-soft)' }}>
+            {isManager && (
+              <div className="field">
+                <label>الموظف اللي حرّك</label>
+                <select value={filters.movedBy} onChange={e => set('movedBy', e.target.value)}>
+                  <option value="">أي موظف</option>
+                  {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
+                </select>
+              </div>
+            )}
             <div className="field">
               <label>اتحرّك من</label>
               <input type="date" value={filters.movedFrom} onChange={e => set('movedFrom', e.target.value)} />
@@ -465,6 +474,12 @@ export default function LeadsPage() {
               <input type="date" value={filters.movedTo} onChange={e => set('movedTo', e.target.value)} />
             </div>
           </div>
+          {filters.movedBy && (
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
+              بيظهر كل ليد الموظف ده عمل عليه حركة أو مكالمة في الفترة، حتى لو مش صاحبه دلوقتي.
+              الليدات اللي حوّلها للمنسقات بتظهر في بورد المنسقات بنفس الفلتر.
+            </div>
+          )}
 
           {/* «متصل» — مكالمات السنترال (Azeer) */}
           <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>📞 متصل</div>
