@@ -327,7 +327,7 @@ export async function fetchLeadsPage({ boardStageIds, filters = {}, page = 0, pa
 }
 
 // ---------- الكانبان: لكل مرحلة، أحدث N ليد + العدد الحقيقي ----------
-export async function fetchStageColumn({ stageId, filters = {}, limit = 50, sort = 'recent' }) {
+export async function fetchStageColumn({ stageId, filters = {}, limit = 50, sort = 'recent', withCount = true }) {
   // مع فلاتر التاسكات: العدّ والصفحة من v_lead_flags مباشرة
   if (hasTaskFilter(filters)) {
     const total = await flagCount({ stageIds: [stageId], filters })
@@ -346,12 +346,66 @@ export async function fetchStageColumn({ stageId, filters = {}, limit = 50, sort
   // استعلام واحد يرجّع صفحة العمود + العدد الحقيقي معًا (count: exact مع الصفحة)
   // بدل استعلامين لكل عمود.
   // sort: recent = الأحدث نشاطًا · oldest = الأقدم (المهملون أولًا)
-  let q = leadsFrom(filters, LEAD_COLUMNS, { count: 'exact' })
+  // withCount=false: البورد جايب العدد من board_counts في نداء واحد، فالعمود يجيب الصفوف بس
+  let q = leadsFrom(filters, LEAD_COLUMNS, withCount ? { count: 'exact' } : undefined)
     .eq('stage_id', stageId)
     .order('last_activity', { ascending: sort === 'oldest', nullsFirst: sort === 'oldest' })
     .limit(limit)
   q = applyFilters(q, filters)
   const { data, count } = await q
 
-  return { rows: data ?? [], total: count ?? 0 }
+  return { rows: data ?? [], total: withCount ? (count ?? 0) : null }
+}
+
+// ---------- البحث في البورد: استعلام واحد على كل المراحل بدل استعلام لكل عمود ----------
+export const BOARD_SEARCH_LIMIT = 300
+export async function fetchBoardSearch({ stageIds, filters = {}, sort = 'recent', limit = BOARD_SEARCH_LIMIT }) {
+  let q = leadsFrom(filters, LEAD_COLUMNS)
+    .in('stage_id', stageIds)
+    .order('last_activity', { ascending: sort === 'oldest', nullsFirst: sort === 'oldest' })
+    .limit(limit)
+  q = applyFilters(q, filters)
+  const { data, error } = await q
+  if (error) { console.error(error); return { byStage: {}, capped: false, ok: false } }
+  const byStage = {}
+  for (const r of data ?? []) (byStage[r.stage_id] ??= []).push(r)
+  return { byStage, capped: (data ?? []).length >= limit, ok: true }
+}
+
+// ---------- عدّ أعمدة البورد كلها في نداء واحد (board_counts) ----------
+// بيدعم الفلاتر البسيطة بس؛ غير كده بيرجّع null والعمود يعدّ نفسه زي الأول
+const COUNTABLE = new Set([
+  'source', 'owner', 'coordinator', 'branch', 'interest', 'showArchived',
+  'createdFrom', 'createdTo', 'movedToday', 'transferredToday', 'coordinatorId',
+  'stale', 'paused', 'noOwner', 'snoozed',
+  'search', 'mineOwner', 'mineCoordinator',   // search بيتعالج لوحده · mine* للـ v_lead_flags بس
+])
+export function canBoardCount(filters = {}) {
+  if (filters.search || hasTaskFilter(filters) || hasRangeFilter(filters)) return false
+  return Object.entries(filters).every(([k, v]) =>
+    COUNTABLE.has(k) || v === '' || v == null || v === false)
+}
+
+export async function fetchBoardCounts({ stageIds, filters = {} }) {
+  const f = filters
+  const p = { p_stage_ids: stageIds, p_archived: !!f.showArchived }
+  if (f.source) p.p_source = Number(f.source)
+  if (f.owner) p.p_owner = f.owner
+  if (f.coordinator || f.coordinatorId) p.p_coordinator = f.coordinator || f.coordinatorId
+  if (f.branch) p.p_branch = Number(f.branch)
+  if (f.interest) p.p_interest = f.interest
+  if (f.createdFrom) p.p_created_from = new Date(f.createdFrom).toISOString()
+  if (f.createdTo) { const t = new Date(f.createdTo); t.setHours(23, 59, 59, 999); p.p_created_to = t.toISOString() }
+  if (f.movedToday || f.transferredToday) p.p_activity_from = startOfToday().toISOString()
+  if (f.stale) p.p_activity_before = daysAgo(7).toISOString()
+  if (f.paused) p.p_paused = true
+  if (f.noOwner) p.p_no_owner = true
+  if (f.snoozed) p.p_snoozed_after = new Date().toISOString()
+
+  const { data, error } = await supabase.rpc('board_counts', p)
+  if (error) { console.error(error); return null }
+  const map = {}
+  for (const id of stageIds) map[id] = 0
+  for (const r of data ?? []) map[r.stage_id] = Number(r.n)
+  return map
 }

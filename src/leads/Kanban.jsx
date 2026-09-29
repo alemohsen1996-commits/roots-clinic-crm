@@ -1,10 +1,14 @@
-// الكانبان — كل عمود يجلب أحدث N ليد + العدد الحقيقي من القاعدة
+// الكانبان — كل عمود يجلب أحدث N ليد، والأعداد كلها في نداء واحد (board_counts)
+// البحث: استعلام واحد على كل المراحل ويتوزّع على الأعمدة محليًا
 // + إشعار أحمر بعدد أيام التأخير على كل كارت
 // + ترتيب الأعمدة بالسحب محفوظ محليًا
 // + تمرير أفقي تلقائي عند تقريب الماوس من حافة البورد
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { timeAgo } from '../lib/format'
-import { fetchStageColumn, computeAlert } from './useLeadRefs'
+import {
+  fetchStageColumn, computeAlert, fetchBoardSearch, fetchBoardCounts, canBoardCount,
+  hasTaskFilter, BOARD_SEARCH_LIMIT,
+} from './useLeadRefs'
 import { onBoardPatch } from './boardBus'
 
 const COL_FIRST = 50   // الدفعة الأولى
@@ -14,23 +18,37 @@ const COL_MORE  = 20   // كل ضغطة "عرض المزيد"
 const EDGE_ZONE  = 90   // عرض المنطقة الحسّاسة عند الحافة (بكسل)
 const MAX_SPEED  = 22   // أقصى سرعة تمرير لكل إطار
 
-function StageColumn({ stage, filters, onOpen, dragProps, tick, sort, refreshKey }) {
-  const [rows, setRows] = useState([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
+// أوضاع العمود:
+//  • searchRows موجودة  → وضع البحث: العمود بيعرض اللي البورد جابه، ومبيعملش أي نداء
+//  • externalTotal رقم → العدد جاي من board_counts، والعمود يجيب الصفوف بس (من غير count)
+//  • غير كده           → العمود يجيب الصفوف + العدد بنفسه (فلاتر التاسكات/الفترات/السعر…)
+function StageColumn({ stage, filters, onOpen, dragProps, tick, sort, refreshKey, searchRows, searchLoading, externalTotal, useExternalCount }) {
+  const searchMode = Array.isArray(searchRows)
+  const [ownRows, setRows] = useState([])
+  const [ownTotal, setTotal] = useState(0)
+  const [ownLoading, setLoading] = useState(!searchMode)
   const [limit, setLimit] = useState(COL_FIRST)
   const [more, setMore] = useState(false)
 
+  const rows = searchMode ? searchRows : ownRows
+  const total = searchMode
+    ? searchRows.length
+    : useExternalCount
+      ? (typeof externalTotal === 'number' ? Math.max(externalTotal, ownRows.length) : ownRows.length)
+      : ownTotal
+  const loading = searchMode ? !!searchLoading : ownLoading
+
   const load = useCallback(async ({ quiet = false } = {}) => {
+    if (searchMode) return
     if (!quiet) setLoading(true)
     const { rows, total } = await fetchStageColumn({
-      stageId: stage.id, filters, limit, sort,
+      stageId: stage.id, filters, limit, sort, withCount: !useExternalCount,
     })
     setRows(rows)
-    setTotal(total)
+    if (total !== null) setTotal(total)
     setLoading(false)
     setMore(false)
-  }, [stage.id, filters, limit, sort])
+  }, [stage.id, filters, limit, sort, searchMode, useExternalCount])
 
   useEffect(() => { load() }, [load])
 
@@ -80,7 +98,7 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick, sort, refreshKey
     }
   }), [stage.id, scheduleQuiet])
 
-  const hidden = total - rows.length
+  const hidden = searchMode ? 0 : total - rows.length
 
   function loadMore() {
     setMore(true)
@@ -137,6 +155,54 @@ export default function Kanban({ board, stages, filters, onOpen, sort = 'recent'
   const [order, setOrder] = useState([])
   const [dragId, setDragId] = useState(null)
   const [tick, setTick] = useState(0)
+
+  // ---------- وضع البورد: بحث (نداء واحد) / أعداد مجمّعة (نداء واحد) / كل عمود لوحده ----------
+  const stageIds = useMemo(() => stages.map(s => s.id), [stages])
+  const searchMode = !!filters.search && !hasTaskFilter(filters)
+  const countMode = !searchMode && canBoardCount(filters)
+
+  const [counts, setCounts] = useState(null)          // stageId → عدد
+  const [search, setSearch] = useState({ byStage: {}, capped: false, loading: searchMode })
+
+  const loadCounts = useCallback(async () => {
+    if (!countMode || !stageIds.length) return
+    const map = await fetchBoardCounts({ stageIds, filters })
+    if (map) setCounts(map)
+  }, [countMode, stageIds, filters])
+
+  const loadSearch = useCallback(async ({ quiet = false } = {}) => {
+    if (!searchMode || !stageIds.length) return
+    if (!quiet) setSearch(s => ({ ...s, loading: true }))
+    const res = await fetchBoardSearch({ stageIds, filters, sort })
+    setSearch({ byStage: res.byStage, capped: res.capped, loading: false })
+  }, [searchMode, stageIds, filters, sort])
+
+  useEffect(() => { loadCounts() }, [loadCounts, refreshKey])
+  useEffect(() => { loadSearch() }, [loadSearch, refreshKey])
+
+  // أي تغيير (من الدرور أو Realtime) → نداء واحد مؤجَّل للأعداد أو للبحث، مش نداء لكل عمود
+  const boardTimer = useRef(null)
+  const loadCountsRef = useRef(loadCounts)
+  const loadSearchRef = useRef(loadSearch)
+  useEffect(() => { loadCountsRef.current = loadCounts }, [loadCounts])
+  useEffect(() => { loadSearchRef.current = loadSearch }, [loadSearch])
+  useEffect(() => onBoardPatch((d) => {
+    // تحديث فوري محلي لعدد العمود المصدر عند النقل
+    if (d.removeId != null && d.removeFrom != null) {
+      setCounts(c => (c && c[d.removeFrom] > 0 ? { ...c, [d.removeFrom]: c[d.removeFrom] - 1 } : c))
+      setSearch(s => {
+        const list = s.byStage[d.removeFrom]
+        if (!list) return s
+        return { ...s, byStage: { ...s.byStage, [d.removeFrom]: list.filter(r => String(r.id) !== String(d.removeId)) } }
+      })
+    }
+    clearTimeout(boardTimer.current)
+    boardTimer.current = setTimeout(() => {
+      loadCountsRef.current()
+      loadSearchRef.current({ quiet: true })
+    }, d.refetchAll ? 0 : 1500)
+  }), [])
+  useEffect(() => () => clearTimeout(boardTimer.current), [])
 
   // ---------- التمرير التلقائي عند الحواف ----------
   const boardRef = useRef(null)
@@ -267,6 +333,11 @@ export default function Kanban({ board, stages, filters, onOpen, sort = 'recent'
 
   return (
     <div className="kanban-scroll-wrap">
+      {searchMode && !search.loading && search.capped && (
+        <div className="kanban-search-note">
+          بيظهر أحدث {BOARD_SEARCH_LIMIT.toLocaleString('en-US')} نتيجة بس — حدّد البحث أكتر (اسم كامل أو رقم أطول)
+        </div>
+      )}
       <div className="kanban-edge start" data-on={edge === -1} />
       <div className="kanban-edge end"   data-on={edge === 1} />
 
@@ -286,6 +357,10 @@ export default function Kanban({ board, stages, filters, onOpen, sort = 'recent'
             tick={tick}
             sort={sort}
             refreshKey={refreshKey}
+            searchRows={searchMode ? (search.byStage[st.id] ?? []) : undefined}
+            searchLoading={searchMode && search.loading}
+            useExternalCount={countMode}
+            externalTotal={counts?.[st.id]}
             dragProps={{
               draggable: true,
               className: 'kanban-col' + (dragId === st.id ? ' dragging' : ''),

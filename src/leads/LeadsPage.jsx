@@ -183,7 +183,8 @@ export default function LeadsPage() {
           tableTimer = setTimeout(() => loadTableRef.current({ quiet: true }), 600)
         }
         clearTimeout(chipsTimer)
-        chipsTimer = setTimeout(() => setChipsTick(t => t + 1), 1500)
+        // أعداد الشرائح (chip_counts) نداء تقيل على كل الليدات — تكفي كل 8 ثواني وقت الزحمة
+        chipsTimer = setTimeout(() => setChipsTick(t => t + 1), 8000)
       })
       .subscribe((status) => {
         if (status !== 'SUBSCRIBED') return
