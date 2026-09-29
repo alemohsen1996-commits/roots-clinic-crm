@@ -303,7 +303,9 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
       if (createdApptId) await supabase.from('appointments').delete().eq('id', createdApptId)
       setErr(error.message?.includes('غير مصرح')
         ? 'إرجاع المريض لبورد المبيعات يتم عبر المدير فقط'
-        : 'تعذر تغيير المرحلة')
+        : error.message?.includes('ديل تعاقد')
+          ? 'لازم يتفتح ديل تعاقد للمريض الأول — افتحه من صفحة الديلات، وبعدين علّم "تمت" أو "انتظار" من الديل نفسه'
+          : 'تعذر تغيير المرحلة')
       return
     }
     // بعد نجاح النقل: ألغِ أي معاينة نشطة سابقة لنفس الليد (يبقى موعد واحد فعّال)
