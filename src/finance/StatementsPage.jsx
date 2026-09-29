@@ -84,11 +84,11 @@ export default function StatementsPage() {
       for (const r of f ?? []) fin[r.deal_id] = r
     }
 
-    // العمولة من نفس دالة الداتابيز — للسيلز والمنسقات فقط
+    // العمولة من نفس دالة الداتابيز — للسيلز ومديري المبيعات والمنسقات
     const staff = pp.data ?? []
     const comm = {}
     await Promise.all(staff
-      .filter(p => ['agent', 'coordinator'].includes(p.roles?.code))
+      .filter(p => ['agent', 'sales_manager', 'coordinator'].includes(p.roles?.code))
       .map(async p => {
         const { data } = await supabase.rpc('calc_commission', { p_user: p.id, p_month: first })
         comm[p.id] = Number(data ?? 0)

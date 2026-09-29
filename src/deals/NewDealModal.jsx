@@ -1,5 +1,5 @@
 // إنشاء ديل جديد — يختار ليدًا في مرحلة "الديل" ثم يسجل التعاقد
-// المنسقة إجبارية، وتكون مقفولة على نفسها إذا كان المستخدم منسقة
+// المنسقة والفرع إجباريين، والمنسقة مقفولة على نفسها إذا كان المستخدم منسقة
 // الضريبة تُخصم من المبلغ المستلم للوصول إلى صافي العيادة
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
@@ -16,6 +16,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
     lead_id: preloadLeadId ?? '',
     // المنسقة تسجّل باسمها دائمًا ولا تختار غيرها
     coordinator_id: isCoordinator ? profile.id : '',
+    branch_id: '',
     procedure_type_id: '',
     technique_id: '',
     doctor_id: '',
@@ -27,6 +28,12 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
   })
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [branches, setBranches] = useState([])
+
+  useEffect(() => {
+    supabase.from('branches').select('id, name').eq('is_active', true).order('name')
+      .then(({ data }) => setBranches(data ?? []))
+  }, [])
 
   // الليدات المؤهلة: في مرحلة "ديل" أو "عملية إضافية"، وليس لها ديل نشط حاليًا
   useEffect(() => {
@@ -38,7 +45,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
 
       const { data: leads } = await supabase
         .from('leads')
-        .select('id, file_no, full_name, owner_id, coordinator_id')
+        .select('id, file_no, full_name, owner_id, coordinator_id, branch_id')
         .in('stage_id', stageIds)
         .order('last_activity', { ascending: false })
 
@@ -63,7 +70,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
   useEffect(() => {
     if (!preloadLeadId) return
     supabase.from('leads')
-      .select('id, file_no, full_name, owner_id, coordinator_id')
+      .select('id, file_no, full_name, owner_id, coordinator_id, branch_id')
       .eq('id', preloadLeadId).single()
       .then(({ data }) => {
         if (!data) return
@@ -72,12 +79,20 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
         setForm(f => ({
           ...f,
           lead_id: data.id,
+          branch_id: data.branch_id ? String(data.branch_id) : f.branch_id,
           coordinator_id: isCoordinator
             ? profile.id
             : (f.coordinator_id || data.coordinator_id || ''),
         }))
       })
   }, [preloadLeadId, isCoordinator, profile.id])
+
+  // فرع العميل: يتملّى تلقائي من ملف الليد لو محدد
+  useEffect(() => {
+    if (!form.lead_id) return
+    const l = dealLeads.find(x => x.id === Number(form.lead_id))
+    setForm(f => ({ ...f, branch_id: l?.branch_id ? String(l.branch_id) : '' }))
+  }, [form.lead_id, dealLeads])
 
   // تحديد المنسقة تلقائيًا من الليد المختار — لا يُطبَّق على المنسقة نفسها
   useEffect(() => {
@@ -104,12 +119,20 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
   async function save() {
     if (!form.lead_id) { setErr('اختر العميل'); return }
     if (!form.coordinator_id) { setErr('اختيار المنسقة إجباري عند التعاقد'); return }
+    if (!form.branch_id) { setErr('اختيار الفرع إجباري — علشان نعرف العميل تبع أنهي فرع'); return }
     if (!total || total <= 0) { setErr('أدخل قيمة التعاقد'); return }
     if (taxTooBig) { setErr('الضريبة لا يمكن أن تساوي قيمة التعاقد أو تتجاوزها'); return }
     setErr(''); setBusy(true)
 
     const selected = dealLeads.find(l => l.id === Number(form.lead_id))
     const lead = selected ?? { owner_id: profile.id }
+
+    // الفرع بيتسجّل في ملف الليد (هو مصدر الفرع في الكشوف والتقارير)
+    if (String(selected?.branch_id ?? '') !== form.branch_id) {
+      const { error: bErr } = await supabase.from('leads')
+        .update({ branch_id: Number(form.branch_id) }).eq('id', Number(form.lead_id))
+      if (bErr) { setBusy(false); setErr('تعذّر تحديد فرع العميل — ' + bErr.message); return }
+    }
 
     const { error } = await supabase.from('deals').insert({
       lead_id: Number(form.lead_id),
@@ -140,7 +163,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: 520 }}>
         <h2>ملف تعاقد جديد</h2>
-        <p className="sub">المنسقة إجبارية — ويمكن فتح عملية إضافية لعميل أنهى عمليته السابقة</p>
+        <p className="sub">المنسقة والفرع إجباريين — ويمكن فتح عملية إضافية لعميل أنهى عمليته السابقة</p>
 
         {err && <div className="alert alert-error">{err}</div>}
 
@@ -153,6 +176,14 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
                 {l.full_name} · {l.file_no}{l.past > 0 ? ` — عملية رقم ${l.past + 1}` : ''}
               </option>
             ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <label>الفرع *</label>
+          <select value={form.branch_id} onChange={e => set('branch_id', e.target.value)}>
+            <option value="">— اختر الفرع —</option>
+            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </div>
 

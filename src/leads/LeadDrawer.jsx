@@ -176,6 +176,8 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const readOnlyForSales = isSalesOwner && currentBoard === 'coordinator'
   // السيلز صاحب الليد والمديرين يقدروا يصحّحوا التحويل (المنسقة/الفرع/الموعد) طول ما الليد لسه في المتابعة
   const canFixHandoff = (isSalesOwner || isManager) && lead?.stages?.code === STAGE.FOLLOWUP
+  // المدير يغيّر المنسقة في أي مرحلة بعد المتابعة (معاينة/ديل/تمت…) — الليد + الديل النشط + المعاينة النشطة
+  const canManagerSwapCoord = isManager && currentBoard === 'coordinator' && lead?.stages?.code !== STAGE.FOLLOWUP
 
   // تحميل المعاينة النشطة لتعبئة نموذج التصحيح بالفرع/الموعد الحاليين
   useEffect(() => {
@@ -368,6 +370,29 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     if (leadErr) { setErr('تعذّر تحديث المنسقة'); return }
 
     say('تم تصحيح التحويل')
+    await load(); onChanged()
+  }
+
+  // تغيير المنسقة من المدير بعد مرحلة المتابعة
+  async function swapCoordinator() {
+    setErr('')
+    if (!coordinatorId) { setErr('اختر المنسقة'); return }
+    if (coordinatorId === lead?.coordinator_id) { setErr('دي نفس المنسقة الحالية'); return }
+    setBusy(true)
+    const { error: leadErr } = await supabase.from('leads')
+      .update({ coordinator_id: coordinatorId }).eq('id', leadId)
+    if (leadErr) { setBusy(false); setErr('تعذّر تغيير المنسقة'); return }
+    // الديل النشط أو في الانتظار يتبع المنسقة الجديدة (العمولة بتتحسب على منسقة الديل)
+    const { error: dealErr } = await supabase.from('deals')
+      .update({ coordinator_id: coordinatorId })
+      .eq('lead_id', leadId).in('status', ['active', 'waiting'])
+    // المعاينة اللي لسه مفتوحة تتبعها كمان
+    await supabase.from('appointments')
+      .update({ coordinator_id: coordinatorId, updated_at: new Date().toISOString() })
+      .eq('lead_id', leadId).in('status', ['pending', 'booked'])
+    setBusy(false)
+    if (dealErr) { setErr('اتغيّرت منسقة الليد، بس تعذّر تحديث الديل — عدّلها من صفحة الديل'); }
+    else say('تم تغيير المنسقة')
     await load(); onChanged()
   }
 
@@ -806,6 +831,26 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
 
             <button className="btn btn-primary" disabled={busy} onClick={fixHandoff}>
               {busy ? '…' : 'تصحيح التحويل'}
+            </button>
+          </div>
+        )}
+
+        {canManagerSwapCoord && (
+          <div className="stage-box" style={{ border: '1.5px solid var(--primary)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+            <div className="row-label" style={{ color: 'var(--primary)' }}>تغيير المنسقة</div>
+            <p style={{ fontSize: 12, color: 'var(--ink-soft)', margin: '0 0 10px', lineHeight: 1.7 }}>
+              للمدير فقط — بيغيّر منسقة المريض، ومعاها الديل النشط والمعاينة المفتوحة لو موجودين.
+              الديلات اللي تمت بتفضل باسم المنسقة اللي عملتها.
+            </p>
+            <div className="field" style={{ marginBottom: 8 }}>
+              <select value={coordinatorId} onChange={e => setCoordinatorId(e.target.value)}>
+                <option value="">— اختر —</option>
+                {coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+              </select>
+            </div>
+            <button className="btn btn-primary" disabled={busy || !coordinatorId || coordinatorId === lead?.coordinator_id}
+              onClick={swapCoordinator}>
+              {busy ? '…' : 'حفظ المنسقة'}
             </button>
           </div>
         )}
