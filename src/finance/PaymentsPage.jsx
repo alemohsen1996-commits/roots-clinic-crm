@@ -1,6 +1,6 @@
 // التحصيلات — سجل الدفعات + التأكيد المحاسبي + نظام إلغاء بموافقة
 // المنسقة تطلب الإلغاء، المدير/المحاسب يوافق أو يرفض
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtNum, fmtDateTime, openWhatsApp } from '../lib/format'
@@ -19,6 +19,8 @@ const METHOD_AR = {
   cash: 'نقدًا', card: 'شبكة', transfer: 'تحويل',
   tabby: 'تابي', tamara: 'تمارا', other: 'أخرى',
 }
+
+const STATUS_AR = { active: 'السارية', void_requested: 'طلبات الإلغاء', void: 'الملغية' }
 
 const PAGE = 100
 const today = () => new Date().toISOString().slice(0, 10)
@@ -55,6 +57,8 @@ export default function PaymentsPage() {
   const [to, setTo] = useState('')
   const [method, setMethod] = useState('')
   const [onlyUnconfirmed, setOnlyUnconfirmed] = useState(false)
+  const [status, setStatus] = useState('')   // '' = الكل
+  const [pendingVoids, setPendingVoids] = useState([])
 
   const [showAdd, setShowAdd] = useState(false)
   const [voidingId, setVoidingId] = useState(null)
@@ -68,17 +72,23 @@ export default function PaymentsPage() {
   const fromTs = from ? from + 'T00:00:00' : null
   const toTs = to ? to + 'T23:59:59' : null
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    let q = supabase.from('payments').select(SELECT, { count: 'exact' })
-      .order('paid_at', { ascending: false })
-      .range(page * PAGE, page * PAGE + PAGE - 1)
-
+  const applyFilters = useCallback((q) => {
     if (fromTs) q = q.gte('paid_at', fromTs)
     if (toTs)   q = q.lte('paid_at', toTs)
     if (method) q = q.eq('method', method)
+    if (status) q = q.eq('status', status)
     if (onlyUnconfirmed) q = q.is('confirmed_at', null)
     if (search.trim()) q = q.ilike('receipt_no', `%${search.trim()}%`)
+    return q
+  }, [fromTs, toTs, method, status, onlyUnconfirmed, search])
+
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
+    const q = applyFilters(
+      supabase.from('payments').select(SELECT, { count: 'exact' })
+        .order('paid_at', { ascending: false })
+        .range(page * PAGE, page * PAGE + PAGE - 1)
+    )
 
     const { data, count } = await q
     setRows(data ?? [])
@@ -92,16 +102,42 @@ export default function PaymentsPage() {
     })
     setSums(t ?? null)
     setLoading(false)
-  }, [page, fromTs, toTs, method, onlyUnconfirmed, search])
+  }, [page, fromTs, toTs, method, applyFilters])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(0); setSelected(new Set()) }, [fromTs, toTs, method, onlyUnconfirmed, search])
+  useEffect(() => { setPage(0); setSelected(new Set()) }, [fromTs, toTs, method, status, onlyUnconfirmed, search])
+
+  // طلبات الإلغاء المعلّقة تُجلب مستقلة عن الفلاتر والصفحة — حتى لا تختفي عن المدير
+  const loadPendingVoids = useCallback(async () => {
+    if (!canApproveVoid) return
+    const { data } = await supabase.from('payments').select(SELECT)
+      .eq('status', 'void_requested').order('void_requested_at', { ascending: true })
+    setPendingVoids(data ?? [])
+  }, [canApproveVoid])
+  useEffect(() => { loadPendingVoids() }, [loadPendingVoids])
 
   const loadStats = useCallback(async () => {
     const { data } = await supabase.rpc('payment_quick_stats')
     setStats(data ?? null)
   }, [])
   useEffect(() => { loadStats() }, [loadStats])
+
+  // تحديث لحظي (Realtime): أي دفعة تُسجَّل/تُؤكَّد/تُلغى عند أي موظف تظهر فورًا
+  // مع تجميع الأحداث المتتالية (مثل التأكيد الجماعي) في إعادة تحميل واحدة
+  const refreshRef = useRef(() => {})
+  useEffect(() => {
+    refreshRef.current = () => { load({ silent: true }); loadStats(); loadPendingVoids() }
+  })
+  useEffect(() => {
+    let timer = null
+    const ch = supabase.channel('payments-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
+        clearTimeout(timer)
+        timer = setTimeout(() => refreshRef.current(), 400)
+      })
+      .subscribe()
+    return () => { clearTimeout(timer); supabase.removeChannel(ch) }
+  }, [])
 
   // ---------- الإجراءات ----------
   async function confirm(id) {
@@ -110,7 +146,7 @@ export default function PaymentsPage() {
     }).eq('id', id)
     if (error) { flash('تعذر التأكيد — ' + error.message); return }
     flash('تم تأكيد الدفعة محاسبيًا')
-    load(); loadStats()
+    load(); loadStats(); loadPendingVoids()
   }
 
   async function confirmBulk() {
@@ -125,7 +161,7 @@ export default function PaymentsPage() {
     if (error) { flash('تعذر التأكيد — ' + error.message); return }
     flash(`تم تأكيد ${ids.length} دفعة`)
     setSelected(new Set())
-    load(); loadStats()
+    load(); loadStats(); loadPendingVoids()
   }
 
   async function submitVoidRequest() {
@@ -136,19 +172,19 @@ export default function PaymentsPage() {
     setVoidingId(null); setVoidReason('')
     if (error) { flash('تعذر إرسال طلب الإلغاء'); return }
     flash('تم إرسال طلب الإلغاء — بانتظار موافقة الإدارة')
-    load(); loadStats()
+    load(); loadStats(); loadPendingVoids()
   }
 
   async function approveVoid(id) {
     const { error } = await supabase.rpc('approve_payment_void', { p_payment_id: id })
     if (error) { flash('تعذر اعتماد الإلغاء'); return }
-    flash('تم إلغاء الدفعة'); load(); loadStats()
+    flash('تم إلغاء الدفعة'); load(); loadStats(); loadPendingVoids()
   }
 
   async function rejectVoid(id) {
     const { error } = await supabase.rpc('reject_payment_void', { p_payment_id: id })
     if (error) { flash('تعذر رفض الطلب'); return }
-    flash('تم رفض طلب الإلغاء — الدفعة سارية'); load(); loadStats()
+    flash('تم رفض طلب الإلغاء — الدفعة سارية'); load(); loadStats(); loadPendingVoids()
   }
 
   // ---------- التصدير ----------
@@ -156,13 +192,10 @@ export default function PaymentsPage() {
     setBusy(true)
     const all = []
     for (let off = 0; off < 20000; off += 1000) {
-      let q = supabase.from('payments').select(SELECT)
-        .order('paid_at', { ascending: false }).range(off, off + 999)
-      if (fromTs) q = q.gte('paid_at', fromTs)
-      if (toTs)   q = q.lte('paid_at', toTs)
-      if (method) q = q.eq('method', method)
-      if (onlyUnconfirmed) q = q.is('confirmed_at', null)
-      if (search.trim()) q = q.ilike('receipt_no', `%${search.trim()}%`)
+      const q = applyFilters(
+        supabase.from('payments').select(SELECT)
+          .order('paid_at', { ascending: false }).range(off, off + 999)
+      )
       const { data, error } = await q
       if (error) { setBusy(false); flash('تعذر التصدير'); return }
       all.push(...(data ?? []))
@@ -206,9 +239,8 @@ export default function PaymentsPage() {
     })
   }
 
-  const pendingVoids = rows.filter(r => r.status === 'void_requested')
   const totalPages = Math.max(1, Math.ceil(total / PAGE))
-  const hasFilters = search || from || to || method || onlyUnconfirmed
+  const hasFilters = search || from || to || method || status || onlyUnconfirmed
 
   return (
     <>
@@ -312,6 +344,14 @@ export default function PaymentsPage() {
           <option value="">كل الطرق</option>
           {Object.entries(METHOD_AR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
+        <select value={status} onChange={e => setStatus(e.target.value)}>
+          <option value="">كل الحالات</option>
+          {Object.entries(STATUS_AR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <button className={'chip' + (status === 'void' ? ' on' : '')}
+          onClick={() => setStatus(v => v === 'void' ? '' : 'void')}>
+          الملغية
+        </button>
         <button className={'chip' + (onlyUnconfirmed ? ' on' : '')}
           onClick={() => setOnlyUnconfirmed(v => !v)}>
           غير المؤكدة
@@ -322,7 +362,7 @@ export default function PaymentsPage() {
           onClick={() => { setFrom(monthStart()); setTo(today()) }}>هذا الشهر</button>
         {hasFilters && (
           <button className="btn btn-ghost btn-sm"
-            onClick={() => { setSearch(''); setFrom(''); setTo(''); setMethod(''); setOnlyUnconfirmed(false) }}>
+            onClick={() => { setSearch(''); setFrom(''); setTo(''); setMethod(''); setStatus(''); setOnlyUnconfirmed(false) }}>
             مسح الفلاتر
           </button>
         )}
@@ -473,7 +513,7 @@ export default function PaymentsPage() {
       {showAdd && (
         <AddPaymentModal
           onClose={() => setShowAdd(false)}
-          onSaved={() => { setShowAdd(false); load(); loadStats() }}
+          onSaved={() => { setShowAdd(false); load(); loadStats(); loadPendingVoids() }}
         />
       )}
 
