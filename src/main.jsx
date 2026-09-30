@@ -24,6 +24,7 @@ import CallsPage from './calls/CallsPage'
 import ArchivePage from './archive/ArchivePage'
 import SettingsPage from './settings/SettingsPage'
 import DistributePage from './pages/DistributePage'
+import ChatPage from './chat/ChatPage'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -36,6 +37,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route element={<RequireAuth><Shell /></RequireAuth>}>
             <Route index element={<Dashboard />} />
             <Route path="tasks" element={<TasksPage />} />
+            <Route path="chat" element={<ChatPage />} />
             <Route path="team" element={<RequireManager><TeamPage /></RequireManager>} />
             <Route path="leads" element={<LeadsPage />} />
             <Route path="deals" element={<DealsPage />} />

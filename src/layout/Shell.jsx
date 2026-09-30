@@ -5,10 +5,12 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { supabase } from '../lib/supabase'
 import { THEMES, getLocalTheme, applyTheme } from '../lib/theme'
+import { useChatUnread } from '../chat/useChatUnread'
 
 // أيقونات خطّية موحّدة — التعرّف عليها أسرع من قراءة النص
 const I = {
   dashboard: <><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="10" width="7" height="11" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></>,
+  chat:      <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z"/><path d="M8.5 8.5h7M8.5 11.5h4.5"/></>,
   tasks:     <><path d="M9 11l2 2 4-4"/><rect x="3" y="4" width="18" height="17" rx="2.5"/><path d="M8 2v4M16 2v4"/></>,
   leads:     <><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M17 8h5M19.5 5.5v5"/></>,
   deals:     <><path d="M4 7h16v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M4 12h16"/></>,
@@ -36,6 +38,7 @@ const NAV = [
     { to: '/',      label: 'لوحة التحكم', icon: 'dashboard', roles: 'all' },
     { to: '/tasks', label: 'مهامي اليوم',  icon: 'tasks', badge: 'tasks',
       roles: ['super_admin','sales_manager','agent','coordinator'] },
+    { to: '/chat', label: 'الشات', icon: 'chat', badge: 'chat', roles: 'all' },
     // المنسقة الآن ترى الليدات (بوردها) لمتابعة مرضاها المحوّلين إليها
     { to: '/leads', label: 'الليدات', icon: 'leads',
       roles: ['super_admin','sales_manager','agent','coordinator'] },
@@ -82,6 +85,7 @@ export default function Shell() {
   }, [])
   const [navOpen, setNavOpen] = useState(false)
   const [dueTasks, setDueTasks] = useState(0)
+  const chatUnread = useChatUnread(profile?.id)
   const location = useLocation()
 
   const canSee = (roles) => roles === 'all' || roles.includes(roleCode)
@@ -128,6 +132,9 @@ export default function Shell() {
           ☰
         </button>
         <div className="topbar-brand">Roots Clinic · CRM</div>
+        {chatUnread > 0 && (
+          <NavLink to="/chat" className="topbar-badge chat" title="رسائل غير مقروءة">💬 {chatUnread}</NavLink>
+        )}
         {dueTasks > 0 && <span className="topbar-badge">{dueTasks}</span>}
       </header>
 
@@ -156,6 +163,9 @@ export default function Shell() {
                     <span className="nav-text">{i.label}</span>
                     {i.badge === 'tasks' && dueTasks > 0 && (
                       <span className="nav-badge">{dueTasks.toLocaleString('en-US')}</span>
+                    )}
+                    {i.badge === 'chat' && chatUnread > 0 && (
+                      <span className="nav-badge">{chatUnread.toLocaleString('en-US')}</span>
                     )}
                   </NavLink>
                 ))}
