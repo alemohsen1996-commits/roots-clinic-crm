@@ -17,6 +17,7 @@ import {
 import NewChatModal from './NewChatModal'
 import GroupInfoModal from './GroupInfoModal'
 import LeadPicker from './LeadPicker'
+import PushToggle from './PushToggle'
 import './chat.css'
 
 const LOC = 'ar-EG-u-nu-latn'
@@ -119,6 +120,7 @@ export default function ChatPage() {
             <h1>الشات</h1>
             <button className="btn btn-primary chat-new-btn" onClick={() => setShowNew(true)}>+ محادثة</button>
           </div>
+          <PushToggle />
           {canMonitor && (
             <div className="tabs chat-tabs">
               <button className={'tab' + (tab === 'mine' ? ' on' : '')} onClick={() => setTab('mine')}>محادثاتي</button>

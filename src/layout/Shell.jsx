@@ -1,7 +1,7 @@
 // الهيكل العام للتطبيق — السايدبار تتغير روابطه حسب دور المستخدم
 // على الموبايل: زر ☰ يفتح القائمة كطبقة، وتُغلق عند اختيار صفحة
 import { useCallback, useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { supabase } from '../lib/supabase'
 import { THEMES, getLocalTheme, applyTheme } from '../lib/theme'
@@ -87,6 +87,15 @@ export default function Shell() {
   const [dueTasks, setDueTasks] = useState(0)
   const chatUnread = useChatUnread(profile?.id)
   const location = useLocation()
+  const navigate = useNavigate()
+
+  // ضغطة على إشعار والأبلكيشن مفتوح → نروح للمحادثة من غير إعادة تحميل
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    const onMsg = (e) => { if (e.data?.type === 'open-url' && e.data.url) navigate(e.data.url) }
+    navigator.serviceWorker.addEventListener('message', onMsg)
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg)
+  }, [navigate])
 
   const canSee = (roles) => roles === 'all' || roles.includes(roleCode)
 

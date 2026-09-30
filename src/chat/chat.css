@@ -205,3 +205,16 @@
 }
 .topbar-badge.chat { text-decoration: none; color: #fff; }
 .topbar-badge.chat + .topbar-badge { margin-inline-start: 6px; }
+
+/* ---------- الإشعارات ---------- */
+.chat-push-banner {
+  background: var(--gold-soft); border: 1px solid color-mix(in srgb, var(--gold) 35%, transparent);
+  border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; font-size: 13px; line-height: 1.6;
+}
+.chat-push-actions { display: flex; gap: 8px; margin-top: 8px; }
+.chat-push-actions .btn { padding: 6px 14px; font-size: 13px; }
+.chat-push-on {
+  background: none; border: none; cursor: pointer; font-family: var(--font-body);
+  font-size: 12px; font-weight: 700; color: var(--ok); padding: 0 0 8px;
+}
+.chat-push-on.off { color: var(--ink-soft); }

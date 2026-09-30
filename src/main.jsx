@@ -25,6 +25,9 @@ import ArchivePage from './archive/ArchivePage'
 import SettingsPage from './settings/SettingsPage'
 import DistributePage from './pages/DistributePage'
 import ChatPage from './chat/ChatPage'
+import { registerSW } from './lib/push'
+
+registerSW()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

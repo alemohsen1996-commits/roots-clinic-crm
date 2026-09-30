@@ -1,6 +1,7 @@
 // سياق المصادقة: يوفر الجلسة + ملف الموظف + الدور لكل التطبيق
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { syncPushOnLogin, unlinkPushOnLogout } from '../lib/push'
 
 const AuthCtx = createContext(null)
 
@@ -77,6 +78,7 @@ export function AuthProvider({ children }) {
       } else {
         setProfile(data)
         setProfileError(null)
+        syncPushOnLogin()
       }
       setLoading(false)
     })()
@@ -92,7 +94,7 @@ export function AuthProvider({ children }) {
     roleCode: profile?.roles?.code ?? null,
     isManager: ['super_admin', 'sales_manager'].includes(profile?.roles?.code),
     isSuperAdmin: profile?.roles?.code === 'super_admin',
-    signOut: () => supabase.auth.signOut(),
+    signOut: async () => { await unlinkPushOnLogout(); return supabase.auth.signOut() },
   }
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>
