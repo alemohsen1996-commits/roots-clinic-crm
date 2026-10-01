@@ -48,23 +48,23 @@ function Delta({ now, before }) {
 
 export default function Dashboard() {
   const { profile, isManager } = useAuth()
-  const [rows, setRows] = useState([])       // أداء الفريق (الشهر الجاري)
+  const [rows, setRows] = useState([])       // أداء الفريق (للشهر المختار)
   const [series, setSeries] = useState([])   // سلسلة الشهور
   const [month, setMonth] = useState(thisMonth())
   const [target, setTarget] = useState(0)
   const [loading, setLoading] = useState(true)
   const [teamTab, setTeamTab] = useState('all')
 
-  // أداء الفريق — الشهر الجاري فقط
-  const loadTeam = useCallback(async () => {
+  // أداء الفريق — للشهر المختار (أي شهر مضى أو الجاري)
+  const [teamLoading, setTeamLoading] = useState(false)
+  const loadTeam = useCallback(async ({ quiet = false } = {}) => {
     if (!isManager) return
-    const [{ data }, { data: people }] = await Promise.all([
-      supabase.from('v_month_to_date').select('*'),
-      supabase.from('profiles').select('id, roles(code)'),
-    ])
-    const roleById = Object.fromEntries((people ?? []).map(p => [p.id, p.roles?.code]))
-    setRows((data ?? []).map(r => ({ ...r, role_code: roleById[r.user_id] ?? null })))
-  }, [isManager])
+    if (!quiet) setTeamLoading(true)
+    const { data, error } = await supabase.rpc('team_month_performance', { p_month: month })
+    if (error) console.error(error)
+    setRows(data ?? [])
+    setTeamLoading(false)
+  }, [isManager, month])
 
   const loadSeries = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true)
@@ -96,7 +96,7 @@ export default function Dashboard() {
       const now = Date.now()
       if (now - lastRefresh.current < 1500) return   // تجنّب الإطلاق المزدوج focus+visibility
       lastRefresh.current = now
-      loadTeam(); loadSeries({ quiet: true }); loadTarget()
+      loadTeam({ quiet: true }); loadSeries({ quiet: true }); loadTarget()
     }
     window.addEventListener('focus', refresh)
     document.addEventListener('visibilitychange', refresh)
@@ -283,11 +283,13 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* أداء الفريق — الشهر الجاري فقط */}
-          {isManager && isCurrentMonth && rows.length > 0 && (
-            <div className="card" style={{ marginTop: 24 }}>
+          {/* أداء الفريق — للشهر المختار */}
+          {isManager && (rows.length > 0 || teamLoading) && (
+            <div className="card" style={{ marginTop: 24, opacity: teamLoading ? 0.6 : 1, transition: 'opacity .15s' }}>
               <div style={{ padding: '16px 16px 0' }}>
-                <h2 style={{ fontSize: 16 }}>أداء الفريق هذا الشهر</h2>
+                <h2 style={{ fontSize: 16 }}>
+                  {isCurrentMonth ? 'أداء الفريق هذا الشهر' : `أداء الفريق في ${monthLabel(month)}`}
+                </h2>
                 <div className="hint" style={{ marginTop: 4 }}>
                   العملية الواحدة تُنسب للسيلز والمنسقة معًا لحساب العمولة —
                   لذلك مجموع الصفوف أكبر من إجمالي العيادة بالأعلى
