@@ -36,8 +36,10 @@ function genSlots(sched, dateStr) {
   if (!sched) return []
   const dow = new Date(dateStr + 'T00:00:00').getDay()
   if (!(sched.work_days ?? []).includes(dow)) return []
-  const [sh, sm] = hhmm(sched.start_time).split(':').map(Number)
-  const [eh, em] = hhmm(sched.end_time).split(':').map(Number)
+  // ساعات خاصة باليوم ده (day_hours) وإلا الساعات العامة للفرع
+  const dh = sched.day_hours?.[String(dow)]
+  const [sh, sm] = hhmm(dh?.start || sched.start_time).split(':').map(Number)
+  const [eh, em] = hhmm(dh?.end || sched.end_time).split(':').map(Number)
   const start = sh * 60 + sm, end = eh * 60 + em
   const out = []
   for (let m = start; m + sched.slot_minutes <= end; m += sched.slot_minutes) {

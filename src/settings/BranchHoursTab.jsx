@@ -1,4 +1,4 @@
-// ساعات عمل الفروع — لكل فرع: أيام العمل + بداية/نهاية + مدة الخانة.
+// ساعات عمل الفروع — لكل فرع: أيام العمل + بداية/نهاية (عامة أو لكل يوم) + مدة الخانة.
 // منها تتولّد خانات مواعيد المعاينات (شاشة المعاينات).
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
@@ -48,6 +48,10 @@ export default function BranchHoursTab() {
         start_time: hhmm(s?.start_time) || '16:00',
         end_time: hhmm(s?.end_time) || '20:00',
         slot_minutes: s?.slot_minutes ?? 30,
+        // ساعات خاصة لكل يوم: { '6': { start, end }, ... }
+        per_day: Object.keys(s?.day_hours ?? {}).length > 0,
+        day_hours: Object.fromEntries(Object.entries(s?.day_hours ?? {})
+          .map(([k, v]) => [k, { start: hhmm(v.start), end: hhmm(v.end) }])),
         configured: !!s,
         dirty: false, saving: false, msg: null,
       }
@@ -72,12 +76,32 @@ export default function BranchHoursTab() {
       }
     }))
 
+  // ساعات يوم معيّن (الخاصة لو مفعّلة، وإلا العامة)
+  const hoursOf = (r, n) => (r.per_day && r.day_hours[n]) || { start: r.start_time, end: r.end_time }
+
+  const patchDay = (id, n, changes) =>
+    setRows(rs => rs.map(r => {
+      if (r.branch_id !== id) return r
+      const cur = hoursOf(r, n)
+      return { ...r, day_hours: { ...r.day_hours, [n]: { ...cur, ...changes } }, dirty: true, msg: null }
+    }))
+
   async function save(id) {
     const r = rows.find(x => x.branch_id === id)
     if (!r) return
-    if (r.end_time <= r.start_time) {
-      setRows(rs => rs.map(x => x.branch_id === id ? { ...x, msg: { ok: false, t: 'وقت النهاية لازم يكون بعد البداية' } } : x))
-      return
+    const fail = (t) => setRows(rs => rs.map(x => x.branch_id === id ? { ...x, msg: { ok: false, t } } : x))
+    if (r.end_time <= r.start_time) return fail('وقت النهاية لازم يكون بعد البداية')
+
+    // ساعات الأيام: نحفظ بس أيام العمل، وكل يوم لازم نهايته بعد بدايته
+    const day_hours = {}
+    if (r.per_day) {
+      for (const n of r.work_days) {
+        const h = hoursOf(r, n)
+        if (!h.start || !h.end || h.end <= h.start) {
+          return fail(`${DAYS.find(d => d.n === n)?.ar}: وقت النهاية لازم يكون بعد البداية`)
+        }
+        day_hours[n] = { start: h.start, end: h.end }
+      }
     }
     setRows(rs => rs.map(x => x.branch_id === id ? { ...x, saving: true, msg: null } : x))
     const { error } = await supabase.from('branch_schedules').upsert({
@@ -86,6 +110,7 @@ export default function BranchHoursTab() {
       start_time: r.start_time,
       end_time: r.end_time,
       slot_minutes: Number(r.slot_minutes),
+      day_hours,
       updated_by: profile.id,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'branch_id' })
@@ -140,7 +165,32 @@ export default function BranchHoursTab() {
                 })}
               </div>
 
-              {/* الساعات + مدة الخانة */}
+              {/* الساعات: عامة لكل الأيام أو مختلفة لكل يوم */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, marginBottom: 10, cursor: 'pointer' }}>
+                <input type="checkbox" checked={r.per_day}
+                  onChange={e => patch(r.branch_id, { per_day: e.target.checked })} />
+                ساعات مختلفة لكل يوم
+              </label>
+
+              {r.per_day ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+                  {DAYS.filter(d => r.work_days.includes(d.n)).map(d => {
+                    const h = hoursOf(r, d.n)
+                    const n = slotsPerDay(h.start, h.end, Number(r.slot_minutes))
+                    return (
+                      <div key={d.n} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 70px', gap: 8, alignItems: 'center' }}>
+                        <strong style={{ fontSize: 13.5 }}>{d.ar}</strong>
+                        <input type="time" value={h.start} aria-label={`${d.ar} من`}
+                          onChange={e => patchDay(r.branch_id, d.n, { start: e.target.value })} />
+                        <input type="time" value={h.end} aria-label={`${d.ar} إلى`}
+                          onChange={e => patchDay(r.branch_id, d.n, { end: e.target.value })} />
+                        <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{n} خانة</span>
+                      </div>
+                    )
+                  })}
+                  {!r.work_days.length && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>اختر أيام العمل أولًا</div>}
+                </div>
+              ) : (
               <div className="grid-2">
                 <div className="field">
                   <label>من</label>
@@ -153,6 +203,7 @@ export default function BranchHoursTab() {
                     onChange={e => patch(r.branch_id, { end_time: e.target.value })} />
                 </div>
               </div>
+              )}
 
               <div className="grid-2">
                 <div className="field">
@@ -164,9 +215,11 @@ export default function BranchHoursTab() {
                 </div>
                 <div className="field" style={{ justifyContent: 'flex-end' }}>
                   <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-                    {r.work_days.length
-                      ? `${perDay} خانة في اليوم · ${r.work_days.length} أيام عمل`
-                      : 'لم تُختَر أيام عمل'}
+                    {!r.work_days.length
+                      ? 'لم تُختَر أيام عمل'
+                      : r.per_day
+                        ? `${r.work_days.reduce((t, n) => { const h = hoursOf(r, n); return t + slotsPerDay(h.start, h.end, Number(r.slot_minutes)) }, 0)} خانة في الأسبوع · ${r.work_days.length} أيام عمل`
+                        : `${perDay} خانة في اليوم · ${r.work_days.length} أيام عمل`}
                   </div>
                 </div>
               </div>
