@@ -1815,3 +1815,101 @@ button.kanban-more:disabled { opacity: .6; cursor: default; }
   padding: 8px 12px;
   margin-bottom: 10px;
 }
+
+/* ===================== صفحة الديلات ===================== */
+.deals-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.deals-kpi {
+  display: flex; flex-direction: column; gap: 6px;
+  text-align: right;
+  padding: 16px 18px;
+  min-height: 108px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-body);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.deals-kpi:hover { border-color: var(--line-strong); }
+.deals-kpi.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), var(--shadow-sm); }
+.deals-kpi:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.deals-kpi-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; font-weight: 700; color: var(--ink-soft);
+}
+.deals-kpi-value { font-family: var(--font-display); font-size: 24px; font-weight: 800; line-height: 1.15; }
+.deals-kpi-sub { font-size: 12px; color: var(--ink-soft); }
+.deals-dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+
+.tone-ok      { color: var(--ok); }
+.tone-warn    { color: var(--warn); }
+.tone-danger  { color: var(--danger); }
+.tone-primary { color: var(--primary); }
+.tone-muted   { color: var(--ink-soft); }
+
+.deals-toolbar { padding: 14px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; }
+.deals-toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.deals-toolbar .filters-bar { padding: 0; margin: 0; }
+
+.deals-tabs {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  padding: 4px; border-radius: 12px; background: var(--line-soft);
+}
+.deals-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 38px; padding: 0 14px;
+  border: 0; border-radius: 9px; background: transparent;
+  font-family: var(--font-body); font-size: 13.5px; font-weight: 700;
+  color: var(--ink-soft); cursor: pointer;
+}
+.deals-tab:hover { color: var(--ink); }
+.deals-tab.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
+.deals-tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.deals-tab-count {
+  min-width: 22px; padding: 1px 7px; border-radius: 10px;
+  font-size: 11.5px; text-align: center;
+  background: var(--line); color: var(--ink-soft);
+}
+.deals-tab.on .deals-tab-count { background: var(--primary); color: #fff; }
+
+.deals-period { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--ink-soft); }
+.deals-period input[type="date"] {
+  font-family: var(--font-body); font-size: 13px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--ink);
+}
+.deals-quick { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
+
+.deals-table { min-width: 1080px; }
+.deals-table td { vertical-align: top; }
+.deals-name { font-weight: 700; font-size: 14.5px; }
+.deals-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; }
+.deals-muted { color: var(--ink-soft); }
+.th-sort {
+  border: 0; background: transparent; padding: 0;
+  font: inherit; color: inherit; cursor: pointer; white-space: nowrap;
+}
+.th-sort.on { color: var(--ink); }
+.th-sort:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+
+.deals-bar { height: 8px; border-radius: 4px; background: var(--line-soft); overflow: hidden; }
+.deals-bar > span { display: block; height: 100%; border-radius: 4px; }
+.deals-bar > span.part { background: var(--gold); }
+.deals-bar > span.full { background: var(--ok); }
+.deals-bar-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 12.5px; }
+
+.deals-flags { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.deals-flag {
+  font-size: 11.5px; font-weight: 700; white-space: nowrap;
+  padding: 3px 9px; border-radius: 10px;
+}
+.deals-flag.tone-danger { background: var(--danger-soft); }
+.deals-flag.tone-warn   { background: var(--warn-soft); }
+.deals-flag.tone-muted  { background: var(--line-soft); }

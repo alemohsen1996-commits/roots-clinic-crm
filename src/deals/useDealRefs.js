@@ -37,42 +37,78 @@ export function useDealRefs() {
   return { procedures, techniques, doctors, coordinators, agents, ready }
 }
 
-// استعلام الديلات مع المالية — RLS تضمن أن كل دور يرى ما يخصه
-// صفحة واحدة + العدد الكلي، والبحث في القاعدة (مش على أول 300 بس)
-export async function fetchDeals({ status, agent, coordinator, search, page = 0, pageSize = 50 } = {}) {
+// تحويل نص البحث لشروط or على الـ View (الاسم/رقم الملف/الهاتف من غير الصفر الأول)
+function searchConds(search) {
   const term = (search ?? '').trim().replace(/[,()%*\\]/g, ' ').trim()
-  // مع البحث: inner join على الليد عشان الفلترة على بياناته تشيل الديلات اللي مش مطابقة
-  const leadRel = term ? 'leads!inner' : 'leads'
+  if (!term) return null
+  const conds = [`full_name.ilike.%${term}%`, `file_no.ilike.%${term}%`]
+  const digits = term.replace(/\D/g, '').replace(/^0+/, '')
+  if (digits.length >= 3) conds.push(`phone_norm.ilike.%${digits}%`)
+  return conds.join(',')
+}
 
-  let q = supabase
-    .from('deals')
-    .select(`
-      id, lead_id, procedure_no, status, grafts, total_amount, tax_amount, net_amount,
-      operation_date, is_locked, created_at,
-      ${leadRel}(file_no, full_name, phone),
-      agent:profiles!deals_agent_id_fkey(full_name),
-      coordinator:profiles!deals_coordinator_id_fkey(full_name),
-      procedure_types(name_ar),
-      techniques(name),
-      doctors(full_name)
-    `, { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(page * pageSize, page * pageSize + pageSize - 1)
-
+// فلاتر مشتركة بين القائمة والتصدير
+function applyDealFilters(q, { status, quick, from, to, branch, agent, coordinator, search }) {
   if (status) q = q.eq('status', status)
-  if (coordinator) q = q.eq('coordinator_id', coordinator)
+  if (quick === 'overdue') q = q.eq('is_overdue', true)
+  if (quick === 'remaining') q = q.gt('open_remaining', 0)
+  if (from) q = q.gte('operation_date', from)
+  if (to) q = q.lte('operation_date', to)
+  if (branch) q = q.eq('branch_id', branch)
   if (agent) q = q.eq('agent_id', agent)
-  if (term) {
-    const conds = [`full_name.ilike.%${term}%`, `file_no.ilike.%${term}%`]
-    // الهاتف: أرقام بس، ومن غير الصفر الأول (0507… تلاقي 966507…)
-    const digits = term.replace(/\D/g, '').replace(/^0+/, '')
-    if (digits.length >= 3) conds.push(`phone_norm.ilike.%${digits}%`)
-    q = q.or(conds.join(','), { referencedTable: 'leads' })
-  }
+  if (coordinator) q = q.eq('coordinator_id', coordinator)
+  const or = searchConds(search)
+  if (or) q = q.or(or)
+  return q
+}
 
+export const DEAL_SORTS = {
+  date:      { col: 'operation_date', label: 'تاريخ العملية' },
+  net:       { col: 'net_amount',     label: 'الصافي' },
+  remaining: { col: 'open_remaining', label: 'المتبقي' },
+}
+
+// قائمة الديلات من v_deals_list — RLS تضمن أن كل دور يرى ما يخصه
+// صفحة واحدة + العدد الكلي، والفلترة والترتيب في القاعدة على كل الديلات
+export async function fetchDeals({ sort = 'date', dir = 'desc', page = 0, pageSize = 50, ...filters } = {}) {
+  const col = DEAL_SORTS[sort]?.col ?? 'operation_date'
+  let q = supabase.from('v_deals_list').select('*', { count: 'exact' })
+  q = applyDealFilters(q, filters)
+    .order(col, { ascending: dir === 'asc', nullsFirst: false })
+    .order('id', { ascending: false })
+    .range(page * pageSize, page * pageSize + pageSize - 1)
   const { data, count, error } = await q
   if (error) console.error(error)
   return { rows: data ?? [], total: count ?? 0 }
+}
+
+// كل الصفوف المطابقة (للتصدير) — على دفعات 1000
+export async function fetchAllDeals({ sort = 'date', dir = 'desc', ...filters } = {}) {
+  const col = DEAL_SORTS[sort]?.col ?? 'operation_date'
+  const out = []
+  for (let off = 0; off < 20000; off += 1000) {
+    const q = applyDealFilters(supabase.from('v_deals_list').select('*'), filters)
+      .order(col, { ascending: dir === 'asc', nullsFirst: false })
+      .order('id', { ascending: false })
+      .range(off, off + 999)
+    const { data, error } = await q
+    if (error) throw error
+    out.push(...(data ?? []))
+    if (!data || data.length < 1000) break
+  }
+  return out
+}
+
+// أرقام الكروت والتبويبات (كل الفلاتر ما عدا الحالة والفلتر السريع)
+export async function fetchDealsOverview({ from, to, branch, agent, coordinator, search } = {}) {
+  const { data, error } = await supabase.rpc('deals_overview', {
+    p_from: from || null, p_to: to || null,
+    p_branch: branch ? Number(branch) : null,
+    p_agent: agent || null, p_coord: coordinator || null,
+    p_search: (search ?? '').trim() || null,
+  })
+  if (error) console.error(error)
+  return data ?? null
 }
 
 // ملخص مالي لديل واحد من الـ View الجاهز
