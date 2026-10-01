@@ -13,6 +13,8 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
   const [fin, setFin] = useState(null)
   const [err, setErr] = useState('')
   const [confirmOutcome, setConfirmOutcome] = useState(null)  // done | lost | waiting
+  // تاريخ العملية الفعلي عند "تمت العملية" — الإيراد والعمولة بيتحسبوا على شهره
+  const [doneDate, setDoneDate] = useState('')
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
@@ -74,7 +76,13 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
 
   async function setOutcome(status) {
     setErr('')
-    const { error } = await supabase.from('deals').update({ status }).eq('id', dealId)
+    const patch = { status }
+    if (status === 'done') {
+      if (!doneDate) { setErr('حدّد تاريخ العملية'); return }
+      if (doneDate > todayRiyadh()) { setErr('تاريخ العملية لا يمكن أن يكون في المستقبل'); return }
+      patch.operation_date = doneDate
+    }
+    const { error } = await supabase.from('deals').update(patch).eq('id', dealId)
     if (error) {
       setErr(error.message?.includes('غير مصرح')
         ? 'تحديد نتيجة العملية يتم عبر المنسقة أو المحاسب أو المدير'
@@ -402,7 +410,11 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
             <h3>نتيجة العملية</h3>
             {!confirmOutcome ? (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => setConfirmOutcome('done')}>
+                <button className="btn btn-primary" onClick={() => {
+                  // الافتراضي: تاريخ العملية المسجّل لو مش في المستقبل، وإلا النهارده
+                  const op = deal.operation_date && deal.operation_date <= todayRiyadh() ? deal.operation_date : todayRiyadh()
+                  setDoneDate(op); setConfirmOutcome('done')
+                }}>
                   ✓ تمت العملية
                 </button>
                 <button className="btn btn-ghost" onClick={() => setConfirmOutcome('waiting')}>
@@ -415,10 +427,17 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
             ) : (
               <div>
                 <p style={{ fontSize: 13.5, marginBottom: 10 }}>
-                  {confirmOutcome === 'done' && 'سيُحتسب الإيراد في شهرك الجاري وتُفتح باقة بلازما تلقائيًا. تأكيد؟'}
+                  {confirmOutcome === 'done' && 'سيُحتسب الإيراد والعمولة في شهر تاريخ العملية، وتُفتح باقة بلازما تلقائيًا. تأكيد؟'}
                   {confirmOutcome === 'lost' && 'سيُصنف العميل كخسارة. تأكيد؟'}
                   {confirmOutcome === 'waiting' && 'سينتقل العميل لقائمة الانتظار. تأكيد؟'}
                 </p>
+                {confirmOutcome === 'done' && (
+                  <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
+                    <label>تاريخ العملية الفعلي</label>
+                    <input type="date" value={doneDate} max={todayRiyadh()}
+                      onChange={e => setDoneDate(e.target.value)} />
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-primary" onClick={() => setOutcome(confirmOutcome)}>تأكيد</button>
                   <button className="btn btn-ghost" onClick={() => setConfirmOutcome(null)}>تراجع</button>
@@ -458,4 +477,9 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
       </aside>
     </div>
   )
+}
+
+// تاريخ النهارده بتوقيت الرياض بصيغة YYYY-MM-DD
+function todayRiyadh() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' })
 }
