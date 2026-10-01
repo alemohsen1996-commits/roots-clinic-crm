@@ -86,7 +86,9 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
     if (error) {
       setErr(error.message?.includes('غير مصرح')
         ? 'تحديد نتيجة العملية يتم عبر المنسقة أو المحاسب أو المدير'
-        : 'تعذر تحديث الحالة')
+        : error.message?.includes('المستقبل')
+          ? 'لا يمكن إتمام العملية بتاريخ في المستقبل — اختر تاريخ اليوم أو قبله'
+          : 'تعذر تحديث الحالة')
       return
     }
     setConfirmOutcome(null)
@@ -95,7 +97,12 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
   }
 
   async function saveEdit() {
-    setErr(''); setSaving(true)
+    setErr('')
+    if (deal.status === 'done') {
+      if (!form.operation_date) { setErr('العملية تمت — تاريخ العملية مطلوب'); return }
+      if (form.operation_date > todayRiyadh()) { setErr('تاريخ العملية لا يمكن أن يكون في المستقبل'); return }
+    }
+    setSaving(true)
 
     const patch = {
       procedure_type_id: form.procedure_type_id ? Number(form.procedure_type_id) : null,
@@ -311,7 +318,11 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
               <div className="field">
                 <label>تاريخ العملية</label>
                 <input type="date" value={form.operation_date ?? ''}
+                  max={deal.status === 'done' ? todayRiyadh() : undefined}
                   onChange={e => setForm(f => ({ ...f, operation_date: e.target.value }))} />
+                {deal.status === 'done' && (
+                  <small style={{ color: "var(--ink-soft)", fontSize: 12 }}>تعديل التاريخ ينقل الإيراد والعمولة لشهره تلقائيًا</small>
+                )}
               </div>
             </div>
 
