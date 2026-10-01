@@ -85,7 +85,7 @@ export default function Shell() {
   }, [])
   const [navOpen, setNavOpen] = useState(false)
   const [dueTasks, setDueTasks] = useState(0)
-  const chatUnread = useChatUnread(profile?.id)
+  const chatUnread = useChatUnread(profile?.id, ['super_admin', 'sales_manager'].includes(roleCode))
   const location = useLocation()
   const navigate = useNavigate()
 

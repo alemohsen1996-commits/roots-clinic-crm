@@ -1,9 +1,9 @@
 // عدّاد رسائل الشات غير المقروءة — للسايدبار والشريط العلوي وأيقونة الأبلكيشن
-// بيتحدث لحظيًا مع أي رسالة جديدة (Realtime) + كل دقيقة احتياطيًا
+// بيتحدث محليًا من القناة اللحظية (من غير طلب للسيرفر مع كل رسالة)
 // + صوت تنبيه خفيف لو الرسالة في محادثة مش مفتوحة قدام الموظف
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { fetchUnreadTotal } from './chatApi'
+import { connectChat, disconnectChat, onChat, watchingConv } from './chatRealtime'
 
 let audioCtx = null
 function ding() {
@@ -22,14 +22,8 @@ function ding() {
   } catch {}
 }
 
-const watchingConv = (convId) =>
-  document.visibilityState === 'visible' &&
-  location.pathname === '/chat' && new URLSearchParams(location.search).get('c') === convId
-
-export function useChatUnread(userId) {
+export function useChatUnread(userId, isMonitor) {
   const [count, setCount] = useState(0)
-  const countRef = useRef(0)
-  countRef.current = count
   const timer = useRef(null)
 
   const load = useCallback(async () => {
@@ -39,33 +33,36 @@ export function useChatUnread(userId) {
 
   const soon = useCallback(() => {
     clearTimeout(timer.current)
-    timer.current = setTimeout(load, 400)
+    timer.current = setTimeout(load, 300)
   }, [load])
+
+  useEffect(() => {
+    connectChat(userId, isMonitor)
+    return () => disconnectChat()
+  }, [userId, isMonitor])
 
   useEffect(() => {
     if (!userId) return
     load()
-    const ch = supabase.channel('chat-unread-' + userId)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (p) => {
-        const m = p.new
-        if (!m || m.sender_id === userId) return
-        soon()
-        // المراقب بيوصله كل الرسائل عبر Realtime — الصوت لما يكون الرقم فعلًا زاد
-        const before = countRef.current
-        setTimeout(async () => {
-          const now = await fetchUnreadTotal()
-          if (now > before && document.visibilityState === 'visible' && !watchingConv(m.conversation_id)) ding()
-        }, 500)
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_participants',
-            filter: `user_id=eq.${userId}` }, soon)
-      .subscribe()
-    const t = setInterval(load, 60000)
+    const off = onChat((event, p) => {
+      if (event === 'msg_new' && p.sender_id !== userId) {
+        if (!watchingConv(p.conversation_id)) {
+          setCount(c => c + 1)
+          if (document.visibilityState === 'visible') ding()
+        }
+      } else if (
+        (event === 'read' && p.user_id === userId) || event === 'members' || event === 'resync' ||
+        (event === 'msg_update' && p.deleted_at && p.sender_id !== userId)
+      ) soon()
+    })
+    const t = setInterval(load, 120000)
+    const onVis = () => { if (document.visibilityState === 'visible') soon() }
+    document.addEventListener('visibilitychange', onVis)
     window.addEventListener('chat:read', soon)
     return () => {
-      clearInterval(t); clearTimeout(timer.current)
+      off(); clearInterval(t); clearTimeout(timer.current)
+      document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('chat:read', soon)
-      supabase.removeChannel(ch)
     }
   }, [userId, load, soon])
 

@@ -44,10 +44,23 @@ export async function fetchHistory(messageIds) {
   return data ?? []
 }
 
-export const sendMessage = async ({ convId, senderId, body, leadId = null, replyTo = null }) =>
-  unwrap(await supabase.from('chat_messages')
-    .insert({ conversation_id: convId, sender_id: senderId, body: body || null, lead_id: leadId, reply_to: replyTo })
-    .select(MSG_COLS).single())
+// المعرّف بيتولد في المتصفح: الرسالة بتظهر فورًا، والحدث اللحظي لنفس الرسالة بيتطابق معاها
+export const newMsgId = () =>
+  crypto.randomUUID?.() ?? '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+    (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16))
+
+export async function sendMessage({ id, convId, senderId, body, leadId = null, replyTo = null }) {
+  const { data, error } = await supabase.from('chat_messages')
+    .insert({ id, conversation_id: convId, sender_id: senderId, body: body || null, lead_id: leadId, reply_to: replyTo })
+    .select(MSG_COLS).single()
+  // اتبعتت فعلًا في محاولة سابقة بس الرد ضاع
+  if (error?.code === '23505') return fetchMessage(id)
+  if (error) throw error
+  return data
+}
+
+export const fetchMessage = async (id) =>
+  unwrap(await supabase.from('chat_messages').select(MSG_COLS).eq('id', id).single())
 
 export const editMessage   = async (id, body) => unwrap(await supabase.rpc('chat_edit_message', { p_id: id, p_body: body }))
 export const deleteMessage = async (id) => unwrap(await supabase.rpc('chat_delete_message', { p_id: id }))

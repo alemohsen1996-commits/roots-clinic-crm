@@ -4,16 +4,16 @@
 //   مع النص الأصلي لأي رسالة اتعدلت أو اتمسحت — وفتح المحادثة بيتسجل
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtDate } from '../lib/format'
 import LeadDrawer from '../leads/LeadDrawer'
 import { useLeadRefs } from '../leads/useLeadRefs'
 import {
   PAGE, convName, deleteMessage, editMessage, errText, fetchConversation, fetchEmployees,
-  fetchHistory, fetchInbox, fetchMessages, fetchMonitorList, fetchParticipants,
-  logMonitorView, markRead, sendMessage,
+  fetchHistory, fetchInbox, fetchMessage, fetchMessages, fetchMonitorList, fetchParticipants,
+  logMonitorView, markRead, newMsgId, sendMessage,
 } from './chatApi'
+import { onChat, watchingConv } from './chatRealtime'
 import NewChatModal from './NewChatModal'
 import GroupInfoModal from './GroupInfoModal'
 import LeadPicker from './LeadPicker'
@@ -94,14 +94,31 @@ export default function ChatPage() {
     }, 500)
   }, [])
 
-  // أي رسالة جديدة في أي محادثة (المحادثة المفتوحة ليها اشتراك خاص بيها)
-  useEffect(() => {
-    const ch = supabase.channel('chat-lists-' + meId)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, refreshLists)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_participants', filter: `user_id=eq.${meId}` }, refreshLists)
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
-  }, [meId, refreshLists])
+  // تحديث القائمة محليًا من القناة اللحظية — من غير طلب للسيرفر مع كل رسالة
+  useEffect(() => onChat((event, p) => {
+    if (event === 'msg_new') {
+      setInbox(list => {
+        const i = list.findIndex(c => c.conversation_id === p.conversation_id)
+        if (i < 0) { refreshLists(); return list }   // محادثة جديدة لسه مش في القائمة
+        const c = list[i]
+        const counts = p.sender_id !== meId && !watchingConv(p.conversation_id)
+        const upd = {
+          ...c,
+          last_message_at: p.created_at,
+          last_message_preview: p.body ? p.body.slice(0, 140) : '📎 ليد: ' + (p.lead_label ?? ''),
+          last_sender_id: p.sender_id,
+          unread: counts ? (c.unread ?? 0) + 1 : c.unread,
+        }
+        return [upd, ...list.slice(0, i), ...list.slice(i + 1)]
+      })
+    } else if (event === 'read' && p.user_id === meId) {
+      setInbox(list => list.map(c => c.conversation_id === p.conversation_id ? { ...c, unread: 0 } : c))
+    } else if (event === 'msg_update' || event === 'members' || event === 'resync') {
+      refreshLists()
+    } else if (event === 'activity' && latest.current.tab === 'monitor') {
+      refreshLists()
+    }
+  }), [meId, refreshLists])
 
   const shownInbox = useMemo(() => {
     const s = filter.trim()
@@ -220,7 +237,6 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
   const [editing, setEditing] = useState(null)
   const [lead, setLead] = useState(null)
   const [pickLead, setPickLead] = useState(false)
-  const [sending, setSending] = useState(false)
   const [menuFor, setMenuFor] = useState(null)
   const [openHist, setOpenHist] = useState(null)
   const [showInfo, setShowInfo] = useState(false)
@@ -260,15 +276,17 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
         const [c, p, m] = await Promise.all([fetchConversation(convId), fetchParticipants(convId), fetchMessages(convId)])
         if (dead) return
         setConv(c); setParts(p); setMsgs(m); setHasMore(m.length === PAGE)
+        setLoading(false)
         loadHistoryFor(m)
+        // في الخلفية — الشاشة ما تستناش
         const member = p.some(x => x.user_id === meId && !x.left_at)
-        if (member) { await markRead(convId); window.dispatchEvent(new Event('chat:read')); onListChanged() }
+        if (member) markRead(convId).then(() => window.dispatchEvent(new Event('chat:read')))
         else logMonitorView(convId)
       } catch (e) { if (!dead) setErr(errText(e)) }
       if (!dead) setLoading(false)
     })()
     return () => { dead = true }
-  }, [convId, meId, loadHistoryFor, onListChanged])
+  }, [convId, meId, loadHistoryFor])
 
   const loadOlder = async () => {
     if (!msgs.length) return
@@ -284,39 +302,54 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
 
   // ---------- لحظي ----------
   const readTimer = useRef(null)
+  const markReadSoon = useCallback(() => {
+    clearTimeout(readTimer.current)
+    readTimer.current = setTimeout(() => {
+      markRead(convId).then(() => window.dispatchEvent(new Event('chat:read')))
+    }, 400)
+  }, [convId])
+
+  const upsert = (m) => setMsgs(list =>
+    list.some(x => x.id === m.id) ? list.map(x => x.id === m.id ? m : x) : [...list, m])
+
   useEffect(() => {
-    const ch = supabase.channel('chat-thread-' + convId)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `conversation_id=eq.${convId}` }, ({ new: m }) => {
-        setMsgs(list => list.some(x => x.id === m.id) ? list : [...list, m])
-        if (m.sender_id !== meId && isMember && document.visibilityState === 'visible') {
-          clearTimeout(readTimer.current)
-          readTimer.current = setTimeout(async () => {
-            await markRead(convId); window.dispatchEvent(new Event('chat:read')); onListChanged()
-          }, 600)
-        } else onListChanged()
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `conversation_id=eq.${convId}` }, ({ new: m }) => {
-        setMsgs(list => list.map(x => x.id === m.id ? m : x))
-        loadHistoryFor([m]); onListChanged()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_participants', filter: `conversation_id=eq.${convId}` }, async () => {
-        setParts(await fetchParticipants(convId))
-      })
-      .subscribe()
-    return () => { clearTimeout(readTimer.current); supabase.removeChannel(ch) }
-  }, [convId, meId, isMember, onListChanged, loadHistoryFor])
+    const off = onChat(async (event, p) => {
+      if (event !== 'resync' && p.conversation_id !== convId) return
+      if (event === 'msg_new') {
+        upsert(p)   // لو هي رسالتي اللي لسه «بتتبعت» بتتأكد هنا
+        if (p.sender_id !== meId && isMember && document.visibilityState === 'visible') markReadSoon()
+      } else if (event === 'msg_update') {
+        upsert(p); loadHistoryFor([p])
+      } else if (event === 'read') {
+        setParts(list => list.map(x => x.user_id === p.user_id ? { ...x, last_read_at: p.last_read_at } : x))
+      } else if (event === 'members') {
+        const [c, pp] = await Promise.all([fetchConversation(convId), fetchParticipants(convId)])
+        setConv(c); setParts(pp)
+      } else if (event === 'activity' && !isMember) {
+        // المراقبة: الحدث فيه المعرّف بس، والرسالة نفسها بتتجاب حسب الصلاحية
+        try { const m = await fetchMessage(p.message_id); upsert(m); if (p.op === 'update') loadHistoryFor([m]) } catch {}
+      } else if (event === 'resync') {
+        // رجع الاتصال بعد انقطاع — نجيب اللي فاتنا
+        const [fresh, pp] = await Promise.all([fetchMessages(convId), fetchParticipants(convId)])
+        setParts(pp)
+        setMsgs(list => {
+          const byId = new Map(list.map(x => [x.id, x]))
+          fresh.forEach(m => byId.set(m.id, m))
+          return [...byId.values()].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        })
+        if (isMember && document.visibilityState === 'visible') markReadSoon()
+      }
+    })
+    return () => { off(); clearTimeout(readTimer.current) }
+  }, [convId, meId, isMember, loadHistoryFor, markReadSoon])
 
   // لما الموظف يرجع للتبويب نعلّم المحادثة كمقروءة
   useEffect(() => {
     if (!isMember) return
-    const onVis = async () => {
-      if (document.visibilityState === 'visible') {
-        await markRead(convId); window.dispatchEvent(new Event('chat:read')); onListChanged()
-      }
-    }
+    const onVis = () => { if (document.visibilityState === 'visible') markReadSoon() }
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
-  }, [convId, isMember, onListChanged])
+  }, [isMember, markReadSoon])
 
   // ---------- التمرير ----------
   const onScroll = () => {
@@ -329,27 +362,46 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
   }, [msgs, loading])
 
   // ---------- الإرسال ----------
+  // الرسالة بتظهر فورًا بعلامة 🕓، وبتتأكد لما السيرفر يرد أو يوصل الحدث اللحظي
+  const deliver = async (m) => {
+    setMsgs(list => list.map(x => x.id === m.id ? { ...x, _status: 'sending' } : x))
+    try {
+      const saved = await sendMessage({ id: m.id, convId, senderId: meId, body: m.body, leadId: m.lead_id, replyTo: m.reply_to })
+      setMsgs(list => list.map(x => x.id === m.id ? saved : x))
+    } catch (e) {
+      setMsgs(list => list.map(x => x.id === m.id ? { ...x, _status: 'failed', _err: errText(e) } : x))
+    }
+  }
+
   const send = async () => {
     const body = text.trim()
-    if (sending || (!body && !lead)) return
-    setSending(true); setErr('')
-    try {
-      if (editing) {
-        await editMessage(editing.id, body)
-        setMsgs(list => list.map(x => x.id === editing.id ? { ...x, body, edited_at: new Date().toISOString() } : x))
-        setEditing(null)
-      } else {
-        const m = await sendMessage({ convId, senderId: meId, body, leadId: lead?.id ?? null, replyTo: reply?.id ?? null })
-        stickBottom.current = true
-        setMsgs(list => list.some(x => x.id === m.id) ? list : [...list, m])
-        setReply(null); setLead(null)
-      }
-      setText('')
-      onListChanged()
-    } catch (e) { setErr(errText(e)) }
-    setSending(false)
+    if (!body && !lead) return
+    setErr('')
+
+    if (editing) {
+      const before = editing
+      setEditing(null); setText('')
+      setMsgs(list => list.map(x => x.id === before.id ? { ...x, body, edited_at: new Date().toISOString() } : x))
+      try { await editMessage(before.id, body) }
+      catch (e) { setErr(errText(e)); setMsgs(list => list.map(x => x.id === before.id ? before : x)) }
+      return
+    }
+
+    const temp = {
+      id: newMsgId(), conversation_id: convId, sender_id: meId, body: body || null,
+      lead_id: lead?.id ?? null,
+      lead_label: lead ? [lead.file_no, lead.full_name].filter(Boolean).join(' · ') : null,
+      reply_to: reply?.id ?? null, created_at: new Date().toISOString(),
+      edited_at: null, deleted_at: null, _status: 'sending',
+    }
+    stickBottom.current = true
+    setMsgs(list => [...list, temp])
+    setText(''); setReply(null); setLead(null)
     inputRef.current?.focus()
+    deliver(temp)
   }
+
+  const discard = (m) => setMsgs(list => list.filter(x => x.id !== m.id))
 
   const onKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !isTouch()) { e.preventDefault(); send() }
@@ -361,9 +413,8 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
     setMenuFor(null)
     if (!confirm('حذف الرسالة؟')) return
     try {
-      await deleteMessage(m.id)
       setMsgs(list => list.map(x => x.id === m.id ? { ...x, body: null, lead_id: null, lead_label: null, deleted_at: new Date().toISOString() } : x))
-      onListChanged()
+      await deleteMessage(m.id)
     } catch (e) { setErr(errText(e)) }
   }
 
@@ -423,7 +474,7 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
           const showName = !mine && (conv.kind === 'group' || readOnly) && (newDay || prev?.sender_id !== m.sender_id)
           const hist = history[m.id]
           const replied = m.reply_to ? byId[m.reply_to] : null
-          const rs = mine ? readState(m) : ''
+          const rs = mine && !m._status ? readState(m) : ''
           return (
             <div key={m.id}>
               {newDay && <div className="chat-day"><span>{dayLabel(m.created_at)}</span></div>}
@@ -467,12 +518,21 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
                   <div className="chat-meta">
                     {m.edited_at && !m.deleted_at && <span>معدّلة</span>}
                     <time>{fmtTime(m.created_at)}</time>
+                    {m._status === 'sending' && <span className="chat-tick" title="بتتبعت">🕓</span>}
                     {rs && <span className={'chat-tick ' + rs}
                       title={rs === 'read' ? 'اتقرت' : rs === 'partial' ? 'اتقرت من بعض الأعضاء' : 'اتبعتت'}>
                       {rs === 'sent' ? '✓' : '✓✓'}</span>}
                   </div>
 
-                  {!readOnly && !m.deleted_at && (
+                  {m._status === 'failed' && (
+                    <div className="chat-failed" title={m._err}>
+                      ⚠ لم تُرسل
+                      <button onClick={() => deliver(m)}>إعادة</button>
+                      <button onClick={() => discard(m)}>إلغاء</button>
+                    </div>
+                  )}
+
+                  {!readOnly && !m.deleted_at && !m._status && (
                     <button className="chat-msg-menu-btn" aria-label="خيارات"
                       onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === m.id ? null : m.id) }}>⋯</button>
                   )}
@@ -516,7 +576,7 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
             <textarea ref={inputRef} rows={1} value={text} maxLength={4000}
               onChange={e => setText(e.target.value)} onKeyDown={onKey}
               placeholder="اكتب رسالة…" />
-            <button className="btn btn-primary chat-send" disabled={sending || (!text.trim() && !lead)} onClick={send}>
+            <button className="btn btn-primary chat-send" disabled={!text.trim() && !lead} onClick={send}>
               {editing ? 'حفظ' : 'إرسال'}
             </button>
           </div>
