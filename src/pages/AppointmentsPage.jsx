@@ -2,7 +2,7 @@
 // الخانات تُولّد من إعداد الفرع، والمحجوز من جدول appointments.
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { fmtClock } from '../lib/format'
+import { fmtClock, fmtDate } from '../lib/format'
 import { useLeadRefs } from '../leads/useLeadRefs'
 import LeadDrawer from '../leads/LeadDrawer'
 import { emitBoardPatch } from '../leads/boardBus'
@@ -60,6 +60,7 @@ export default function AppointmentsPage() {
   const [sched, setSched] = useState(null)
   const [appts, setAppts] = useState([])       // معاينات اليوم (لها وقت)
   const [pending, setPending] = useState([])   // بدون موعد لهذا الفرع
+  const [overdue, setOverdue] = useState([])   // مواعيد فاتت ولسه «محجوز» من غير حضر/لم يحضر
   const [loading, setLoading] = useState(true)
   const [openLead, setOpenLead] = useState(null)
   const [busyId, setBusyId] = useState(null)
@@ -115,14 +116,17 @@ export default function AppointmentsPage() {
   const refreshSummary = useCallback(async (branchList) => {
     const list = branchList ?? branches
     const today = todayStr()
-    const [{ data: up }, { data: pend }] = await Promise.all([
+    const [{ data: up }, { data: pend }, { data: late }] = await Promise.all([
       supabase.from('v_appointments').select('branch_id, appt_date')
         .gte('appt_date', today).in('status', ['booked', 'attended']),
       supabase.from('v_appointments').select('branch_id')
         .is('appt_date', null).eq('status', 'pending'),
+      supabase.from('v_appointments').select('branch_id')
+        .lt('appt_date', today).eq('status', 'booked'),
     ])
     const sum = {}
-    list.forEach(b => { sum[b.id] = { upcoming: 0, pending: 0, nearest: null } })
+    list.forEach(b => { sum[b.id] = { upcoming: 0, pending: 0, overdue: 0, nearest: null } })
+    ;(late ?? []).forEach(r => { if (sum[r.branch_id]) sum[r.branch_id].overdue++ })
     ;(up ?? []).forEach(r => {
       const x = sum[r.branch_id]; if (!x) return
       x.upcoming++
@@ -144,7 +148,7 @@ export default function AppointmentsPage() {
       if (list.length) {
         const withNear = list.filter(b => sum[b.id]?.nearest)
           .sort((a, b) => sum[a.id].nearest.localeCompare(sum[b.id].nearest))
-        const withPending = list.filter(b => (sum[b.id]?.pending ?? 0) > 0)
+        const withPending = list.filter(b => (sum[b.id]?.pending ?? 0) + (sum[b.id]?.overdue ?? 0) > 0)
         const def = withNear[0] ?? withPending[0] ?? list[0]
         setBranchId(prev => prev ?? def.id)
         if (sum[def.id]?.nearest) setDate(sum[def.id].nearest)
@@ -162,16 +166,20 @@ export default function AppointmentsPage() {
   const load = useCallback(async () => {
     if (!branchId) return
     setLoading(true); setErr('')
-    const [{ data: sc }, { data: dayAppts }, { data: pend }] = await Promise.all([
+    const [{ data: sc }, { data: dayAppts }, { data: pend }, { data: late }] = await Promise.all([
       supabase.from('branch_schedules').select('*').eq('branch_id', branchId).maybeSingle(),
       supabase.from('v_appointments').select('*')
         .eq('branch_id', branchId).eq('appt_date', date),
       supabase.from('v_appointments').select('*')
         .eq('branch_id', branchId).eq('status', 'pending'),
+      supabase.from('v_appointments').select('*')
+        .eq('branch_id', branchId).eq('status', 'booked').lt('appt_date', todayStr())
+        .order('appt_date').order('appt_time'),
     ])
     setSched(sc ?? null)
     setAppts(dayAppts ?? [])
     setPending(pend ?? [])
+    setOverdue(late ?? [])
     setLoading(false)
   }, [branchId, date])
 
@@ -261,7 +269,7 @@ export default function AppointmentsPage() {
   }
   // قائمة السيلز الظاهرين في العرض الحالي (لفلتر «مرضى سيلز معيّن»)
   const salesList = Array.from(
-    new Map([...appts, ...pending].filter(a => a.owner_id).map(a => [a.owner_id, a.owner_name || '—'])).entries()
+    new Map([...appts, ...pending, ...overdue].filter(a => a.owner_id).map(a => [a.owner_id, a.owner_name || '—'])).entries()
   ).map(([id, name]) => ({ id, name }))
   const passFilters = (a) => (!ownerFilter || a.owner_id === ownerFilter) && matchQ(a)
   const filtering = !!q.trim() || !!ownerFilter
@@ -316,7 +324,7 @@ export default function AppointmentsPage() {
       {/* تبويبات الفروع */}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '4px 0 14px', flexWrap: 'wrap' }}>
         {branches.map(b => {
-          const cnt = (summary[b.id]?.upcoming ?? 0) + (summary[b.id]?.pending ?? 0)
+          const cnt = (summary[b.id]?.upcoming ?? 0) + (summary[b.id]?.pending ?? 0) + (summary[b.id]?.overdue ?? 0)
           return (
             <button key={b.id} className={'branch-chip' + (b.id === branchId ? ' on' : '')}
               onClick={() => selectBranch(b.id)}>
@@ -363,6 +371,39 @@ export default function AppointmentsPage() {
       </div>
 
       {err && <div className="alert alert-error">{err}</div>}
+
+      {/* مواعيد فاتت من غير نتيجة — لسه «محجوز» وتاريخها عدّى */}
+      {overdue.length > 0 && (() => {
+        const list = overdue.filter(passFilters)
+        if (!list.length) return null
+        return (
+          <div className="drawer-section" style={{ marginBottom: 14, borderInlineStart: '3px solid var(--danger)' }}>
+            <h3 style={{ margin: '0 0 4px', color: 'var(--danger)' }}>⚠ مواعيد فاتت من غير نتيجة ({list.length})</h3>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 6 }}>
+              سجّل حضر أو لم يحضر، أو «تأجّل» عشان يرجع لقائمة الانتظار
+            </div>
+            {list.map(a => (
+              <div key={a.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+                padding: '8px 0', borderTop: '0.5px solid var(--line)',
+              }}>
+                <span style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: 'nowrap', color: 'var(--danger)' }}>
+                  {fmtDate(a.appt_date + 'T00:00:00')} · {fmtClock(a.appt_time)}
+                </span>
+                {mine(a) ? (
+                  <button className="link-name" style={{ fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)' }}
+                    onClick={() => setOpenLead(a.lead_id)}>{a.patient_name}</button>
+                ) : (
+                  <span style={{ fontWeight: 600 }}>{a.patient_name}</span>
+                )}
+                <span dir="ltr" style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.patient_phone}</span>
+                <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>المنسقة: {a.coordinator_name ?? '—'}</span>
+                <div style={{ marginInlineStart: 'auto' }}>{apptActions(a, busyId === a.id)}</div>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* بدون موعد */}
       {pending.length > 0 && (
