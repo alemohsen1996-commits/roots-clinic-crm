@@ -5,7 +5,7 @@ import { isSalesPerson, salesLabel, sortSales } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import { STAGE } from '../lib/stageCodes'
 import { useAuth } from '../auth/AuthContext'
-import { fmtDateTime, fmtNum, openWhatsApp } from '../lib/format'
+import { fmtClock, fmtDateTime, fmtNum, openWhatsApp } from '../lib/format'
 import { emitBoardPatch } from './boardBus'
 import TaskSection from './TaskSection'
 import LeadCalls from '../calls/LeadCalls'
@@ -821,7 +821,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                             style={{ padding: '5px 12px', fontSize: 13, borderRadius: 8,
                               border: '1px solid ' + (on ? 'var(--primary)' : 'var(--line)'),
                               background: on ? 'var(--primary)' : 'transparent', color: on ? '#fff' : 'var(--ink)' }}>
-                            {String(t).slice(0, 5)}
+                            {fmtClock(t)}
                           </button>
                         )
                       })}
@@ -1236,7 +1236,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                                 background: on ? 'var(--primary)' : 'transparent',
                                 color: on ? '#fff' : 'var(--ink)',
                               }}>
-                              {String(t).slice(0, 5)}
+                              {fmtClock(t)}
                             </button>
                           )
                         })}

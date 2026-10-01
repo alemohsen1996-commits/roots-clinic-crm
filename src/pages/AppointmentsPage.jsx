@@ -2,6 +2,7 @@
 // الخانات تُولّد من إعداد الفرع، والمحجوز من جدول appointments.
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { fmtClock } from '../lib/format'
 import { useLeadRefs } from '../leads/useLeadRefs'
 import LeadDrawer from '../leads/LeadDrawer'
 import { emitBoardPatch } from '../leads/boardBus'
@@ -438,7 +439,7 @@ export default function AppointmentsPage() {
                             padding: '5px 12px', fontSize: 13, borderRadius: 8,
                             border: '1px solid ' + (on ? 'var(--primary)' : 'var(--line)'),
                             background: on ? 'var(--primary)' : 'transparent', color: on ? '#fff' : 'var(--ink)',
-                          }}>{hhmm(t)}</button>
+                          }}>{fmtClock(t)}</button>
                       )
                     })}
                   </div>
@@ -469,14 +470,14 @@ export default function AppointmentsPage() {
             if (filtering && (!a || !passFilters(a))) return null
             if (!a) return (
               <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', color: 'var(--ink-soft)', fontSize: 12 }}>
-                <span style={{ fontFamily: 'monospace' }}>{hhmm(t)}</span><span>— خانة فارغة —</span>
+                <span style={{ whiteSpace: 'nowrap' }}>{fmtClock(t)}</span><span>— خانة فارغة —</span>
               </div>
             )
             const busy = busyId === a.id
             return (
               <div key={t} className="card" style={{ padding: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14 }}>{hhmm(t)}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap' }}>{fmtClock(t)}</span>
                   {statusCell(a)}
                 </div>
                 {mine(a) ? (
@@ -524,14 +525,14 @@ export default function AppointmentsPage() {
               if (filtering && (!a || !passFilters(a))) return null   // أثناء الفلترة: المطابق فقط
               if (!a) return (
                 <tr key={t} style={{ color: 'var(--ink-soft)' }}>
-                  <td style={{ fontFamily: 'monospace' }}>{hhmm(t)}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtClock(t)}</td>
                   <td colSpan={7} style={{ fontSize: 12.5, textAlign: 'start' }}>— خانة فارغة —</td>
                 </tr>
               )
               const busy = busyId === a.id
               return (
                 <tr key={t}>
-                  <td style={{ fontFamily: 'monospace' }}>{hhmm(t)}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtClock(t)}</td>
                   <td>
                     {mine(a) ? (
                       <button className="link-name" style={{ fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)', padding: 0 }}

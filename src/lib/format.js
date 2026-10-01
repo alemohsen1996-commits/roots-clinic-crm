@@ -23,6 +23,14 @@ export const fmtDate = (d) =>
 export const fmtDateTime = (d) =>
   d ? new Date(d).toLocaleString(DATE_LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
 
+// وقت الحجز بنظام 12 ساعة: '14:00:00' → '2:00 م' — '09:30' → '9:30 ص' — '12:00' → '12:00 م'
+export function fmtClock(t) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t ?? ''))
+  if (!m) return ''
+  const h = Number(m[1])
+  return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'ص' : 'م'}`
+}
+
 // شهر وسنة — للوحة التحكم وأرشيف الشهور
 export const fmtMonth = (d) =>
   d ? new Date(d).toLocaleDateString(DATE_LOCALE, { month: 'long', year: 'numeric' }) : '—'
