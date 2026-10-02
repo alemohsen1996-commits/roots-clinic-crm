@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { salesLabel } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
-import { fetchDealFinance, DEAL_STATUS, PAY_STATUS } from './useDealRefs'
+import { fetchDealFinance, DEAL_STATUS, PAY_STATUS, kindOf, dateLabel } from './useDealRefs'
+import ProcedureOptions from './ProcedureOptions'
 import { fmtNum, fmtDate } from '../lib/format'
 
 export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose, onChanged }) {
@@ -26,7 +27,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
         .select(`*, leads(file_no, full_name, phone, branches(name)),
                  agent:profiles!deals_agent_id_fkey(full_name),
                  coordinator:profiles!deals_coordinator_id_fkey(full_name),
-                 procedure_types(name_ar), techniques(name, name_ar), doctors(full_name)`)
+                 procedure_types(name_ar, kind), techniques(name, name_ar), doctors(full_name)`)
         .eq('id', dealId).single(),
       fetchDealFinance(dealId),
     ])
@@ -106,9 +107,10 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
 
     const patch = {
       procedure_type_id: form.procedure_type_id ? Number(form.procedure_type_id) : null,
-      technique_id: form.technique_id ? Number(form.technique_id) : null,
-      doctor_id: form.doctor_id ? Number(form.doctor_id) : null,
-      grafts: form.grafts ? Number(form.grafts) : null,
+      // التقنية والبصيلات للعمليات بس، والطبيب لغير المنتجات
+      technique_id: kind === 'surgery' && form.technique_id ? Number(form.technique_id) : null,
+      doctor_id: kind !== 'product' && form.doctor_id ? Number(form.doctor_id) : null,
+      grafts: kind === 'surgery' && form.grafts ? Number(form.grafts) : null,
       operation_date: form.operation_date || null,
     }
 
@@ -195,6 +197,9 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
 
   // تعديل البيانات التشغيلية · تعديل المبالغ — والقفل يمنع الجميع
   const canEditFields = !deal.is_locked
+  // نوع البيع: المحفوظ للعرض، والمختار في الفورم وقت التعديل
+  const savedKind = deal.procedure_types?.kind ?? 'surgery'
+  const kind = editing ? kindOf(refs.procedures, form.procedure_type_id) : savedKind
     && ['super_admin', 'sales_manager', 'coordinator', 'accountant'].includes(roleCode)
   const canEditMoney = !deal.is_locked
     && ['super_admin', 'sales_manager', 'accountant'].includes(roleCode)
@@ -273,17 +278,18 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
         {/* تفاصيل العملية */}
         {editing ? (
           <div className="drawer-section">
-            <h3>تعديل بيانات العملية</h3>
+            <h3>تعديل بيانات الديل</h3>
 
             <div className="grid-2">
               <div className="field">
-                <label>نوع العملية</label>
+                <label>نوع البيع</label>
                 <select value={form.procedure_type_id}
                   onChange={e => setForm(f => ({ ...f, procedure_type_id: e.target.value }))}>
                   <option value="">—</option>
-                  {refs.procedures.map(p => <option key={p.id} value={p.id}>{p.name_ar}</option>)}
+                  <ProcedureOptions procedures={refs.procedures} />
                 </select>
               </div>
+              {kind === 'surgery' && (
               <div className="field">
                 <label>التقنية المستخدمة</label>
                 <select value={form.technique_id}
@@ -296,9 +302,11 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
                   ))}
                 </select>
               </div>
+              )}
             </div>
 
             <div className="grid-2">
+              {kind !== 'product' && (
               <div className="field">
                 <label>الطبيب</label>
                 <select value={form.doctor_id}
@@ -307,16 +315,19 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
                   {refs.doctors.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
                 </select>
               </div>
+              )}
             </div>
 
             <div className="grid-2">
+              {kind === 'surgery' && (
               <div className="field">
                 <label>عدد البصيلات</label>
                 <input type="number" min={0} value={form.grafts}
                   onChange={e => setForm(f => ({ ...f, grafts: e.target.value }))} />
               </div>
+              )}
               <div className="field">
-                <label>تاريخ العملية</label>
+                <label>{dateLabel(kind)}</label>
                 <input type="date" value={form.operation_date ?? ''}
                   max={deal.status === 'done' ? todayRiyadh() : undefined}
                   onChange={e => setForm(f => ({ ...f, operation_date: e.target.value }))} />
@@ -367,10 +378,10 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
         ) : (
           <div className="drawer-info">
             <div><span>النوع</span>{deal.procedure_types?.name_ar ?? '—'}</div>
-            <div><span>التقنية</span>{deal.techniques?.name ?? '—'}</div>
-            <div><span>البصيلات</span>{deal.grafts ? fmtNum(deal.grafts) : '—'}</div>
-            <div><span>الطبيب</span>{deal.doctors?.full_name ?? '—'}</div>
-            <div><span>تاريخ العملية</span>{fmtDate(deal.operation_date)}</div>
+            {kind === 'surgery' && <div><span>التقنية</span>{deal.techniques?.name ?? '—'}</div>}
+            {kind === 'surgery' && <div><span>البصيلات</span>{deal.grafts ? fmtNum(deal.grafts) : '—'}</div>}
+            {kind !== 'product' && <div><span>الطبيب</span>{deal.doctors?.full_name ?? '—'}</div>}
+            <div><span>{dateLabel(kind)}</span>{fmtDate(deal.operation_date)}</div>
             <div><span>موظف المبيعات</span>{deal.agent?.full_name}</div>
             <div><span>المنسقة</span>{deal.coordinator?.full_name ?? '—'}</div>
             <div><span>الفرع</span>{deal.leads?.branches?.name ?? '—'}</div>
@@ -438,13 +449,19 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
             ) : (
               <div>
                 <p style={{ fontSize: 13.5, marginBottom: 10 }}>
-                  {confirmOutcome === 'done' && 'سيُحتسب الإيراد والعمولة في شهر تاريخ العملية، وتُفتح باقة بلازما تلقائيًا. تأكيد؟'}
+                  {confirmOutcome === 'done' && (
+                    kind === 'product'
+                      ? 'سيُحتسب الإيراد في شهر تاريخ التسليم. تأكيد؟'
+                      : kind === 'treatment'
+                        ? 'سيُحتسب الإيراد في شهر أول جلسة، وتُفتح باقة الجلسات في قسم البلازما تلقائيًا. تأكيد؟'
+                        : 'سيُحتسب الإيراد والعمولة في شهر تاريخ العملية، وتُفتح باقة بلازما تلقائيًا. تأكيد؟'
+                  )}
                   {confirmOutcome === 'lost' && 'سيُصنف العميل كخسارة. تأكيد؟'}
                   {confirmOutcome === 'waiting' && 'سينتقل العميل لقائمة الانتظار. تأكيد؟'}
                 </p>
                 {confirmOutcome === 'done' && (
                   <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
-                    <label>تاريخ العملية الفعلي</label>
+                    <label>{dateLabel(kind)} الفعلي</label>
                     <input type="date" value={doneDate} max={todayRiyadh()}
                       onChange={e => setDoneDate(e.target.value)} />
                   </div>

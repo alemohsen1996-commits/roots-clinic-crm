@@ -116,6 +116,20 @@ export default function Dashboard() {
     return [...set].sort().reverse()
   }, [series, isPrp])
 
+  // تفصيل المبيعات حسب النوع للشهر المختار (عمليات / جلسات علاج / منتجات)
+  const [breakdown, setBreakdown] = useState(null)
+  useEffect(() => {
+    if (isPrp && !isManager) return
+    let alive = true
+    supabase.rpc('sales_breakdown', { p_month: month, p_user: isManager ? null : profile?.id ?? null })
+      .then(({ data }) => { if (alive) setBreakdown(data ?? null) })
+    return () => { alive = false }
+  }, [month, isManager, isPrp, profile?.id])
+  const other = ['treatment', 'product'].reduce((t, k) => ({
+    count: t.count + Number(breakdown?.[k]?.count ?? 0),
+    revenue: t.revenue + Number(breakdown?.[k]?.revenue ?? 0),
+  }), { count: 0, revenue: 0 })
+
   // أرقام البلازما للشهر المختار: المدير للعيادة كلها، وموظف البلازما لنفسه
   const showPrp = isManager || isPrp
   const { stats: prpStats, loading: prpLoading } =
@@ -190,6 +204,11 @@ export default function Dashboard() {
                   fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 26,
                   color: c.gold ? 'var(--gold)' : 'var(--ink)',
                 }}>{c.value}</div>
+                {(c.label === 'العمليات' || c.label === 'عملياتي') && other.count > 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
+                    + {fmt(other.count)} مبيعات أخرى (جلسات/منتجات) · {fmt(other.revenue)} ر.س
+                  </div>
+                )}
                 <div style={{ marginTop: 6, minHeight: 18 }}>
                   <Delta now={
                     c.label.includes('الإيراد') || c.label.includes('إيرادي') ? cur?.revenue

@@ -6,6 +6,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtNum } from '../lib/format'
 import { STAGE } from '../lib/stageCodes'
+import { kindOf, dateLabel } from './useDealRefs'
+import ProcedureOptions from './ProcedureOptions'
 
 export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) {
   const { profile, roleCode } = useAuth()
@@ -104,6 +106,8 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
   }, [form.lead_id, dealLeads, isCoordinator])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  // نوع البيع المختار: عملية / جلسات علاج / منتج — بيحدد الخانات اللي تظهر
+  const kind = kindOf(refs.procedures, form.procedure_type_id)
 
   const total = Number(form.total_amount || 0)
   const tax = Number(form.tax_amount || 0)
@@ -140,9 +144,10 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
       agent_id: lead.owner_id ?? profile.id,     // صاحب الإيراد = مالك الليد
       coordinator_id: form.coordinator_id,
       procedure_type_id: form.procedure_type_id ? Number(form.procedure_type_id) : null,
-      technique_id: form.technique_id ? Number(form.technique_id) : null,
-      doctor_id: form.doctor_id ? Number(form.doctor_id) : null,
-      grafts: form.grafts ? Number(form.grafts) : null,
+      // التقنية والبصيلات للعمليات بس، والطبيب لغير المنتجات
+      technique_id: kind === 'surgery' && form.technique_id ? Number(form.technique_id) : null,
+      doctor_id: kind !== 'product' && form.doctor_id ? Number(form.doctor_id) : null,
+      grafts: kind === 'surgery' && form.grafts ? Number(form.grafts) : null,
       total_amount: total,
       tax_amount: tax,
       tax_note: form.tax_note || null,
@@ -205,14 +210,15 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
             )}
           </div>
           <div className="field">
-            <label>نوع العملية</label>
+            <label>نوع البيع</label>
             <select value={form.procedure_type_id} onChange={e => set('procedure_type_id', e.target.value)}>
               <option value="">—</option>
-              {refs.procedures.map(p => <option key={p.id} value={p.id}>{p.name_ar}</option>)}
+              <ProcedureOptions procedures={refs.procedures} />
             </select>
           </div>
         </div>
 
+        {kind === 'surgery' && (
         <div className="grid-2">
           <div className="field">
             <label>التقنية المستخدمة</label>
@@ -231,7 +237,9 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
               onChange={e => set('grafts', e.target.value)} />
           </div>
         </div>
+        )}
 
+        {kind !== 'product' && (
         <div className="field">
           <label>الطبيب</label>
           <select value={form.doctor_id} onChange={e => set('doctor_id', e.target.value)}>
@@ -239,6 +247,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
             {refs.doctors.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
           </select>
         </div>
+        )}
 
         <div className="grid-2">
           <div className="field">
@@ -278,7 +287,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
         )}
 
         <div className="field">
-          <label>تاريخ العملية</label>
+          <label>{dateLabel(kind)}</label>
           <input type="date" value={form.operation_date}
             onChange={e => set('operation_date', e.target.value)} />
         </div>

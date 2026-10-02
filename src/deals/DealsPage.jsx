@@ -175,7 +175,7 @@ export default function DealsPage() {
 
   const ov = overview ?? {}
   const kpis = [
-    { id: 'done', label: 'عمليات تمت', value: fmtNum(ov.done_count),
+    { id: 'done', label: 'ديلات تمت', value: fmtNum(ov.done_count),
       sub: `صافي ${fmtNum(ov.done_net)} ر.س`, tone: 'ok',
       on: status === 'done' && !quick,
       pick: () => { setQuick(''); setStatus(s => (s === 'done' ? '' : 'done')) } },
@@ -319,7 +319,7 @@ export default function DealsPage() {
             <thead>
               <tr>
                 <th>العميل</th>
-                <th>العملية</th>
+                <th>البيع</th>
                 <th>الفريق</th>
                 <th aria-sort={sort.key === 'date' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                   <button type="button" className={'th-sort' + (sort.key === 'date' ? ' on' : '')}
@@ -370,7 +370,12 @@ export default function DealsPage() {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 600 }}>{d.procedure_name ?? '—'}</span>
-                        {d.procedure_no > 1 && (
+                        {d.procedure_kind !== 'surgery' && (
+                          <span className="badge" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                            {d.procedure_kind === 'product' ? 'منتج' : 'جلسات علاج'}
+                          </span>
+                        )}
+                        {d.procedure_kind === 'surgery' && d.procedure_no > 1 && (
                           <span className="badge" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
                             عملية {d.procedure_no}
                           </span>

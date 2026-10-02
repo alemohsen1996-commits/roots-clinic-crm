@@ -134,3 +134,12 @@ export const PAY_STATUS = {
   partial: { label: 'جزئي',          cls: 'badge-pending' },
   unpaid:  { label: 'غير مدفوع',     cls: 'badge-suspended' },
 }
+
+// أنواع البيع: عملية / جلسات علاج / منتج
+export const KIND_LABEL = { surgery: 'عمليات', treatment: 'جلسات علاج', product: 'منتجات' }
+export const kindOf = (procedures, typeId) =>
+  (procedures ?? []).find(p => String(p.id) === String(typeId))?.kind ?? 'surgery'
+// اسم خانة التاريخ حسب النوع
+export const dateLabel = (kind) =>
+  kind === 'product' ? 'تاريخ التسليم' : kind === 'treatment' ? 'تاريخ أول جلسة' : 'تاريخ العملية'
+
