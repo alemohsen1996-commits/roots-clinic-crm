@@ -1,11 +1,27 @@
 // تسجيل دفعة جديدة
 // يعرض المتبقي على الديل فور اختياره، ويقبل قسطًا محدد مسبقًا (من صفحة الأقساط)
 // التسجيل يتم عبر record_payment: الدفعة وتحديث القسط في عملية واحدة لا تتجزأ
-import { useEffect, useState } from 'react'
+// صورة الإيصال إجبارية: بتترفع الأول، وبعدين الدفعة بتتسجل بمسارها
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../auth/AuthContext'
 import { fmtNum } from '../lib/format'
+import { uploadReceipt, discardReceipt } from './receipts'
+
+// طرق الدفع للتسجيل الجديد ("شبكة" القديمة اتقسمت لمدى/فيزا/ماستركارد)
+export const PAY_METHODS = [
+  { id: 'cash', label: 'نقدًا' },
+  { id: 'mada', label: 'مدى' },
+  { id: 'visa', label: 'فيزا' },
+  { id: 'mastercard', label: 'ماستركارد' },
+  { id: 'transfer', label: 'تحويل بنكي' },
+  { id: 'tabby', label: 'تابي' },
+  { id: 'tamara', label: 'تمارا' },
+  { id: 'other', label: 'أخرى' },
+]
 
 export default function AddPaymentModal({ preset, onClose, onSaved }) {
+  const { profile } = useAuth()
   // preset اختياري: { deal_id, amount, installment_id, client, installment_label }
   const [deals, setDeals] = useState([])
   const [form, setForm] = useState({
@@ -16,6 +32,9 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
     notes: '',
   })
   const [fin, setFin] = useState(null)
+  const [file, setFile] = useState(null)
+  const preview = useMemo(() => (file && file.type.startsWith('image/') ? URL.createObjectURL(file) : null), [file])
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -56,9 +75,18 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
     if (fin && Number(form.amount) > Number(fin.remaining)) {
       setErr(`المبلغ أكبر من المتبقي (${fmtNum(fin.remaining)} ر.س)`); return
     }
+    if (!file) { setErr('ارفع صورة الإيصال'); return }
     setErr(''); setBusy(true)
 
-    // دالة واحدة: تسجّل الدفعة وتحدّث القسط معًا — أو لا يحدث شيء
+    // 1) رفع الإيصال
+    let path
+    try {
+      path = await uploadReceipt(file, profile?.id)
+    } catch (e) {
+      setBusy(false); setErr(e.message); return
+    }
+
+    // 2) دالة واحدة: تسجّل الدفعة (بمسار الإيصال) وتحدّث القسط معًا — أو لا يحدث شيء
     const { error } = await supabase.rpc('record_payment', {
       p_deal_id: Number(form.deal_id),
       p_amount: Number(form.amount),
@@ -66,10 +94,12 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
       p_reference: form.reference || null,
       p_notes: form.notes || null,
       p_installment_id: preset?.installment_id ?? null,
+      p_receipt_path: path,
     })
 
     setBusy(false)
     if (error) {
+      discardReceipt(path)   // التسجيل فشل — نمسح الصورة اللي اترفعت
       setErr(error.message?.includes('القسط')
         ? error.message
         : 'تعذر تسجيل الدفعة — ' + (error.message || 'تأكد من صلاحيتك على هذا الديل'))
@@ -126,12 +156,7 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
           <div className="field">
             <label>طريقة الدفع</label>
             <select value={form.method} onChange={e => set('method', e.target.value)}>
-              <option value="cash">نقدًا</option>
-              <option value="card">شبكة</option>
-              <option value="transfer">تحويل بنكي</option>
-              <option value="tabby">تابي</option>
-              <option value="tamara">تمارا</option>
-              <option value="other">أخرى</option>
+              {PAY_METHODS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
           </div>
         </div>
@@ -156,9 +181,24 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
           </div>
         </div>
 
+        {/* صورة الإيصال — إجبارية */}
+        <div className="field">
+          <label>صورة الإيصال <span style={{ color: 'var(--danger)' }}>*</span></label>
+          <input type="file" accept="image/*,application/pdf"
+            onChange={e => { setFile(e.target.files?.[0] ?? null); setErr('') }} />
+          <small style={{ color: 'var(--ink-soft)', fontSize: 12 }}>
+            صورة إيصال الشبكة أو التحويل أو سند القبض — صورة أو PDF (الصور بتتصغّر تلقائي)
+          </small>
+          {preview && (
+            <img src={preview} alt="معاينة الإيصال"
+              style={{ marginTop: 8, maxHeight: 160, maxWidth: '100%', borderRadius: 8, border: '1px solid var(--line)' }} />
+          )}
+          {file && !preview && <div style={{ marginTop: 6, fontSize: 13 }}>📄 {file.name}</div>}
+        </div>
+
         <div className="modal-actions">
           <button className="btn btn-primary" onClick={save} disabled={busy}>
-            {busy ? 'جارٍ الحفظ…' : 'حفظ الدفعة'}
+            {busy ? 'جارٍ الرفع والحفظ…' : 'حفظ الدفعة'}
           </button>
           <button className="btn btn-ghost" onClick={onClose}>إلغاء</button>
         </div>

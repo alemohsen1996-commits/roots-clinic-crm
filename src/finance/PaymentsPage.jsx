@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtNum, fmtDateTime, openWhatsApp } from '../lib/format'
 import { exportCsv } from '../lib/exportCsv'
+import { uploadReceipt, discardReceipt, openReceipt } from './receipts'
 import AddPaymentModal from './AddPaymentModal'
 
 // تاريخ مختصر يمنع تكسّر الخلية في جدول متعدد الأعمدة
@@ -16,9 +17,12 @@ const shortDT = (d) => {
 }
 
 const METHOD_AR = {
-  cash: 'نقدًا', card: 'شبكة', transfer: 'تحويل',
+  cash: 'نقدًا', mada: 'مدى', visa: 'فيزا', mastercard: 'ماستركارد',
+  card: 'شبكة (قديم)', transfer: 'تحويل',
   tabby: 'تابي', tamara: 'تمارا', other: 'أخرى',
 }
+// "كل الشبكة" في الفلتر = القديم + مدى + فيزا + ماستركارد
+const CARD_METHODS = ['card', 'mada', 'visa', 'mastercard']
 
 const STATUS_AR = { active: 'السارية', void_requested: 'طلبات الإلغاء', void: 'الملغية' }
 
@@ -29,7 +33,7 @@ const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(
 
 const SELECT = `
   id, receipt_no, amount, method, paid_at, reference, notes, confirmed_at,
-  status, void_reason,
+  status, void_reason, receipt_path, created_at,
   deals(id, total_amount, tax_amount, net_amount, status,
         leads(file_no, full_name, phone),
         agent:profiles!deals_agent_id_fkey(full_name),
@@ -57,6 +61,8 @@ export default function PaymentsPage() {
   const [to, setTo] = useState('')
   const [method, setMethod] = useState('')
   const [onlyUnconfirmed, setOnlyUnconfirmed] = useState(false)
+  const [sortAsc, setSortAsc] = useState(false)          // ترتيب التاريخ: الأحدث أولًا افتراضيًا
+  const [attachingId, setAttachingId] = useState(null)   // إرفاق إيصال لدفعة قديمة
   const [status, setStatus] = useState('')   // '' = الكل
   const [pendingVoids, setPendingVoids] = useState([])
 
@@ -75,7 +81,8 @@ export default function PaymentsPage() {
   const applyFilters = useCallback((q) => {
     if (fromTs) q = q.gte('paid_at', fromTs)
     if (toTs)   q = q.lte('paid_at', toTs)
-    if (method) q = q.eq('method', method)
+    if (method === 'card_all') q = q.in('method', CARD_METHODS)
+    else if (method) q = q.eq('method', method)
     if (status) q = q.eq('status', status)
     if (onlyUnconfirmed) q = q.is('confirmed_at', null)
     if (search.trim()) q = q.ilike('receipt_no', `%${search.trim()}%`)
@@ -86,7 +93,9 @@ export default function PaymentsPage() {
     if (!silent) setLoading(true)
     const q = applyFilters(
       supabase.from('payments').select(SELECT, { count: 'exact' })
-        .order('paid_at', { ascending: false })
+        .order('paid_at', { ascending: sortAsc })
+        .order('created_at', { ascending: sortAsc })
+        .order('id', { ascending: sortAsc })
         .range(page * PAGE, page * PAGE + PAGE - 1)
     )
 
@@ -102,10 +111,10 @@ export default function PaymentsPage() {
     })
     setSums(t ?? null)
     setLoading(false)
-  }, [page, fromTs, toTs, method, applyFilters])
+  }, [page, fromTs, toTs, method, applyFilters, sortAsc])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(0); setSelected(new Set()) }, [fromTs, toTs, method, status, onlyUnconfirmed, search])
+  useEffect(() => { setPage(0); setSelected(new Set()) }, [fromTs, toTs, method, status, onlyUnconfirmed, search, sortAsc])
 
   // طلبات الإلغاء المعلّقة تُجلب مستقلة عن الفلاتر والصفحة — حتى لا تختفي عن المدير
   const loadPendingVoids = useCallback(async () => {
@@ -187,6 +196,22 @@ export default function PaymentsPage() {
     flash('تم رفض طلب الإلغاء — الدفعة سارية'); load(); loadStats(); loadPendingVoids()
   }
 
+  // إرفاق إيصال لدفعة قديمة مالهاش صورة (المحاسب/المدير)
+  async function attachReceipt(p, file) {
+    if (!file) return
+    setAttachingId(p.id)
+    let path
+    try {
+      path = await uploadReceipt(file, profile?.id)
+    } catch (e) {
+      setAttachingId(null); flash(e.message); return
+    }
+    const { error } = await supabase.from('payments').update({ receipt_path: path }).eq('id', p.id)
+    setAttachingId(null)
+    if (error) { discardReceipt(path); flash('تعذر إرفاق الإيصال — ' + error.message); return }
+    flash(`اتأرفق إيصال ${p.receipt_no}`); load({ silent: true })
+  }
+
   // ---------- التصدير ----------
   async function doExport() {
     setBusy(true)
@@ -194,7 +219,8 @@ export default function PaymentsPage() {
     for (let off = 0; off < 20000; off += 1000) {
       const q = applyFilters(
         supabase.from('payments').select(SELECT)
-          .order('paid_at', { ascending: false }).range(off, off + 999)
+          .order('paid_at', { ascending: sortAsc }).order('created_at', { ascending: sortAsc })
+          .order('id', { ascending: sortAsc }).range(off, off + 999)
       )
       const { data, error } = await q
       if (error) { setBusy(false); flash('تعذر التصدير'); return }
@@ -206,16 +232,17 @@ export default function PaymentsPage() {
     const ST = { active: 'سارية', void: 'ملغية', void_requested: 'طلب إلغاء' }
     exportCsv(
       `payments-${from || 'all'}-to-${to || 'now'}.csv`,
-      ['الإيصال', 'العميل', 'رقم الملف', 'الهاتف', 'السيلز', 'المنسقة',
+      ['#', 'التاريخ', 'الإيصال', 'العميل', 'رقم الملف', 'الهاتف', 'السيلز', 'المنسقة',
        'المبلغ', 'الضريبة', 'صافي العملية', 'قيمة التعاقد',
-       'الطريقة', 'المرجع', 'التاريخ', 'سجّلتها', 'الحالة', 'التأكيد'],
-      all.map(p => [
-        p.receipt_no, p.deals?.leads?.full_name, p.deals?.leads?.file_no,
+       'الطريقة', 'المرجع', 'سجّلتها', 'الحالة', 'التأكيد', 'صورة الإيصال'],
+      all.map((p, i) => [
+        i + 1, fmtDateTime(p.paid_at), p.receipt_no, p.deals?.leads?.full_name, p.deals?.leads?.file_no,
         p.deals?.leads?.phone, p.deals?.agent?.full_name, p.deals?.coordinator?.full_name,
         p.amount, p.deals?.tax_amount ?? '', p.deals?.net_amount ?? '', p.deals?.total_amount ?? '',
         METHOD_AR[p.method] ?? p.method, p.reference ?? '',
-        fmtDateTime(p.paid_at), p.received?.full_name ?? '',
+        p.received?.full_name ?? '',
         ST[p.status] ?? p.status, p.confirmed_at ? 'مؤكدة' : 'غير مؤكدة',
+        p.receipt_path ? 'مرفقة' : 'غير مرفقة',
       ])
     )
   }
@@ -309,7 +336,7 @@ export default function PaymentsPage() {
           </div>
           <table className="table compact" style={{ marginTop: 10 }}>
             <thead>
-              <tr><th>الإيصال</th><th>العميل</th><th>المبلغ</th><th>سبب الإلغاء</th><th>طلبها</th><th></th></tr>
+              <tr><th>الإيصال</th><th>العميل</th><th>المبلغ</th><th>سبب الإلغاء</th><th>طلبها</th><th>الصورة</th><th></th></tr>
             </thead>
             <tbody>
               {pendingVoids.map(p => (
@@ -321,6 +348,11 @@ export default function PaymentsPage() {
                   </td>
                   <td>{p.void_reason}</td>
                   <td>{p.void_requester?.full_name ?? '—'}</td>
+                  <td>
+                    {p.receipt_path
+                      ? <button className="icon-btn" title="عرض صورة الإيصال" onClick={() => openReceipt(p.receipt_path)}>📎</button>
+                      : <span style={{ color: 'var(--ink-soft)' }}>—</span>}
+                  </td>
                   <td style={{ display: 'flex', gap: 6 }}>
                     <button className="btn btn-danger btn-sm" onClick={() => approveVoid(p.id)}>اعتماد</button>
                     <button className="btn btn-ghost btn-sm" onClick={() => rejectVoid(p.id)}>رفض</button>
@@ -342,6 +374,7 @@ export default function PaymentsPage() {
         <input type="date" value={to} onChange={e => setTo(e.target.value)} />
         <select value={method} onChange={e => setMethod(e.target.value)}>
           <option value="">كل الطرق</option>
+          <option value="card_all">كل الشبكة (مدى/فيزا/ماستركارد)</option>
           {Object.entries(METHOD_AR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <select value={status} onChange={e => setStatus(e.target.value)}>
@@ -401,14 +434,21 @@ export default function PaymentsPage() {
                       title="تحديد غير المؤكدة في هذه الصفحة" />
                   </th>
                 )}
-                <th>الإيصال</th><th>العميل</th><th>الهاتف</th><th>السيلز</th><th>المنسقة</th>
+                <th style={{ width: 40 }}>#</th>
+                <th aria-sort={sortAsc ? 'ascending' : 'descending'}>
+                  <button type="button" className="th-sort on" onClick={() => setSortAsc(v => !v)}
+                    title={sortAsc ? 'الأقدم أولًا — اضغط للأحدث' : 'الأحدث أولًا — اضغط للأقدم'}>
+                    التاريخ {sortAsc ? '↑' : '↓'}
+                  </button>
+                </th>
+                <th>العميل</th><th>الإيصال</th><th>الهاتف</th><th>السيلز</th><th>المنسقة</th>
                 <th>المبلغ</th><th>الضريبة</th><th>صافي العملية</th>
-                <th>الطريقة</th><th>التاريخ</th><th>سجّلتها</th>
+                <th>الطريقة</th><th>سجّلتها</th>
                 <th>التأكيد</th><th></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(p => {
+              {rows.map((p, i) => {
                 const isVoid = p.status === 'void'
                 const isVoidReq = p.status === 'void_requested'
                 const canPick = p.status === 'active' && !p.confirmed_at
@@ -423,14 +463,34 @@ export default function PaymentsPage() {
                         )}
                       </td>
                     )}
-                    <td style={{ fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' }}>
-                      {p.receipt_no}
+                    <td style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{page * PAGE + i + 1}</td>
+                    <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }} title={fmtDateTime(p.paid_at)}>
+                      {shortDT(p.paid_at)}
                     </td>
                     <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {p.deals?.leads?.full_name}
                       <small style={{ color: 'var(--ink-soft)', display: 'block', fontWeight: 400 }}>
                         {p.deals?.leads?.file_no}
                       </small>
+                    </td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {p.receipt_no}
+                        {p.receipt_path ? (
+                          <button className="icon-btn" title="عرض صورة الإيصال" aria-label="عرض صورة الإيصال"
+                            onClick={() => openReceipt(p.receipt_path)}>📎</button>
+                        ) : canConfirm && !isVoid ? (
+                          <label className="btn btn-ghost btn-sm" style={{ fontFamily: 'var(--font-body)', cursor: 'pointer' }}
+                            title="الدفعة دي متسجلة قبل ما الصورة تبقى إجبارية">
+                            {attachingId === p.id ? '…' : 'إرفاق'}
+                            <input type="file" accept="image/*,application/pdf" hidden
+                              disabled={attachingId === p.id}
+                              onChange={e => { attachReceipt(p, e.target.files?.[0]); e.target.value = '' }} />
+                          </label>
+                        ) : (
+                          <span title="مفيش صورة إيصال" style={{ color: 'var(--ink-soft)' }}>—</span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <div className="phone-cell">
@@ -465,9 +525,6 @@ export default function PaymentsPage() {
                     <td style={{ fontSize: 12.5 }}>
                       {METHOD_AR[p.method] ?? p.method}
                       {p.reference && <small style={{ color: 'var(--ink-soft)', display: 'block' }}>{p.reference}</small>}
-                    </td>
-                    <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }} title={fmtDateTime(p.paid_at)}>
-                      {shortDT(p.paid_at)}
                     </td>
                     <td style={{ fontSize: 12.5 }}>{p.received?.full_name ?? '—'}</td>
                     <td>

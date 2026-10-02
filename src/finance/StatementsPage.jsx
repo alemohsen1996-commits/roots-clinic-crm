@@ -12,7 +12,8 @@ import { useDealRefs } from '../deals/useDealRefs'
 import DealDrawer from '../deals/DealDrawer'
 
 const METHOD_AR = {
-  cash: 'نقدًا', card: 'شبكة', transfer: 'تحويل',
+  cash: 'نقدًا', mada: 'مدى', visa: 'فيزا', mastercard: 'ماستركارد',
+  card: 'شبكة (قديم)', transfer: 'تحويل',
   tabby: 'تابي', tamara: 'تمارا', other: 'أخرى',
 }
 
