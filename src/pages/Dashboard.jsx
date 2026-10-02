@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtMonth } from '../lib/format'
+import PrpMonthStats, { usePrpMonthStats, lastMonths } from '../prp/PrpMonthStats'
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('en-US')
 
@@ -47,7 +48,8 @@ function Delta({ now, before }) {
 }
 
 export default function Dashboard() {
-  const { profile, isManager } = useAuth()
+  const { profile, isManager, roleCode } = useAuth()
+  const isPrp = roleCode === 'prp_officer'   // موظف البلازما: داشبورد البلازما بدل العمليات
   const [rows, setRows] = useState([])       // أداء الفريق (للشهر المختار)
   const [series, setSeries] = useState([])   // سلسلة الشهور
   const [month, setMonth] = useState(thisMonth())
@@ -106,12 +108,18 @@ export default function Dashboard() {
     }
   }, [loadTeam, loadSeries, loadTarget])
 
-  // قائمة الشهور المتاحة — مع ضمان وجود الشهر الجاري
+  // قائمة الشهور المتاحة — مع ضمان وجود الشهر الجاري (وموظف البلازما: آخر سنة)
   const months = useMemo(() => {
     const set = new Set(series.map(r => monthKey(r.month)))
     set.add(thisMonth())
+    if (isPrp) lastMonths(12).forEach(m => set.add(m))
     return [...set].sort().reverse()
-  }, [series])
+  }, [series, isPrp])
+
+  // أرقام البلازما للشهر المختار: المدير للعيادة كلها، وموظف البلازما لنفسه
+  const showPrp = isManager || isPrp
+  const { stats: prpStats, loading: prpLoading } =
+    usePrpMonthStats(showPrp ? month : null, isPrp && !isManager ? profile?.id ?? null : null)
 
   const byMonth = useMemo(
     () => Object.fromEntries(series.map(r => [monthKey(r.month), r])),
@@ -164,6 +172,16 @@ export default function Dashboard() {
         <div className="empty">جارٍ التحميل…</div>
       ) : (
         <>
+          {isPrp && !isManager && (
+            <>
+              <PrpMonthStats stats={prpStats} loading={prpLoading} personal />
+              <div className="hint" style={{ marginTop: -6 }}>
+                الجلسات اللي سجّلتها بنفسك في {monthLabel(month)} — قوايم الشغل اليومية في قسم البلازما
+              </div>
+            </>
+          )}
+
+          {!(isPrp && !isManager) && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
             {cards.map(c => (
               <div key={c.label} className="card" style={{ padding: 20 }}>
@@ -184,6 +202,7 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          )}
 
           {/* الهدف الشهري — للشهر الجاري فقط، لأن القيمة واحدة لا تاريخية */}
           {!isManager && isCurrentMonth && (
@@ -237,7 +256,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {!cur && (
+          {!cur && !isPrp && (
             <div className="card empty" style={{ marginTop: 16 }}>
               <strong>لا أرقام في {monthLabel(month)}</strong>
               لم تُسجَّل عمليات أو تحصيلات في هذا الشهر
@@ -245,7 +264,7 @@ export default function Dashboard() {
           )}
 
           {/* سجل الشهور */}
-          {series.length > 1 && (
+          {series.length > 1 && !(isPrp && !isManager) && (
             <div className="card" style={{ marginTop: 24 }}>
               <div style={{ padding: '16px 16px 0' }}>
                 <h2 style={{ fontSize: 16 }}>سجل الشهور</h2>
@@ -360,6 +379,31 @@ export default function Dashboard() {
                 )
               })()}
               <div style={{ height: 8 }} />
+            </div>
+          )}
+
+          {/* البلازما — للشهر المختار */}
+          {isManager && (
+            <div className="card" style={{ marginTop: 24, padding: 16 }}>
+              <h2 style={{ fontSize: 16, marginBottom: 12 }}>
+                {isCurrentMonth ? 'البلازما هذا الشهر' : `البلازما في ${monthLabel(month)}`}
+              </h2>
+              <PrpMonthStats stats={prpStats} loading={prpLoading} />
+              {(prpStats?.by_performer ?? []).length > 0 && (
+                <div className="table-scroll">
+                  <table className="table">
+                    <thead><tr><th>الموظف</th><th>جلسات عملها</th></tr></thead>
+                    <tbody>
+                      {prpStats.by_performer.map(p => (
+                        <tr key={p.user_id}>
+                          <td style={{ fontWeight: 600 }}>{p.full_name}</td>
+                          <td>{fmt(p.n)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </>

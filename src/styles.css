@@ -1913,3 +1913,34 @@ button.kanban-more:disabled { opacity: .6; cursor: default; }
 .deals-flag.tone-danger { background: var(--danger-soft); }
 .deals-flag.tone-warn   { background: var(--warn-soft); }
 .deals-flag.tone-muted  { background: var(--line-soft); }
+
+/* ===================== البلازما: قوايم الشغل + كروت الشهر ===================== */
+.deals-kpi.static { cursor: default; }
+.deals-kpi.static:hover { border-color: var(--line); }
+
+.prp-list { margin-bottom: 18px; border-width: 1.5px; }
+.prp-list-head { padding: 14px 16px 10px; }
+.prp-list-head h2 { font-size: 15px; margin: 0; }
+.prp-list-head .hint { margin-top: 4px; }
+
+.prp-followups { display: flex; flex-direction: column; }
+.prp-fu-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  padding: 12px 16px; border-top: 1px solid var(--line-soft);
+}
+.prp-fu-main { display: flex; flex-direction: column; gap: 4px; min-width: 240px; flex: 1 1 320px; }
+.prp-fu-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.prp-fu-title .link-btn {
+  border: 0; background: transparent; padding: 0; cursor: pointer;
+  font: inherit; font-weight: 700; font-size: 14.5px; color: var(--ink);
+}
+.prp-fu-title .link-btn:hover { color: var(--primary); text-decoration: underline; }
+.prp-fu-reason { font-size: 13px; font-weight: 700; }
+.prp-fu-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.prp-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); }
+.prp-inline input, .prp-inline select {
+  font-family: var(--font-body); font-size: 13px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); color: var(--ink);
+}
+.prp-month-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.prp-month-head h2 { font-size: 16px; margin: 0; }

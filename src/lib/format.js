@@ -50,13 +50,15 @@ const isMobile = () =>
 // نحتفظ بمرجع تبويب الويب (لمسار الاحتياط فقط)
 let waWin = null
 
-export function openWhatsApp(phone) {
+// text اختياري: رسالة جاهزة تتكتب في خانة الكتابة
+export function openWhatsApp(phone, text) {
   const n = waNumber(phone)
   if (!n) return
+  const t = text ? `&text=${encodeURIComponent(text)}` : ''
 
   // الموبايل: wa.me يفتح تطبيق واتساب مباشرة
   if (isMobile()) {
-    window.open(`https://wa.me/${n}`, '_blank', 'noopener')
+    window.open(`https://wa.me/${n}${text ? `?text=${encodeURIComponent(text)}` : ''}`, '_blank', 'noopener')
     return
   }
 
@@ -65,12 +67,12 @@ export function openWhatsApp(phone) {
   // ملاحظة: web.whatsapp.com يفرض عزلًا (COOP) يقطع صلة المتصفح بالتبويب
   // بعد أول فتحة، فيتعذّر إعادة استخدام تبويب الويب — لذا التطبيق هو الحل الأنظف.
   // إن لم يكن التطبيق مثبّتًا نرجع للنسخة الويب في تبويب واحد مُعاد استخدامه.
-  const webUrl = `https://web.whatsapp.com/send?phone=${n}`
+  const webUrl = `https://web.whatsapp.com/send?phone=${n}${t}`
   let appTook = false
   const onBlur = () => { appTook = true }   // فتح التطبيق يُفقد الصفحة التركيز
   window.addEventListener('blur', onBlur, { once: true })
 
-  window.location.href = `whatsapp://send?phone=${n}`
+  window.location.href = `whatsapp://send?phone=${n}${t}`
 
   setTimeout(() => {
     window.removeEventListener('blur', onBlur)

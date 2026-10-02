@@ -1,11 +1,13 @@
-// قسم البلازما — الباقات بشريط تقدم ●●○○
-// + بطاقة الجلسات القادمة (٤٨ ساعة) + بطاقة المنقطعين (فرص إعادة تنشيط)
+// قسم البلازما — أرقام الشهر + قوايم الشغل اليومية (جلسات متسجلتش / المتابعة)
+// + بطاقة الجلسات القادمة (٤٨ ساعة) + الباقات بشريط تقدم ●●○○
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
-import { fmtDate, fmtNum, openWhatsApp } from '../lib/format'
+import { fmtDate, fmtNum, fmtMonth, openWhatsApp } from '../lib/format'
 import ProgressDots from './ProgressDots'
 import PrpDrawer from './PrpDrawer'
+import PrpMonthStats, { usePrpMonthStats, lastMonths } from './PrpMonthStats'
+import { UnrecordedSessions, FollowupList } from './PrpWorkLists'
 
 const STATUS_AR = {
   active:    { label: 'نشطة',    cls: 'badge-active' },
@@ -28,7 +30,12 @@ export default function PrpPage() {
   const [pageSize, setPageSize] = useState(50)
   const [total, setTotal] = useState(0)
   const [mineCount, setMineCount] = useState(0)
-  const [staleCount, setStaleCount] = useState(0)
+  const [unrecorded, setUnrecorded] = useState([])
+  const [followups, setFollowups] = useState([])
+  const [month, setMonth] = useState(() => lastMonths(1)[0])
+  const [refreshKey, setRefreshKey] = useState(0)
+  const months = lastMonths(12)
+  const { stats, loading: statsLoading } = usePrpMonthStats(month, null, refreshKey)
 
   // البحث بـ debounce — الاستعلام يستنى توقف الكتابة 300ms
   const [debounced, setDebounced] = useState('')
@@ -58,25 +65,34 @@ export default function PrpPage() {
          .order('package_id', { ascending: false })
          .range(page * pageSize, page * pageSize + pageSize - 1)
 
-    // عدّادات مستقلة عن الصفحة: "مرضاي" والمنقطعين (نشطة وآخر جلسة من أكتر من 45 يوم)
+    // عدّاد "مرضاي" مستقل عن الصفحة
     let mineQ = supabase.from('v_prp_progress').select('package_id', { count: 'exact', head: true })
     if (status) mineQ = mineQ.eq('status', status)
-    const staleQ = supabase.from('v_prp_progress').select('package_id', { count: 'exact', head: true })
-      .eq('status', 'active').gt('days_since_last', 45)
 
-    const [{ data: pr, count }, { data: rem }, mine, st] = await Promise.all([
+    // قوايم الشغل — مع "مرضاي فقط" تتقصر على مرضى المستخدم
+    let unQ = supabase.from('v_prp_unrecorded').select('*').order('planned_date')
+    let fuQ = supabase.from('v_prp_followup').select('*')
+      .order('days_idle', { ascending: false }).order('package_id')
+    if (mineOnly && mineFilter) { unQ = unQ.or(mineFilter); fuQ = fuQ.or(mineFilter) }
+
+    const [{ data: pr, count }, { data: rem }, mine, { data: un }, { data: fu }] = await Promise.all([
       q,
       supabase.from('v_prp_upcoming_reminders').select('*').order('planned_date'),
       mineFilter ? mineQ.or(mineFilter) : Promise.resolve({ count: 0 }),
-      staleQ,
+      unQ,
+      fuQ,
     ])
     setRows(pr ?? [])
     setTotal(count ?? 0)
     setReminders(rem ?? [])
     setMineCount(mine.count ?? 0)
-    setStaleCount(st.count ?? 0)
+    setUnrecorded(un ?? [])
+    setFollowups(fu ?? [])
     setLoading(false)
   }, [status, mineOnly, mineFilter, debounced, page, pageSize])
+
+  // بعد أي تسجيل: القوايم + الجدول + أرقام الشهر
+  const refreshAll = useCallback(() => { load(); setRefreshKey(k => k + 1) }, [load])
 
   useEffect(() => { load() }, [load])
   // أي تغيير في الفلاتر يرجّع لأول صفحة
@@ -91,6 +107,12 @@ export default function PrpPage() {
 
   const visible = rows
 
+  // صلاحية التسجيل على صف: المدير · موظف البلازما · منسقة الديل نفسها
+  const canAct = {
+    profile,
+    can: (r) => canEditAll || (!!myId && r.coordinator_id === myId),
+  }
+
   return (
     <>
       <div className="page-head">
@@ -99,6 +121,22 @@ export default function PrpPage() {
           <div className="hint">{total.toLocaleString('en-US')} باقة — تُفتح تلقائيًا عند إتمام أي عملية (Done)</div>
         </div>
       </div>
+
+      {/* أرقام الشهر */}
+      <div className="prp-month-head">
+        <h2>أرقام {fmtMonth(month)}</h2>
+        <select aria-label="الشهر" value={month} onChange={e => setMonth(e.target.value)} style={{ minWidth: 170 }}>
+          {months.map((m, i) => (
+            <option key={m} value={m}>{fmtMonth(m)}{i === 0 ? ' (الجاري)' : ''}</option>
+          ))}
+        </select>
+      </div>
+      <PrpMonthStats stats={stats} loading={statsLoading} />
+
+      {/* قوايم الشغل اليومية */}
+      <UnrecordedSessions rows={unrecorded} canAct={canAct} onChanged={refreshAll} />
+      <FollowupList rows={followups} canAct={canAct} onChanged={refreshAll}
+        onOpen={(r) => setOpenPkg({ package_id: r.package_id })} />
 
       {/* جلسات خلال ٤٨ ساعة — تذكير */}
       {reminders.length > 0 && (
@@ -135,17 +173,6 @@ export default function PrpPage() {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* منقطعون — فرص إعادة تنشيط */}
-      {staleCount > 0 && status === 'active' && (
-        <div className="card" style={{ marginBottom: 18, borderColor: 'var(--warn)', borderWidth: 1.5 }}>
-          <div style={{ padding: '14px 16px 12px' }}>
-            <h2 style={{ fontSize: 15, color: 'var(--warn)' }}>
-              {staleCount.toLocaleString('en-US')} مريض بلا جلسة منذ أكثر من ٤٥ يومًا — فرصة إعادة تواصل
-            </h2>
-          </div>
         </div>
       )}
 
@@ -278,7 +305,7 @@ export default function PrpPage() {
         <PrpDrawer
           packageId={openPkg.package_id}
           onClose={() => setOpenPkg(null)}
-          onChanged={load}
+          onChanged={refreshAll}
         />
       )}
     </>
