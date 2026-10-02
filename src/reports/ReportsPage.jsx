@@ -23,6 +23,15 @@ const TEAM_TABS = [
   { key: 'coordinator', title: 'المنسقات' },
 ]
 
+// فلتر نوع البيع — من غير فلتر: "العمليات" = جراحية بس والإيراد = كل المبيعات
+const KINDS = [
+  { id: '', label: 'كل المبيعات' },
+  { id: 'surgery', label: 'عمليات' },
+  { id: 'treatment', label: 'جلسات علاج' },
+  { id: 'product', label: 'منتجات' },
+]
+const KIND_NAME = { surgery: 'عمليات', treatment: 'جلسات علاج', product: 'منتجات' }
+
 const ROLE_AR = {
   agent: 'مبيعات', coordinator: 'منسقة', sales_manager: 'مدير مبيعات',
   super_admin: 'مدير عام', accountant: 'محاسب', prp_officer: 'بلازما',
@@ -39,8 +48,10 @@ export default function ReportsPage() {
   const [byLost, setByLost] = useState([])
   const [team, setTeam] = useState([])
   const [teamTab, setTeamTab] = useState('all')
+  const [kind, setKind] = useState('')
+  const [byKind, setByKind] = useState({})
   const [totals, setTotals] = useState({
-    leads: 0, deals: 0, revenue: 0, collected: 0, cohortDeals: 0,
+    leads: 0, deals: 0, revenue: 0, collected: 0, cohortDeals: 0, otherSales: 0,
   })
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
@@ -58,7 +69,7 @@ export default function ReportsPage() {
 
     const [{ data: st }, { data: r, error }] = await Promise.all([
       supabase.from('stages').select('*').eq('is_active', true).order('sort_order'),
-      supabase.rpc('report_summary', { p_from: fromTs, p_to: toTs }),
+      supabase.rpc('report_summary', { p_from: fromTs, p_to: toTs, p_kind: kind || null }),
     ])
     if (error || !r) {
       setErr('تعذر تحميل التقرير — ' + (error?.message || ''))
@@ -77,7 +88,9 @@ export default function ReportsPage() {
       revenue: Number(r.revenue ?? 0),
       collected: Number(r.collected ?? 0),
       cohortDeals: Number(r.cohort_deals ?? 0),
+      otherSales: Number(r.other_sales ?? 0),
     })
+    setByKind(r.by_kind ?? {})
     setTeam((r.team ?? []).map(t => {
       const leads = Number(t.leads ?? 0), deals = Number(t.deals ?? 0)
       return {
@@ -86,12 +99,13 @@ export default function ReportsPage() {
         roleCode: t.role ?? null,
         inactive: t.status && t.status !== 'active',
         leads, deals,
+        other: Number(t.other ?? 0),
         revenue: Number(t.revenue ?? 0),
         ratio: leads ? Math.round((deals / leads) * 100) : null,
       }
     }))
     setLoading(false)
-  }, [from, to])
+  }, [from, to, kind])
 
   useEffect(() => { load() }, [load])
 
@@ -101,11 +115,19 @@ export default function ReportsPage() {
 
   const funnelCounts = funnelMode === 'current' ? stageCounts : reachedCounts
 
+  // كلمة العدّ حسب الفلتر، وعمود جلسات/منتجات بس من غير فلتر ولو فيه مبيعات منهم
+  const dealsWord = kind ? KIND_NAME[kind] : 'عمليات'
+  const showOther = !kind && totals.otherSales > 0
+  const kindRows = ['surgery', 'treatment', 'product']
+    .map(k => ({ k, count: Number(byKind[k]?.count ?? 0), revenue: Number(byKind[k]?.revenue ?? 0) }))
+    .filter(x => x.count > 0)
+  const kindTotal = kindRows.reduce((t, x) => t + x.revenue, 0)
+
   function doExport() {
     exportCsv(
       `report-${from}-to-${to}.csv`,
-      ['الموظف', 'الدور', 'الليدات', 'العمليات', 'الإيراد', 'عمليات/ليدات %'],
-      team.map(t => [t.name, t.role, t.leads, t.deals, t.revenue, t.ratio ?? ''])
+      ['الموظف', 'الدور', 'الليدات', dealsWord, ...(showOther ? ['جلسات/منتجات'] : []), 'الإيراد', 'عمليات/ليدات %'],
+      team.map(t => [t.name, t.role, t.leads, t.deals, ...(showOther ? [t.other] : []), t.revenue, t.ratio ?? ''])
     )
   }
 
@@ -129,6 +151,13 @@ export default function ReportsPage() {
         <button className="btn btn-ghost" onClick={() => { setFrom(monthStart()); setTo(today()) }}>
           الشهر الجاري
         </button>
+        <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--line)', margin: '0 4px' }} />
+        {KINDS.map(k => (
+          <button key={k.id || 'all'} type="button" aria-pressed={kind === k.id}
+            className={'chip' + (kind === k.id ? ' on' : '')} onClick={() => setKind(k.id)}>
+            {k.label}
+          </button>
+        ))}
       </div>
 
       {err && <div className="alert alert-error">{err}</div>}
@@ -143,7 +172,8 @@ export default function ReportsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14, marginBottom: 18 }}>
             {[
               { label: 'ليدات الفترة', value: fmtNum(totals.leads) },
-              { label: 'عمليات تمت في الفترة', value: fmtNum(totals.deals) },
+              { label: `${dealsWord} تمت في الفترة`, value: fmtNum(totals.deals),
+                hint: showOther ? `+ ${fmtNum(totals.otherSales)} جلسات/منتجات (داخلين في الإيراد)` : undefined },
               {
                 label: 'تحويل ليدات الفترة',
                 value: cohortRate + '٪',
@@ -154,7 +184,7 @@ export default function ReportsPage() {
                 value: periodRatio + '٪',
                 hint: 'نسبة إنتاجية — العمليات قد تعود لليدات أقدم',
               },
-              { label: 'الإيراد (متعاقد)', value: fmtNum(totals.revenue) + ' ر.س', gold: true },
+              { label: kind ? `إيراد ال${KIND_NAME[kind]}` : 'الإيراد (متعاقد)', value: fmtNum(totals.revenue) + ' ر.س', gold: true },
               { label: 'المحصّل فعليًا', value: fmtNum(totals.collected) + ' ر.س', gold: true },
             ].map(c => (
               <div key={c.label} className="card" style={{ padding: 16 }}>
@@ -173,6 +203,27 @@ export default function ReportsPage() {
               </div>
             ))}
           </div>
+
+          {/* الإيراد حسب نوع البيع */}
+          {kindRows.length > 1 && (
+            <div className="card" style={{ padding: 16, marginBottom: 18 }}>
+              <h2 style={{ fontSize: 15, marginBottom: 12 }}>الإيراد حسب نوع البيع</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {kindRows.map(x => {
+                  const pct = kindTotal ? Math.round((x.revenue / kindTotal) * 100) : 0
+                  return (
+                    <div key={x.k}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                        <span style={{ fontWeight: 700 }}>{KIND_NAME[x.k]} · {fmtNum(x.count)}</span>
+                        <span>{fmtNum(x.revenue)} ر.س ({pct}٪)</span>
+                      </div>
+                      <div className="deals-bar"><span className="full" style={{ width: pct + '%' }} /></div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 18 }}>
             <div>
@@ -219,7 +270,7 @@ export default function ReportsPage() {
                         <thead>
                           <tr>
                             <th>#</th><th>الموظف</th>{isAll && <th>الدور</th>}
-                            <th>ليدات</th><th>عمليات</th><th>الإيراد</th>
+                            <th>ليدات</th><th>{dealsWord}</th>{showOther && <th>جلسات/منتجات</th>}<th>الإيراد</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -235,6 +286,7 @@ export default function ReportsPage() {
                               {isAll && <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t.role}</td>}
                               <td>{fmtNum(t.leads)}</td>
                               <td>{fmtNum(t.deals)}</td>
+                              {showOther && <td>{fmtNum(t.other)}</td>}
                               <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmtNum(t.revenue)}</td>
                             </tr>
                           ))}
@@ -244,6 +296,7 @@ export default function ReportsPage() {
                               <td></td><td>الإجمالي</td>
                               <td>{fmtNum(sum('leads'))}</td>
                               <td>{fmtNum(sum('deals'))}</td>
+                              {showOther && <td>{fmtNum(sum('other'))}</td>}
                               <td style={{ color: 'var(--gold)' }}>{fmtNum(sum('revenue'))}</td>
                             </tr>
                           )}

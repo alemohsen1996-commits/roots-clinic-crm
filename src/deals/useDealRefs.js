@@ -48,8 +48,9 @@ function searchConds(search) {
 }
 
 // فلاتر مشتركة بين القائمة والتصدير
-function applyDealFilters(q, { status, quick, from, to, branch, agent, coordinator, search }) {
+function applyDealFilters(q, { status, quick, from, to, branch, agent, coordinator, search, kind }) {
   if (status) q = q.eq('status', status)
+  if (kind) q = q.eq('procedure_kind', kind)
   if (quick === 'overdue') q = q.eq('is_overdue', true)
   if (quick === 'remaining') q = q.gt('open_remaining', 0)
   if (from) q = q.gte('operation_date', from)
@@ -100,12 +101,13 @@ export async function fetchAllDeals({ sort = 'date', dir = 'desc', ...filters } 
 }
 
 // أرقام الكروت والتبويبات (كل الفلاتر ما عدا الحالة والفلتر السريع)
-export async function fetchDealsOverview({ from, to, branch, agent, coordinator, search } = {}) {
+export async function fetchDealsOverview({ from, to, branch, agent, coordinator, search, kind } = {}) {
   const { data, error } = await supabase.rpc('deals_overview', {
     p_from: from || null, p_to: to || null,
     p_branch: branch ? Number(branch) : null,
     p_agent: agent || null, p_coord: coordinator || null,
     p_search: (search ?? '').trim() || null,
+    p_kind: kind || null,
   })
   if (error) console.error(error)
   return data ?? null

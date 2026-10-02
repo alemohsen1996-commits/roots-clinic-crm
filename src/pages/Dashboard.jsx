@@ -129,6 +129,9 @@ export default function Dashboard() {
     count: t.count + Number(breakdown?.[k]?.count ?? 0),
     revenue: t.revenue + Number(breakdown?.[k]?.revenue ?? 0),
   }), { count: 0, revenue: 0 })
+  const otherSplit = [['treatment', 'جلسات علاج'], ['product', 'منتجات']]
+    .filter(([k]) => Number(breakdown?.[k]?.count ?? 0) > 0)
+    .map(([k, l]) => `${fmt(breakdown[k].count)} ${l}`).join(' · ')
 
   // أرقام البلازما للشهر المختار: المدير للعيادة كلها، وموظف البلازما لنفسه
   const showPrp = isManager || isPrp
@@ -152,12 +155,14 @@ export default function Dashboard() {
         { label: 'الإيراد', value: fmt(cur?.revenue) + ' ر.س', gold: true, before: prev?.revenue },
         { label: 'المحصّل فعليًا', value: fmt(cur?.collected) + ' ر.س', before: prev?.collected },
         { label: 'الليدات الواردة', value: fmt(cur?.leads_count), before: prev?.leads_count },
+        ...(other.count > 0 ? [{ label: 'جلسات ومنتجات', value: fmt(other.count), other: true }] : []),
       ]
     : [
         { label: 'عملياتي', value: fmt(cur?.deals_count), before: prev?.deals_count },
         { label: 'إيرادي', value: fmt(cur?.revenue) + ' ر.س', gold: true, before: prev?.revenue },
         { label: 'المحصّل من عملائي', value: fmt(cur?.collected) + ' ر.س', before: prev?.collected },
         { label: 'ليداتي الواردة', value: fmt(cur?.leads_received), before: prev?.leads_received },
+        ...(other.count > 0 ? [{ label: 'جلسات ومنتجات', value: fmt(other.count), other: true }] : []),
       ]
 
   return (
@@ -204,11 +209,12 @@ export default function Dashboard() {
                   fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 26,
                   color: c.gold ? 'var(--gold)' : 'var(--ink)',
                 }}>{c.value}</div>
-                {(c.label === 'العمليات' || c.label === 'عملياتي') && other.count > 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
-                    + {fmt(other.count)} مبيعات أخرى (جلسات/منتجات) · {fmt(other.revenue)} ر.س
+                {c.other ? (
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
+                    {otherSplit} · {fmt(other.revenue)} ر.س
+                    <div style={{ fontSize: 11.5 }}>داخلين في الإيراد · مش محسوبين عمليات</div>
                   </div>
-                )}
+                ) : (
                 <div style={{ marginTop: 6, minHeight: 18 }}>
                   <Delta now={
                     c.label.includes('الإيراد') || c.label.includes('إيرادي') ? cur?.revenue
@@ -218,6 +224,7 @@ export default function Dashboard() {
                     : cur?.deals_count
                   } before={c.before} />
                 </div>
+                )}
               </div>
             ))}
           </div>
@@ -342,6 +349,7 @@ export default function Dashboard() {
                     : tabOf(r.role_code) === teamTab)
                   .sort((a, b) => Number(b.revenue) - Number(a.revenue))
                 const sum = (k) => list.reduce((t, r) => t + Number(r[k] ?? 0), 0)
+                const hasOther = rows.some(r => Number(r.other_count ?? 0) > 0)   // عمود الجلسات/المنتجات لو فيه
                 return (
                   <>
                     <div className="tabs" style={{ margin: '12px 16px 0' }}>
@@ -362,7 +370,7 @@ export default function Dashboard() {
                           <tr>
                             <th>الموظف</th>
                             {isAll && <th>الوظيفة</th>}
-                            <th>العمليات</th><th>الإيراد</th><th>المحصّل</th><th>الليدات</th>
+                            <th>العمليات</th>{hasOther && <th>جلسات/منتجات</th>}<th>الإيراد</th><th>المحصّل</th><th>الليدات</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -375,6 +383,7 @@ export default function Dashboard() {
                                 </td>
                               )}
                               <td>{fmt(r.deals_count)}</td>
+                              {hasOther && <td>{fmt(r.other_count)}</td>}
                               <td style={{ color: 'var(--gold)', fontWeight: 600 }}>{fmt(r.revenue)} ر.س</td>
                               <td>{fmt(r.collected)} ر.س</td>
                               <td>{fmt(r.leads_received)}</td>
@@ -385,6 +394,7 @@ export default function Dashboard() {
                             <tr style={{ fontWeight: 700, background: 'var(--line-soft)' }}>
                               <td>الإجمالي</td>
                               <td>{fmt(sum('deals_count'))}</td>
+                              {hasOther && <td>{fmt(sum('other_count'))}</td>}
                               <td style={{ color: 'var(--gold)' }}>{fmt(sum('revenue'))} ر.س</td>
                               <td>{fmt(sum('collected'))} ر.س</td>
                               <td>{fmt(sum('leads_received'))}</td>

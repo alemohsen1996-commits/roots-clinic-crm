@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { salesLabel } from '../lib/people'
 import {
-  useDealRefs, fetchDeals, fetchAllDeals, fetchDealsOverview, DEAL_STATUS, DEAL_SORTS,
+  useDealRefs, fetchDeals, fetchAllDeals, fetchDealsOverview, DEAL_STATUS, DEAL_SORTS, KIND_LABEL,
 } from './useDealRefs'
 import { fmtNum, fmtDate } from '../lib/format'
 import NewDealModal from './NewDealModal'
@@ -18,6 +18,13 @@ const TABS = [
   { id: 'waiting', label: 'انتظار' },
   { id: 'done',    label: 'تمت' },
   { id: 'lost',    label: 'خسارة' },
+]
+
+const KINDS = [
+  { id: '', label: 'كل المبيعات' },
+  { id: 'surgery', label: 'عمليات' },
+  { id: 'treatment', label: 'جلسات علاج' },
+  { id: 'product', label: 'منتجات' },
 ]
 
 const QUICK_LABEL = { overdue: 'متأخرة عن تاريخها', remaining: 'عليها متبقي تحصيل' }
@@ -63,6 +70,7 @@ export default function DealsPage() {
   const [branches, setBranches] = useState([])
 
   const [status, setStatus] = useState('')
+  const [kind, setKind] = useState('')            // '' | surgery | treatment | product
   const [quick, setQuick] = useState('')          // overdue | remaining
   const [period, setPeriod] = useState('all')     // all | this | last | custom
   const [from, setFrom] = useState('')
@@ -102,8 +110,8 @@ export default function DealsPage() {
   // فلاتر الكروت/التبويبات (من غير الحالة والفلتر السريع)
   const baseFilters = useMemo(() => ({
     from: range.from, to: range.to, branch, coordinator: coordId, search: debounced,
-    agent: isAgent ? '' : agentId,
-  }), [range, branch, coordId, debounced, agentId, isAgent])
+    agent: isAgent ? '' : agentId, kind,
+  }), [range, branch, coordId, debounced, agentId, isAgent, kind])
 
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true)
@@ -126,10 +134,10 @@ export default function DealsPage() {
   useEffect(() => { if (preloadLead) setShowNew(true) }, [preloadLead])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const hasFilters = status || quick || period !== 'all' || branch || agentId || coordId || search
+  const hasFilters = status || quick || kind || period !== 'all' || branch || agentId || coordId || search
 
   function clearAll() {
-    setStatus(''); setQuick(''); setPeriod('all'); setFrom(''); setTo('')
+    setStatus(''); setQuick(''); setKind(''); setPeriod('all'); setFrom(''); setTo('')
     setBranch(''); setAgentId(''); setCoordId(''); setSearch('')
   }
 
@@ -149,11 +157,11 @@ export default function DealsPage() {
     setExporting(true)
     try {
       const all = await fetchAllDeals({ ...baseFilters, status, quick, sort: sort.key, dir: sort.dir })
-      const head = ['رقم الملف', 'العميل', 'الهاتف', 'الفرع', 'رقم العملية', 'النوع', 'التقنية', 'البصيلات',
+      const head = ['رقم الملف', 'العميل', 'الهاتف', 'الفرع', 'رقم العملية', 'التصنيف', 'النوع', 'التقنية', 'البصيلات',
         'السيلز', 'المنسقة', 'تاريخ العملية', 'الحالة', 'الصافي', 'الضريبة', 'الإجمالي', 'المحصّل', 'المتبقي']
       const lines = all.map(d => [
         d.file_no, d.full_name, d.phone ?? '', d.branch_name ?? '', d.procedure_no,
-        d.procedure_name ?? '', d.technique_name ?? '', d.grafts ?? '',
+        KIND_LABEL[d.procedure_kind] ?? '', d.procedure_name ?? '', d.technique_name ?? '', d.grafts ?? '',
         d.agent_name ?? '', d.coordinator_name ?? '', d.operation_date ?? '',
         DEAL_STATUS[d.status]?.label ?? d.status,
         d.net_amount, d.tax_amount ?? 0, d.total_amount, d.collected, d.open_remaining,
@@ -174,9 +182,14 @@ export default function DealsPage() {
   }
 
   const ov = overview ?? {}
+  // سطر تقسيم المتممة حسب النوع (لما مفيش فلتر نوع)
+  const doneSplit = ['surgery', 'treatment', 'product']
+    .filter(k => Number(ov.done_by_kind?.[k] ?? 0) > 0)
+    .map(k => `${fmtNum(ov.done_by_kind[k])} ${k === 'surgery' ? 'عملية' : k === 'treatment' ? 'جلسات' : 'منتج'}`)
+    .join(' · ')
   const kpis = [
-    { id: 'done', label: 'ديلات تمت', value: fmtNum(ov.done_count),
-      sub: `صافي ${fmtNum(ov.done_net)} ر.س`, tone: 'ok',
+    { id: 'done', label: kind ? `${KINDS.find(k => k.id === kind)?.label} تمت` : 'ديلات تمت', value: fmtNum(ov.done_count),
+      sub: !kind && doneSplit ? doneSplit : `صافي ${fmtNum(ov.done_net)} ر.س`, tone: 'ok',
       on: status === 'done' && !quick,
       pick: () => { setQuick(''); setStatus(s => (s === 'done' ? '' : 'done')) } },
     { id: 'remaining', label: 'متبقي تحصيله', value: `${fmtNum(ov.rem_sum)} ر.س`,
@@ -209,6 +222,24 @@ export default function DealsPage() {
           </button>
           <button className="btn btn-primary" onClick={() => setShowNew(true)}>+ ديل جديد</button>
         </div>
+      </div>
+
+      {/* نوع البيع — بيفلتر الصفحة كلها */}
+      <div className="deals-tabs deals-kinds" role="tablist" aria-label="نوع البيع">
+        {KINDS.map(k => {
+          const on = kind === k.id
+          const n = k.id
+            ? Number(ov.by_kind?.[k.id] ?? 0)
+            : Object.values(ov.by_kind ?? {}).reduce((t, x) => t + Number(x), 0)
+          if (k.id && !n && !on) return null      // نوع مالوش ديلات مايظهرش
+          return (
+            <button key={k.id || 'all'} type="button" role="tab" aria-selected={on}
+              className={'deals-tab' + (on ? ' on' : '')} onClick={() => setKind(k.id)}>
+              {k.label}
+              <span className="deals-tab-count">{fmtNum(n)}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* كروت الأرقام — كل كارت فلتر بضغطة */}

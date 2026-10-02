@@ -1944,3 +1944,5 @@ button.kanban-more:disabled { opacity: .6; cursor: default; }
 }
 .prp-month-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .prp-month-head h2 { font-size: 16px; margin: 0; }
+
+.deals-kinds { display: inline-flex; margin-bottom: 14px; }
