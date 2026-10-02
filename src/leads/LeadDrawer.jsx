@@ -88,7 +88,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const [deleteText, setDeleteText] = useState('')
 
   // العرض المقدّم (سعر + تفاصيل)
-  const [offer, setOffer] = useState({ offered_price: '', offer_details: '' })
+  const [offer, setOffer] = useState({ offered_price: '', offered_price_max: '', offer_details: '' })
   const [savingOffer, setSavingOffer] = useState(false)
   const [offerMsg, setOfferMsg] = useState(null)   // { ok, text } — تظهر بجوار الزر
   const [offerDirty, setOfferDirty] = useState(false)
@@ -124,6 +124,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     })
     setOffer({
       offered_price: l?.offered_price ?? '',
+      offered_price_max: l?.offered_price_max ?? '',
       offer_details: l?.offer_details ?? '',
     })
   }, [leadId])
@@ -433,9 +434,21 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   }
 
   async function saveOffer() {
+    const minP = offer.offered_price ? Number(offer.offered_price) : null
+    const maxRaw = offer.offered_price_max ? Number(offer.offered_price_max) : null
+    if (maxRaw != null && minP == null) {
+      setOfferMsg({ ok: false, text: 'اكتب السعر "من" الأول' }); return
+    }
+    if (maxRaw != null && maxRaw < minP) {
+      setOfferMsg({ ok: false, text: 'السعر "إلى" لازم يكون أكبر من "من"' }); return
+    }
+    // "إلى" نفس "من" = سعر واحد
+    const maxP = maxRaw != null && maxRaw > minP ? maxRaw : null
+
     setSavingOffer(true); setOfferMsg(null)
     const { error } = await supabase.from('leads').update({
-      offered_price: offer.offered_price ? Number(offer.offered_price) : null,
+      offered_price: minP,
+      offered_price_max: maxP,
       offer_details: offer.offer_details.trim() || null,
     }).eq('id', leadId)
     setSavingOffer(false)
@@ -446,12 +459,12 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     }
 
     // سجل مفصّل: من كم إلى كم — يظهر في تبويب "العروض"
-    const oldPrice = lead.offered_price ? Number(lead.offered_price) : null
-    const newPrice = offer.offered_price ? Number(offer.offered_price) : null
-    const priceLine = oldPrice && newPrice && oldPrice !== newPrice
-      ? `تعديل السعر من ${oldPrice.toLocaleString('en-US')} إلى ${newPrice.toLocaleString('en-US')} ر.س`
-      : newPrice
-        ? `السعر: ${newPrice.toLocaleString('en-US')} ر.س`
+    const oldTxt = priceText(lead.offered_price, lead.offered_price_max)
+    const newTxt = priceText(minP, maxP)
+    const priceLine = oldTxt && newTxt && oldTxt !== newTxt
+      ? `تعديل السعر من ${oldTxt} إلى ${newTxt}`
+      : newTxt
+        ? `السعر: ${newTxt}`
         : 'بدون سعر'
 
     await supabase.from('activities').insert({
@@ -470,6 +483,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   function cancelOfferEdit() {
     setOffer({
       offered_price: lead?.offered_price ?? '',
+      offered_price_max: lead?.offered_price_max ?? '',
       offer_details: lead?.offer_details ?? '',
     })
     setOfferDirty(false)
@@ -704,7 +718,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
               )}
               {lead.offered_price > 0 && (
                 <span className="badge" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
-                  {fmtNum(lead.offered_price)} ر.س
+                  {priceText(lead.offered_price, lead.offered_price_max)}
                 </span>
               )}
             </div>
@@ -1062,7 +1076,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             <div className="offer-box">
               <div className="offer-price">
                 {lead.offered_price
-                  ? `${Number(lead.offered_price).toLocaleString('en-US')} ر.س`
+                  ? priceText(lead.offered_price, lead.offered_price_max)
                   : 'السعر غير محدّد'}
               </div>
 
@@ -1114,10 +1128,16 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                 اكتب كل بند في سطر مستقل — المنسقة تقرأ هذا عند استلام العميل
               </p>
               <div className="field">
-                <label>السعر المعروض (ر.س)</label>
-                <input type="number" min={0} value={offer.offered_price}
-                  onChange={e => setO('offered_price', e.target.value)}
-                  placeholder="السعر الذي عُرض على العميل" />
+                <label>السعر المعروض (ر.س) — سعر واحد، أو نطاق من/إلى</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="number" min={0} value={offer.offered_price} aria-label="السعر من"
+                    onChange={e => setO('offered_price', e.target.value)}
+                    placeholder="من (مثلًا 5000)" style={{ flex: 1 }} />
+                  <span style={{ color: 'var(--ink-soft)' }}>–</span>
+                  <input type="number" min={0} value={offer.offered_price_max} aria-label="السعر إلى"
+                    onChange={e => setO('offered_price_max', e.target.value)}
+                    placeholder="إلى (اختياري)" style={{ flex: 1 }} />
+                </div>
               </div>
               <div className="field">
                 <label>تفاصيل العرض — بند في كل سطر</label>
@@ -1351,4 +1371,12 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
       </aside>
     </div>
   )
+}
+
+// السعر المعروض: "5,000 ر.س" أو نطاق "5,000 – 8,000 ر.س"
+function priceText(min, max) {
+  const a = Number(min) || 0, b = Number(max) || 0
+  if (!a) return ''
+  const f = (x) => x.toLocaleString('en-US')
+  return b > a ? `${f(a)} – ${f(b)} ر.س` : `${f(a)} ر.س`
 }

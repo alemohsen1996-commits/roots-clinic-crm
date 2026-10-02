@@ -114,8 +114,12 @@ function applyFilters(q, filters) {
   if (filters.snoozed) q = q.gt('snooze_until', new Date().toISOString())
 
   // السعر المعروض
-  if (filters.priceFrom) q = q.gte('offered_price', Number(filters.priceFrom))
-  if (filters.priceTo)   q = q.lte('offered_price', Number(filters.priceTo))
+  // العرض ممكن يكون نطاق (من/إلى) — الليد يظهر لو نطاقه بيتقاطع مع الفلتر
+  if (filters.priceFrom) {
+    const v = Number(filters.priceFrom)
+    q = q.or(`offered_price_max.gte.${v},and(offered_price_max.is.null,offered_price.gte.${v})`)
+  }
+  if (filters.priceTo) q = q.lte('offered_price', Number(filters.priceTo))
 
   // العمر
   if (filters.ageFrom) q = q.gte('age', Number(filters.ageFrom))

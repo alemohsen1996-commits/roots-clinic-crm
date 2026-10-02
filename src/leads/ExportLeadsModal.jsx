@@ -7,7 +7,7 @@ const BATCH = 1000
 
 const COLUMNS = `
   id, file_no, full_name, phone, country, city, age, occupation,
-  procedure_interest, offered_price, offer_details, attempts,
+  procedure_interest, offered_price, offered_price_max, offer_details, attempts,
   created_at, last_activity, snooze_until, follow_paused,
   stages(name_ar, board),
   lead_sources(name_ar),
@@ -37,7 +37,8 @@ function toRow(l) {
     l.lead_sources?.name_ar, l.branches?.name,
     l.owner?.full_name, l.coordinator?.full_name,
     INTEREST_AR[l.procedure_interest] ?? l.procedure_interest,
-    l.offered_price, l.offer_details,
+    l.offered_price_max > l.offered_price ? `${l.offered_price} - ${l.offered_price_max}` : l.offered_price,
+    l.offer_details,
     l.age, l.occupation, l.attempts,
     l.follow_paused ? 'نعم' : 'لا',
     d(l.created_at), d(l.last_activity),
