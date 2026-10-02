@@ -105,7 +105,15 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
     }
   }, [form.lead_id, dealLeads, isCoordinator])
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const set = (k, v) => setForm(f => {
+    const next = { ...f, [k]: v }
+    // اختيار نوع ليه سعر افتراضي → يتكتب في قيمة التعاقد لو لسه فاضية
+    if (k === 'procedure_type_id' && !f.total_amount) {
+      const price = Number(refs.procedures.find(p => String(p.id) === String(v))?.base_price ?? 0)
+      if (price > 0) next.total_amount = String(price)
+    }
+    return next
+  })
   // نوع البيع المختار: عملية / جلسات علاج / منتج — بيحدد الخانات اللي تظهر
   const kind = kindOf(refs.procedures, form.procedure_type_id)
 

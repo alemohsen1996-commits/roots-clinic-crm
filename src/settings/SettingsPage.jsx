@@ -10,6 +10,7 @@ import ImportLeadsTab from './ImportLeadsTab'
 import SourcesTab from './SourcesTab'
 import DoctorsTab from './DoctorsTab'
 import TechniquesTab from './TechniquesTab'
+import SaleTypesTab from './SaleTypesTab'
 import TeamsTab from './TeamsTab'
 import BranchesTab from './BranchesTab'
 import BranchHoursTab from './BranchHoursTab'
@@ -36,6 +37,7 @@ const GROUPS = [
     { key: 'branches',     label: 'الفروع وساعات العمل', el: BranchesAndHours, manager: true },
     { key: 'doctors',      label: 'الأطباء',             el: DoctorsTab },
     { key: 'techniques',   label: 'التقنيات',            el: TechniquesTab, manager: true },
+    { key: 'sale_types',   label: 'أنواع البيع',         el: SaleTypesTab },
   ]},
   { key: 'team', label: 'الفريق والمالية', tabs: [
     { key: 'general',      label: 'الحدود والعمولات', el: GeneralTab },
