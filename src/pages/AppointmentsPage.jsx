@@ -8,26 +8,28 @@ import LeadDrawer from '../leads/LeadDrawer'
 import { emitBoardPatch } from '../leads/boardBus'
 import { STAGE } from '../lib/stageCodes'
 import { useAuth } from '../auth/AuthContext'
+import useT from '../i18n/useT'
 
+// الأسماء في الترجمة: apptStatus.*
 const STATUS = {
-  booked:      { ar: 'محجوز',   bg: 'var(--primary)', soft: true },
-  attended:    { ar: 'حضر',     bg: 'var(--ok)' },
-  no_show:     { ar: 'لم يحضر', bg: 'var(--danger)' },
-  rescheduled: { ar: 'تأجّل',   bg: 'var(--warn)' },
-  pending:     { ar: 'بدون موعد', bg: 'var(--ink-soft)' },
+  booked:      { bg: 'var(--primary)', soft: true },
+  attended:    { bg: 'var(--ok)' },
+  no_show:     { bg: 'var(--danger)' },
+  rescheduled: { bg: 'var(--warn)' },
+  pending:     { bg: 'var(--ink-soft)' },
 }
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
 const localYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const todayStr = () => localYMD(new Date())
-const DOW_AR = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
 
 function StatusBadge({ s }) {
+  const { t } = useT()
   const cfg = STATUS[s] ?? STATUS.pending
   return (
     <span style={{
       fontSize: 11.5, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
       background: cfg.bg + (cfg.soft ? '18' : '22'), color: cfg.bg,
-    }}>{cfg.ar}</span>
+    }}>{t(`apptStatus.${STATUS[s] ? s : 'pending'}`)}</span>
   )
 }
 
@@ -54,6 +56,7 @@ export default function AppointmentsPage() {
   const refs = useLeadRefs()
   const stages = refs.stages
   const { profile, roleCode, isManager } = useAuth()
+  const { t, dn, isRtl, lang } = useT()
   const canAttend = isManager || roleCode === 'coordinator'   // حضر/لم يحضر: المنسقة/المدير فقط
   const [branches, setBranches] = useState([])
   const [branchId, setBranchId] = useState(null)
@@ -104,11 +107,11 @@ export default function AppointmentsPage() {
       <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
         <StatusBadge s={a.status} />
         {o && (
-          <span title="مرحلة الليد الحالية بعد المعاينة" className="stage-pill" style={{
+          <span title={t('appts.stageAfter')} className="stage-pill" style={{
             '--stage': o.color || 'var(--primary)',
             fontSize: 11.5, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
             whiteSpace: 'nowrap',
-          }}>← {o.name_ar}</span>
+          }}>{isRtl ? '←' : '→'} {dn(o)}</span>
         )}
       </span>
     )
@@ -142,7 +145,7 @@ export default function AppointmentsPage() {
   useEffect(() => {
     (async () => {
       const { data: br } = await supabase.from('branches')
-        .select('id, name').eq('is_active', true).order('name')
+        .select('id, name, name_en').eq('is_active', true).order('name')
       const list = br ?? []
       setBranches(list)
       const sum = await refreshSummary(list)
@@ -209,7 +212,7 @@ export default function AppointmentsPage() {
     if (newStatus === 'pending') { patch.appt_date = null; patch.appt_time = null }
     if (note !== undefined) patch.coordinator_note = note
     const { error } = await supabase.from('appointments').update(patch).eq('id', appt.id)
-    if (error) { setErr('تعذّر تحديث الحالة'); setBusyId(null); return }
+    if (error) { setErr(t('dealDrawer.err.statusFailed')); setBusyId(null); return }
     // مزامنة مرحلة الليد مع الحالة (يمكن التصحيح في أي وقت)
     const target = newStatus === 'attended' ? attendedStage
                  : newStatus === 'no_show'  ? noShowStage
@@ -231,7 +234,7 @@ export default function AppointmentsPage() {
     setErr('')
   }
   function confirmNote() {
-    if (!noteText.trim()) { setErr('الملاحظة مطلوبة قبل الحفظ'); return }
+    if (!noteText.trim()) { setErr(t('appts.noteRequired')); return }
     setStatus(noteFor.appt, noteFor.action, noteText.trim())
   }
 
@@ -254,7 +257,7 @@ export default function AppointmentsPage() {
     }).eq('id', book.apptId)
     setBusyId(null)
     if (error) {
-      setErr(error.code === '23505' ? 'الخانة اتحجزت للتو — اختر وقت تاني' : 'تعذّر الحجز')
+      setErr(error.code === '23505' ? t('drawer.err.slotTaken') : t('appts.bookFailed'))
       refreshBookSlots(book.date)
       return
     }
@@ -285,14 +288,14 @@ export default function AppointmentsPage() {
     return noteFor?.id === a.id ? (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 210 }}>
         <textarea value={noteText} onChange={e => setNoteText(e.target.value)} rows={2}
-          placeholder={noteFor.action === 'attended' ? 'ملاحظة الحضور (مطلوبة)…' : 'سبب عدم الحضور (مطلوب)…'}
+          placeholder={noteFor.action === 'attended' ? t('appts.attendedNotePh') : t('appts.noShowNotePh')}
           style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--line)',
                    borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: 12.5, resize: 'vertical' }} />
         <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
           <button className="btn btn-primary" disabled={busy} onClick={confirmNote}
-            style={{ padding: '4px 12px', fontSize: 12 }}>تأكيد</button>
+            style={{ padding: '4px 12px', fontSize: 12 }}>{t('common.confirm')}</button>
           <button className="btn btn-ghost" onClick={() => { setNoteFor(null); setNoteText(''); setErr('') }}
-            style={{ padding: '4px 10px', fontSize: 12 }}>إلغاء</button>
+            style={{ padding: '4px 10px', fontSize: 12 }}>{t('common.cancel')}</button>
         </div>
       </div>
     ) : (
@@ -300,16 +303,16 @@ export default function AppointmentsPage() {
         {canAttend && (
           <button className="btn" disabled={busy} onClick={() => askNote(a, 'attended')}
             style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--ok)', borderColor: 'var(--ok)',
-              ...(a.status === 'attended' ? { background: 'var(--ok)', color: '#fff' } : {}) }}>حضر</button>
+              ...(a.status === 'attended' ? { background: 'var(--ok)', color: '#fff' } : {}) }}>{t('apptStatus.attended')}</button>
         )}
         {canAttend && (
           <button className="btn" disabled={busy} onClick={() => askNote(a, 'no_show')}
             style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--danger)', borderColor: 'var(--danger)',
-              ...(a.status === 'no_show' ? { background: 'var(--danger)', color: '#fff' } : {}) }}>لم يحضر</button>
+              ...(a.status === 'no_show' ? { background: 'var(--danger)', color: '#fff' } : {}) }}>{t('apptStatus.no_show')}</button>
         )}
         {mine(a) && (
           <button className="btn" disabled={busy} onClick={() => setStatus(a, 'pending')}
-            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--warn)', borderColor: 'var(--warn)' }}>تأجّل</button>
+            style={{ padding: '5px 14px', fontSize: 12.5, color: 'var(--warn)', borderColor: 'var(--warn)' }}>{t('apptStatus.rescheduled')}</button>
         )}
       </div>
     )
@@ -319,7 +322,7 @@ export default function AppointmentsPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>المعاينات</h1>
+          <h1>{t('nav.appointments')}</h1>
         </div>
       </div>
 
@@ -330,7 +333,7 @@ export default function AppointmentsPage() {
           return (
             <button key={b.id} className={'branch-chip' + (b.id === branchId ? ' on' : '')}
               onClick={() => selectBranch(b.id)}>
-              {b.name}
+              {dn(b)}
               {cnt > 0 && (
                 <span style={{
                   marginInlineStart: 6, fontSize: 11, fontWeight: 700,
@@ -345,17 +348,17 @@ export default function AppointmentsPage() {
 
       {/* شريط اليوم */}
       <div className="day-nav">
-        <button className="day-nav-btn" onClick={() => setDate(shiftDay(date, -1))} aria-label="اليوم السابق">
+        <button className="day-nav-btn" onClick={() => setDate(shiftDay(date, -1))} aria-label={t('appts.prevDay')}>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
         </button>
         <div className="day-nav-date">
-          <span className="day-nav-dow">{DOW_AR[new Date(date + 'T00:00:00').getDay()]}</span>
+          <span className="day-nav-dow">{new Date(date + 'T00:00:00').toLocaleDateString(lang === 'en' ? 'en-GB' : 'ar', { weekday: 'long' })}</span>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <button className="day-nav-btn" onClick={() => setDate(shiftDay(date, +1))} aria-label="اليوم التالي">
+        <button className="day-nav-btn" onClick={() => setDate(shiftDay(date, +1))} aria-label={t('appts.nextDay')}>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m15 6-6 6 6 6" /></svg>
         </button>
-        <button className="btn btn-ghost day-today" onClick={() => setDate(todayStr())}>اليوم</button>
+        <button className="btn btn-ghost day-today" onClick={() => setDate(todayStr())}>{t('task.quick.today')}</button>
       </div>
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
@@ -363,11 +366,11 @@ export default function AppointmentsPage() {
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
           </svg>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="بحث باسم المريض أو رقمه…" />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={t('appts.searchPh')} />
         </div>
         <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}
           style={{ height: 42, minWidth: 190, borderRadius: 12, textAlign: 'center', textAlignLast: 'center', fontWeight: 700 }}>
-          <option value="">كل السيلز</option>
+          <option value="">{t('appts.allSales')}</option>
           {salesList.map(sv => <option key={sv.id} value={sv.id}>{sv.name}</option>)}
         </select>
       </div>
@@ -380,9 +383,9 @@ export default function AppointmentsPage() {
         if (!list.length) return null
         return (
           <div className="drawer-section" style={{ marginBottom: 14, borderInlineStart: '3px solid var(--danger)' }}>
-            <h3 style={{ margin: '0 0 4px', color: 'var(--danger)' }}>⚠ مواعيد فاتت من غير نتيجة ({list.length})</h3>
+            <h3 style={{ margin: '0 0 4px', color: 'var(--danger)' }}>⚠ {t('appts.overdueTitle')} ({list.length})</h3>
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 6 }}>
-              سجّل حضر أو لم يحضر، أو «تأجّل» عشان يرجع لقائمة الانتظار
+              {t('appts.overdueHint')}
             </div>
             {list.map(a => (
               <div key={a.id} style={{
@@ -399,7 +402,7 @@ export default function AppointmentsPage() {
                   <span style={{ fontWeight: 600 }}>{a.patient_name}</span>
                 )}
                 <span dir="ltr" style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.patient_phone}</span>
-                <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>المنسقة: {a.coordinator_name ?? '—'}</span>
+                <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t('lead.coordShort')}: {a.coordinator_name ?? '—'}</span>
                 <div style={{ marginInlineStart: 'auto' }}>{apptActions(a, busyId === a.id)}</div>
               </div>
             ))}
@@ -413,9 +416,9 @@ export default function AppointmentsPage() {
           <button type="button" onClick={togglePending}
             aria-expanded={pendingOpen}
             style={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-            <h3 style={{ margin: 0 }}>بدون موعد — بانتظار الحجز ({pending.length})</h3>
+            <h3 style={{ margin: 0 }}>{t('appts.pendingTitle')} ({pending.length})</h3>
             <span style={{ marginInlineStart: 'auto', fontSize: 12.5, color: 'var(--ink-soft)', fontWeight: 600 }}>
-              {pendingOpen ? 'إخفاء ▴' : 'عرض ▾'}
+              {pendingOpen ? `${t('appts.hide')} ▴` : `${t('appts.show')} ▾`}
             </span>
           </button>
           {pendingOpen && (() => {
@@ -436,11 +439,11 @@ export default function AppointmentsPage() {
                 <span style={{ fontWeight: 600 }}>{a.patient_name}</span>
               )}
               <span dir="ltr" style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{a.patient_phone}</span>
-              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>المنسقة: {a.coordinator_name ?? '—'}</span>
-              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>السيلز: {a.owner_name ?? '—'}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t('lead.coordShort')}: {a.coordinator_name ?? '—'}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t('rolesShort.agent')}: {a.owner_name ?? '—'}</span>
               {mine(a) && (
                 <button className="btn btn-primary" style={{ marginInlineStart: 'auto', padding: '5px 14px' }}
-                  onClick={() => openBooking(a)}>احجز موعد</button>
+                  onClick={() => openBooking(a)}>{t('appts.book')}</button>
               )}
             </div>
           ))}
@@ -448,7 +451,7 @@ export default function AppointmentsPage() {
             <button type="button" className="btn btn-ghost"
               style={{ width: '100%', marginTop: 6, padding: '7px 0', fontSize: 13 }}
               onClick={() => setPendingAll(v => !v)}>
-              {pendingAll ? 'عرض أقل' : `عرض الكل (${list.length.toLocaleString('en-US')})`}
+              {pendingAll ? t('appts.showLess') : `${t('appts.showAll')} (${list.length.toLocaleString('en-US')})`}
             </button>
           )}
             </>)
@@ -458,39 +461,39 @@ export default function AppointmentsPage() {
             <div style={{ marginTop: 10, padding: 12, border: '1px solid var(--primary)', borderRadius: 10 }}>
               <div className="grid-2">
                 <div className="field">
-                  <label>اليوم</label>
+                  <label>{t('appts.day')}</label>
                   <input type="date" value={book.date} onChange={e => refreshBookSlots(e.target.value)} />
                 </div>
               </div>
               <div className="field" style={{ marginBottom: 10 }}>
-                <label>الوقت المتاح</label>
+                <label>{t('drawer.apptTime')}</label>
                 {!sched ? (
                   <div style={{ fontSize: 12.5, color: 'var(--warn)', fontWeight: 600 }}>
-                    فرع «{branch?.name}» غير مُعدّ — اضبط ساعاته من الإعدادات ← الفروع وساعات العمل
+                    {t('appts.branchNotConfigured', { branch: dn(branch) })}
                   </div>
                 ) : book.slots.length === 0 ? (
                   <div style={{ fontSize: 12.5, color: 'var(--warn)', fontWeight: 600 }}>
-                    لا خانات متاحة في هذا اليوم (إجازة أو محجوز بالكامل)
+                    {t('drawer.noSlots')}
                   </div>
                 ) : (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
-                    {book.slots.map(t => {
-                      const on = book.time === t
+                    {book.slots.map(tm => {
+                      const on = book.time === tm
                       return (
-                        <button key={t} onClick={() => setBook(b => ({ ...b, time: t }))} className="btn"
+                        <button key={tm} onClick={() => setBook(b => ({ ...b, time: tm }))} className="btn"
                           style={{
                             padding: '5px 12px', fontSize: 13, borderRadius: 8,
                             border: '1px solid ' + (on ? 'var(--primary)' : 'var(--line)'),
                             background: on ? 'var(--primary)' : 'transparent', color: on ? '#fff' : 'var(--ink)',
-                          }}>{fmtClock(t)}</button>
+                          }}>{fmtClock(tm)}</button>
                       )
                     })}
                   </div>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary" disabled={!book.time || busyId} onClick={confirmBooking}>تأكيد الحجز</button>
-                <button className="btn btn-ghost" onClick={() => setBook(null)}>إلغاء</button>
+                <button className="btn btn-primary" disabled={!book.time || busyId} onClick={confirmBooking}>{t('appts.confirmBooking')}</button>
+                <button className="btn btn-ghost" onClick={() => setBook(null)}>{t('common.cancel')}</button>
               </div>
             </div>
           )}
@@ -499,28 +502,28 @@ export default function AppointmentsPage() {
 
       {/* جدول اليوم */}
       {loading ? (
-        <div className="empty" style={{ padding: 24 }}>جارٍ التحميل…</div>
+        <div className="empty" style={{ padding: 24 }}>{t('common.loading')}</div>
       ) : !sched ? (
         <div className="empty" style={{ padding: 24 }}>
-          الفرع «{branch?.name}» غير مُعدّ بعد — اضبط ساعاته من الإعدادات ← الفروع وساعات العمل.
+          {t('appts.branchNotConfigured', { branch: dn(branch) })}
         </div>
       ) : slots.length === 0 ? (
-        <div className="empty" style={{ padding: 24 }}>هذا اليوم إجازة لفرع «{branch?.name}».</div>
+        <div className="empty" style={{ padding: 24 }}>{t('appts.dayOff', { branch: dn(branch) })}</div>
       ) : isMobile ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {slots.map(t => {
-            const a = byTime[hhmm(t)]
+          {slots.map(tm => {
+            const a = byTime[hhmm(tm)]
             if (filtering && (!a || !passFilters(a))) return null
             if (!a) return (
-              <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', color: 'var(--ink-soft)', fontSize: 12 }}>
-                <span style={{ whiteSpace: 'nowrap' }}>{fmtClock(t)}</span><span>— خانة فارغة —</span>
+              <div key={tm} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', color: 'var(--ink-soft)', fontSize: 12 }}>
+                <span style={{ whiteSpace: 'nowrap' }}>{fmtClock(tm)}</span><span>{t('appts.emptySlot')}</span>
               </div>
             )
             const busy = busyId === a.id
             return (
-              <div key={t} className="card" style={{ padding: 12 }}>
+              <div key={tm} className="card" style={{ padding: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap' }}>{fmtClock(t)}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap' }}>{fmtClock(tm)}</span>
                   {statusCell(a)}
                 </div>
                 {mine(a) ? (
@@ -531,8 +534,8 @@ export default function AppointmentsPage() {
                 )}
                 <div dir="ltr" style={{ fontFamily: 'monospace', fontSize: 13, color: 'var(--ink-soft)', margin: '2px 0 6px' }}>{a.patient_phone}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 14px', fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 6 }}>
-                  <span>المنسقة: {a.coordinator_name ?? '—'}</span>
-                  <span>السيلز: {a.owner_name ?? '—'}</span>
+                  <span>{t('lead.coordShort')}: {a.coordinator_name ?? '—'}</span>
+                  <span>{t('rolesShort.agent')}: {a.owner_name ?? '—'}</span>
                 </div>
                 {(a.callcenter_note || a.coordinator_note) && (
                   <div style={{ fontSize: 12.5, marginBottom: 8, paddingInlineStart: 8, borderInlineStart: '2px solid var(--line)' }}>
@@ -552,30 +555,30 @@ export default function AppointmentsPage() {
         <table className="table appt-table">
           <thead>
             <tr>
-              <th style={{ width: 30 }}>الوقت</th>
-              <th style={{ width: 60 }}>المريض</th>
-              <th style={{ width: 60 }}>الرقم</th>
-              <th style={{ width: 60 }}>المنسقة</th>
-              <th style={{ width: 60 }}>السيلز</th>
-              <th style={{ width: 220 }}>ملاحظات</th>
-              <th style={{ width: 30 }}>الحالة</th>
-              <th style={{ width: 130 }}>إجراء</th>
+              <th style={{ width: 30 }}>{t('appts.time')}</th>
+              <th style={{ width: 60 }}>{t('statements.patient')}</th>
+              <th style={{ width: 60 }}>{t('appts.number')}</th>
+              <th style={{ width: 60 }}>{t('lead.coordShort')}</th>
+              <th style={{ width: 60 }}>{t('rolesShort.agent')}</th>
+              <th style={{ width: 220 }}>{t('lead.notes')}</th>
+              <th style={{ width: 30 }}>{t('deals.status')}</th>
+              <th style={{ width: 130 }}>{t('appts.action')}</th>
             </tr>
           </thead>
           <tbody>
-            {slots.map(t => {
-              const a = byTime[hhmm(t)]
+            {slots.map(tm => {
+              const a = byTime[hhmm(tm)]
               if (filtering && (!a || !passFilters(a))) return null   // أثناء الفلترة: المطابق فقط
               if (!a) return (
-                <tr key={t} style={{ color: 'var(--ink-soft)' }}>
-                  <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtClock(t)}</td>
-                  <td colSpan={7} style={{ fontSize: 12.5, textAlign: 'start' }}>— خانة فارغة —</td>
+                <tr key={tm} style={{ color: 'var(--ink-soft)' }}>
+                  <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtClock(tm)}</td>
+                  <td colSpan={7} style={{ fontSize: 12.5, textAlign: 'start' }}>{t('appts.emptySlot')}</td>
                 </tr>
               )
               const busy = busyId === a.id
               return (
-                <tr key={t}>
-                  <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtClock(t)}</td>
+                <tr key={tm}>
+                  <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtClock(tm)}</td>
                   <td>
                     {mine(a) ? (
                       <button className="link-name" style={{ fontWeight: 600, background: 'none', border: 0, cursor: 'pointer', color: 'var(--primary)', padding: 0 }}

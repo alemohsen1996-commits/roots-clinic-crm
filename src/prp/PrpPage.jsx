@@ -8,16 +8,15 @@ import ProgressDots from './ProgressDots'
 import PrpDrawer from './PrpDrawer'
 import PrpMonthStats, { usePrpMonthStats, lastMonths } from './PrpMonthStats'
 import { UnrecordedSessions, FollowupList } from './PrpWorkLists'
+import useT from '../i18n/useT'
 
-const STATUS_AR = {
-  active:    { label: 'نشطة',    cls: 'badge-active' },
-  completed: { label: 'مكتملة',  cls: 'badge-active' },
-  dropped:   { label: 'منقطعة',  cls: 'badge-suspended' },
-}
+// الأسماء في الترجمة: prpStatus.*
+const STATUS_CLS = { active: 'badge-active', completed: 'badge-active', dropped: 'badge-suspended' }
 
 // رقم صالح لرابط واتساب: أرقام فقط بدون + أو مسافات
 export default function PrpPage() {
   const { profile, isManager, roleCode } = useAuth()
+  const { t } = useT()
   const [rows, setRows] = useState([])
   const [reminders, setReminders] = useState([])
   const [status, setStatus] = useState('active')
@@ -117,17 +116,17 @@ export default function PrpPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>قسم البلازما</h1>
-          <div className="hint">{total.toLocaleString('en-US')} باقة — تُفتح تلقائيًا عند إتمام أي عملية (Done)</div>
+          <h1>{t('nav.prp')}</h1>
+          <div className="hint">{t('prp.hint', { n: total.toLocaleString('en-US') })}</div>
         </div>
       </div>
 
       {/* أرقام الشهر */}
       <div className="prp-month-head">
-        <h2>أرقام {fmtMonth(month)}</h2>
-        <select aria-label="الشهر" value={month} onChange={e => setMonth(e.target.value)} style={{ minWidth: 170 }}>
+        <h2>{t('prp.monthNumbers', { month: fmtMonth(month) })}</h2>
+        <select aria-label={t('common.month')} value={month} onChange={e => setMonth(e.target.value)} style={{ minWidth: 170 }}>
           {months.map((m, i) => (
-            <option key={m} value={m}>{fmtMonth(m)}{i === 0 ? ' (الجاري)' : ''}</option>
+            <option key={m} value={m}>{fmtMonth(m)}{i === 0 ? ` (${t('common.current')})` : ''}</option>
           ))}
         </select>
       </div>
@@ -142,10 +141,10 @@ export default function PrpPage() {
       {reminders.length > 0 && (
         <div className="card" style={{ marginBottom: 18, borderColor: 'var(--primary)', borderWidth: 1.5 }}>
           <div style={{ padding: '14px 16px 4px' }}>
-            <h2 style={{ fontSize: 15, color: 'var(--primary)' }}>جلسات خلال ٤٨ ساعة — ذكّر المرضى</h2>
+            <h2 style={{ fontSize: 15, color: 'var(--primary)' }}>{t('prp.next48')}</h2>
           </div>
           <table className="table">
-            <thead><tr><th>المريض</th><th>الهاتف</th><th>موعد الجلسة</th></tr></thead>
+            <thead><tr><th>{t('statements.patient')}</th><th>{t('lead.phone')}</th><th>{t('prp.sessionDate')}</th></tr></thead>
             <tbody>
               {reminders.map(r => (
                 <tr key={r.id}>
@@ -155,14 +154,14 @@ export default function PrpPage() {
                       <span dir="ltr">{r.phone ?? '—'}</span>
                       {r.phone && (
                         <>
-                          <a className="icon-btn" href={`tel:${r.phone}`} title="اتصال">☎</a>
-                          <button className="icon-btn" title="واتساب"
+                          <a className="icon-btn" href={`tel:${r.phone}`} title={t('lead.call')}>☎</a>
+                          <button className="icon-btn" title="WhatsApp"
                             onClick={() => openWhatsApp(r.phone)}>
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
                               <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.22 8.22 0 0 1-1.26-4.38c0-4.54 3.7-8.23 8.25-8.23a8.23 8.23 0 0 1 0 16.47Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.8-.78.97-.14.16-.29.19-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.43.12-.15.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.35-.77-1.84-.2-.49-.4-.42-.56-.43h-.47c-.16 0-.43.06-.65.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.64 4.19 3.7.58.25 1.04.4 1.4.52.59.19 1.12.16 1.54.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.22-.16-.47-.29Z"/>
                             </svg>
                           </button>
-                          <button className="icon-btn" title="نسخ الرقم"
+                          <button className="icon-btn" title={t('lead.copyPhone')}
                             onClick={() => navigator.clipboard?.writeText(r.phone)}>⧉</button>
                         </>
                       )}
@@ -177,35 +176,35 @@ export default function PrpPage() {
       )}
 
       <div className="card filters-bar">
-        <input className="filter-search" placeholder="بحث بالاسم أو الهاتف أو رقم الملف…"
+        <input className="filter-search" placeholder={t('leads.searchPh')}
           value={search} onChange={e => setSearch(e.target.value)} />
         <select value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="active">النشطة</option>
-          <option value="completed">المكتملة</option>
-          <option value="dropped">المنقطعة</option>
-          <option value="">الكل</option>
+          <option value="active">{t('prpStatus.active')}</option>
+          <option value="completed">{t('prpStatus.completed')}</option>
+          <option value="dropped">{t('prpStatus.dropped')}</option>
+          <option value="">{t('common.all')}</option>
         </select>
         {!canEditAll && (
           <button className={'chip' + (mineOnly ? ' on' : '')}
             onClick={() => setMineOnly(v => !v)}>
-            مرضاي فقط ({mineCount.toLocaleString('en-US')})
+            {t('prp.mineOnly')} ({mineCount.toLocaleString('en-US')})
           </button>
         )}
       </div>
 
-      {loading ? <div className="empty">جارٍ التحميل…</div> :
+      {loading ? <div className="empty">{t('common.loading')}</div> :
        visible.length === 0 ? (
         <div className="card empty">
-          <strong>لا باقات هنا</strong>
-          عند تحويل أي ديل إلى "تمت العملية" تُفتح باقة تلقائيًا بجلساتها
+          <strong>{t('prp.noPackages')}</strong>
+          {t('prp.noPackagesHint')}
         </div>
       ) : (
         <div className="card" style={{ overflowX: 'auto' }}>
           <table className="table">
             <thead>
               <tr>
-                <th>المريض</th><th>الهاتف</th><th>المنسقة</th><th>السيلز</th>
-                <th>التقدم</th><th>الجلسة القادمة</th><th>آخر جلسة</th><th>الحالة</th>
+                <th>{t('statements.patient')}</th><th>{t('lead.phone')}</th><th>{t('lead.coordShort')}</th><th>{t('rolesShort.agent')}</th>
+                <th>{t('prp.progress')}</th><th>{t('prp.nextSession')}</th><th>{t('prp.lastSession')}</th><th>{t('deals.status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -224,14 +223,14 @@ export default function PrpPage() {
                       <span dir="ltr">{r.phone ?? '—'}</span>
                       {r.phone && (
                         <>
-                          <a className="icon-btn" href={`tel:${r.phone}`} title="اتصال">☎</a>
-                          <button className="icon-btn" title="واتساب"
+                          <a className="icon-btn" href={`tel:${r.phone}`} title={t('lead.call')}>☎</a>
+                          <button className="icon-btn" title="WhatsApp"
                             onClick={() => openWhatsApp(r.phone)}>
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
                               <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.22 8.22 0 0 1-1.26-4.38c0-4.54 3.7-8.23 8.25-8.23a8.23 8.23 0 0 1 0 16.47Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.8-.78.97-.14.16-.29.19-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.43.12-.15.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.35-.77-1.84-.2-.49-.4-.42-.56-.43h-.47c-.16 0-.43.06-.65.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.64 4.19 3.7.58.25 1.04.4 1.4.52.59.19 1.12.16 1.54.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.22-.16-.47-.29Z"/>
                             </svg>
                           </button>
-                          <button className="icon-btn" title="نسخ الرقم"
+                          <button className="icon-btn" title={t('lead.copyPhone')}
                             onClick={() => { navigator.clipboard?.writeText(r.phone); setCopied(r.package_id); setTimeout(() => setCopied(null), 1500) }}>
                             {copied === r.package_id ? '✓' : '⧉'}
                           </button>
@@ -243,7 +242,7 @@ export default function PrpPage() {
                     {r.coordinator_name ?? '—'}
                     {isMine(r) && !canEditAll && (
                       <span className="badge badge-active" style={{ marginInlineStart: 6, fontSize: 11 }}>
-                        مريضي
+                        {t('prp.myPatient')}
                       </span>
                     )}
                   </td>
@@ -260,14 +259,14 @@ export default function PrpPage() {
                       ? <>{fmtDate(r.last_session_date)}
                           {r.days_since_last > 45 &&
                             <span className="badge badge-pending" style={{ marginInlineStart: 6 }}>
-                              منذ {r.days_since_last} يوم
+                              {t('prp.daysAgo', { n: r.days_since_last })}
                             </span>}
                         </>
                       : '—'}
                   </td>
                   <td>
-                    <span className={'badge ' + STATUS_AR[r.status]?.cls}>
-                      {STATUS_AR[r.status]?.label}
+                    <span className={'badge ' + (STATUS_CLS[r.status] ?? '')}>
+                      {t(`prpStatus.${r.status}`, { defaultValue: r.status })}
                     </span>
                   </td>
                 </tr>
@@ -280,7 +279,7 @@ export default function PrpPage() {
       {!loading && total > 0 && (
         <div className="pager">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>لكل صفحة:</span>
+            <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{t('common.perPage')}</span>
             <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} style={{ width: 80 }}>
               <option value={30}>30</option>
               <option value={50}>50</option>
@@ -290,12 +289,12 @@ export default function PrpPage() {
           {total > pageSize && (
             <>
               <button className="btn btn-ghost" disabled={page === 0}
-                onClick={() => setPage(p => Math.max(0, p - 1))}>← السابق</button>
+                onClick={() => setPage(p => Math.max(0, p - 1))}>{t('common.prev')}</button>
               <span className="pager-info">
-                صفحة {(page + 1).toLocaleString('en-US')} من {totalPages.toLocaleString('en-US')}
+                {t('common.pageOf', { page: (page + 1).toLocaleString('en-US'), total: totalPages.toLocaleString('en-US') })}
               </span>
               <button className="btn btn-ghost" disabled={page + 1 >= totalPages}
-                onClick={() => setPage(p => p + 1)}>التالي →</button>
+                onClick={() => setPage(p => p + 1)}>{t('common.next')}</button>
             </>
           )}
         </div>

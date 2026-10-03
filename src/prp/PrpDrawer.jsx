@@ -5,18 +5,16 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtDate } from '../lib/format'
 import ProgressDots from './ProgressDots'
+import useT from '../i18n/useT'
 
-const S_STATUS = {
-  scheduled: { label: 'مجدولة',   cls: 'badge-pending' },
-  done:      { label: 'تمت',      cls: 'badge-active' },
-  missed:    { label: 'لم يحضر',  cls: 'badge-suspended' },
-  cancelled: { label: 'ملغاة',    cls: 'badge-suspended' },
-}
+// الأسماء في الترجمة: sessionStatus.*
+const S_CLS = { scheduled: 'badge-pending', done: 'badge-active', missed: 'badge-suspended', cancelled: 'badge-suspended' }
 
 const today = () => new Date().toISOString().slice(0, 10)
 
 export default function PrpDrawer({ packageId, onClose, onChanged }) {
   const { profile, isManager, roleCode } = useAuth()
+  const { t } = useT()
   const [pkg, setPkg] = useState(null)
   const [sessions, setSessions] = useState([])
   const [doctors, setDoctors] = useState([])
@@ -51,7 +49,7 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
 
   async function updateSession(id, patch) {
     const { error } = await supabase.from('prp_sessions').update(patch).eq('id', id)
-    if (error) { setErr('تعذر التحديث'); return }
+    if (error) { setErr(t('prpDrawer.updateFailed')); return }
     setErr('')
     await load(); onChanged()
   }
@@ -64,8 +62,8 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
   }
 
   async function confirmDone(s) {
-    if (!doneDate) { setErr('اختر تاريخ الجلسة'); return }
-    if (doneDate > today()) { setErr('لا يمكن تسجيل جلسة بتاريخ مستقبلي'); return }
+    if (!doneDate) { setErr(t('prpDrawer.pickDate')); return }
+    if (doneDate > today()) { setErr(t('prpDrawer.noFuture')); return }
     setConfirming(null)
     await updateSession(s.id, {
       status: 'done',
@@ -76,13 +74,13 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
 
   async function changeTotal(newTotal) {
     const n = Number(newTotal)
-    if (!n || n < 1) { setErr('عدد غير صالح'); return }
+    if (!n || n < 1) { setErr(t('prpDrawer.badCount')); return }
 
     // أعلى رقم جلسة منجزة — لا يمكن النزول تحته
     const doneNos = sessions.filter(s => s.status === 'done').map(s => s.session_no)
     const highestDone = doneNos.length ? Math.max(...doneNos) : 0
     if (n < highestDone) {
-      setErr(`لا يمكن أقل من ${highestDone} — توجد جلسة منجزة بهذا الرقم`)
+      setErr(t('prpDrawer.minCount', { n: highestDone }))
       return
     }
     setErr('')
@@ -110,7 +108,7 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
   }
 
   async function dropPackage() {
-    if (!dropReason.trim()) { setErr('اكتب سبب الانقطاع'); return }
+    if (!dropReason.trim()) { setErr(t('prpDrawer.dropReasonRequired')); return }
     await supabase.from('prp_packages').update({
       status: 'dropped', dropped_reason: dropReason.trim(),
     }).eq('id', packageId)
@@ -139,24 +137,24 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
         <header className="drawer-head">
           <div>
             <div style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--ink-soft)' }}>
-              {pkg.leads?.file_no} · باقة #{pkg.id}
+              {pkg.leads?.file_no} · {t('prpDrawer.packageNo', { n: pkg.id })}
             </div>
             <h2>{pkg.leads?.full_name}</h2>
-            <div dir="ltr" style={{ textAlign: 'right', color: 'var(--ink-soft)', fontSize: 13.5 }}>
+            <div className="ltr-cell" style={{ color: 'var(--ink-soft)', fontSize: 13.5 }}>
               {pkg.leads?.phone}
             </div>
             <div style={{ marginTop: 8, fontSize: 18 }}>
               <ProgressDots done={doneCount} total={pkg.sessions_total} />
             </div>
           </div>
-          <button className="btn btn-ghost" onClick={onClose}>إغلاق</button>
+          <button className="btn btn-ghost" onClick={onClose}>{t('common.close')}</button>
         </header>
 
         {err && <div className="alert alert-error">{err}</div>}
 
         <div className="drawer-info" style={{ marginBottom: 12 }}>
-          <div><span>المنسقة</span>{pkg.deals?.coordinator?.full_name ?? '—'}</div>
-          <div><span>موظف المبيعات</span>{pkg.deals?.agent?.full_name ?? '—'}</div>
+          <div><span>{t('lead.coordShort')}</span>{pkg.deals?.coordinator?.full_name ?? '—'}</div>
+          <div><span>{t('roles.agent')}</span>{pkg.deals?.agent?.full_name ?? '—'}</div>
         </div>
 
         {!canEdit && (
@@ -164,67 +162,67 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
             fontSize: 12.5, color: 'var(--ink-soft)', background: 'var(--surface)',
             padding: '10px 14px', borderRadius: 8, marginBottom: 8, lineHeight: 1.7,
           }}>
-            👁 هذا المريض تحت إدارة منسقة أخرى — يمكنك متابعة حالته فقط
+            👁 {t('prpDrawer.readOnly')}
           </div>
         )}
         {pkg.status === 'dropped' && (
           <div className="alert alert-error">
-            باقة منقطعة — السبب: {pkg.dropped_reason ?? '—'}
+            {t('prpDrawer.droppedReason')} {pkg.dropped_reason ?? '—'}
             {canEdit && (
               <button className="btn btn-ghost" style={{ marginInlineStart: 10 }} onClick={reactivate}>
-                إعادة تنشيط
+                {t('prpDrawer.reactivate')}
               </button>
             )}
           </div>
         )}
         {pkg.status === 'completed' && (
-          <div className="alert alert-ok">اكتملت كل جلسات الباقة 🎉</div>
+          <div className="alert alert-ok">{t('prpDrawer.allDone')} 🎉</div>
         )}
 
         {/* عدد الجلسات المتعاقد عليها */}
         {pkg.status === 'active' && canEdit && (
           <div className="drawer-section">
-            <h3>عدد جلسات الباقة</h3>
+            <h3>{t('prpDrawer.sessionsCount')}</h3>
             <div style={{ display: 'flex', gap: 8 }}>
               {[2, 3, 4].map(n => (
                 <button key={n}
                   className={'btn ' + (pkg.sessions_total === n ? 'btn-primary' : 'btn-ghost')}
                   onClick={() => changeTotal(n)}>
-                  {n} جلسات
+                  {t('prpDrawer.nSessions', { n })}
                 </button>
               ))}
               <input type="number" min={1} max={12} defaultValue={pkg.sessions_total}
                 onBlur={e => Number(e.target.value) !== pkg.sessions_total && changeTotal(e.target.value)}
-                style={{ width: 70 }} title="عدد مخصص" />
+                style={{ width: 70 }} title={t('prpDrawer.customCount')} />
             </div>
             <small style={{ color: 'var(--ink-soft)' }}>
-              تقليل العدد يحذف الجلسات غير المنجزة الزائدة فقط
+              {t('prpDrawer.reduceHint')}
             </small>
           </div>
         )}
 
         {/* الجلسات */}
         <div className="drawer-section">
-          <h3>الجلسات</h3>
+          <h3>{t('prpDrawer.sessions')}</h3>
           <div className="timeline">
             {sessions.map(s => (
               <div className="timeline-item" key={s.id}>
                 <div className="timeline-meta">
-                  <b>جلسة {s.session_no}</b>
-                  <span className={'badge ' + S_STATUS[s.status]?.cls}>{S_STATUS[s.status]?.label}</span>
+                  <b>{t('prpDrawer.sessionN', { n: s.session_no })}</b>
+                  <span className={'badge ' + (S_CLS[s.status] ?? '')}>{t(`sessionStatus.${s.status}`, { defaultValue: s.status })}</span>
                   {s.doctors?.full_name && <span>{s.doctors.full_name}</span>}
                 </div>
                 <div className="timeline-body" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
                   {s.status === 'done' ? (
-                    <span>تمت في {fmtDate(s.actual_date)}</span>
+                    <span>{t('prpDrawer.doneOn')} {fmtDate(s.actual_date)}</span>
                   ) : confirming === s.id ? (
                     <>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>تاريخ الجلسة الفعلي:</span>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{t('prpDrawer.actualDate')}:</span>
                       <input type="date" value={doneDate} max={today()}
                         onChange={e => setDoneDate(e.target.value)}
                         style={{ padding: '5px 8px', border: '1px solid var(--line)', borderRadius: 6, fontFamily: 'var(--font-body)' }} />
-                      <button className="btn btn-primary" onClick={() => confirmDone(s)}>تأكيد</button>
-                      <button className="btn btn-ghost" onClick={() => setConfirming(null)}>إلغاء</button>
+                      <button className="btn btn-primary" onClick={() => confirmDone(s)}>{t('common.confirm')}</button>
+                      <button className="btn btn-ghost" onClick={() => setConfirming(null)}>{t('common.cancel')}</button>
                     </>
                   ) : (
                     <>
@@ -234,23 +232,23 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
                       <select value={s.doctor_id ?? ''} disabled={!canEdit}
                         onChange={e => updateSession(s.id, { doctor_id: e.target.value ? Number(e.target.value) : null })}
                         style={{ padding: '5px 8px' }}>
-                        <option value="">الطبيب</option>
+                        <option value="">{t('deal.doctor')}</option>
                         {doctors.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
                       </select>
                       {s.status === 'scheduled' && pkg.status === 'active' && canEdit && (
                         <>
-                          <button className="btn btn-primary" onClick={() => startDone(s)}>✓ تمت</button>
+                          <button className="btn btn-primary" onClick={() => startDone(s)}>✓ {t('sessionStatus.done')}</button>
                           <button className="btn btn-ghost" onClick={() => updateSession(s.id, { status: 'missed' })}>
-                            لم يحضر
+                            {t('sessionStatus.missed')}
                           </button>
                         </>
                       )}
                       {s.status === 'missed' && pkg.status === 'active' && canEdit && (
                         <>
                           <button className="btn btn-ghost" onClick={() => updateSession(s.id, { status: 'scheduled' })}>
-                            إعادة جدولة
+                            {t('prpDrawer.reschedule')}
                           </button>
-                          <button className="btn btn-primary" onClick={() => startDone(s)}>✓ حضر فعلًا</button>
+                          <button className="btn btn-primary" onClick={() => startDone(s)}>✓ {t('prpDrawer.actuallyAttended')}</button>
                         </>
                       )}
                     </>
@@ -264,18 +262,18 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
         {/* الانقطاع */}
         {pkg.status === 'active' && canEdit && (
           <div className="drawer-section">
-            <h3>انقطاع المريض</h3>
+            <h3>{t('prpDrawer.dropTitle')}</h3>
             {!dropping ? (
               <button className="btn btn-danger" onClick={() => setDropping(true)}>
-                تسجيل انقطاع عن الباقة
+                {t('prpDrawer.recordDrop')}
               </button>
             ) : (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <input style={{ flex: 1, minWidth: 180 }} value={dropReason}
                   onChange={e => setDropReason(e.target.value)}
-                  placeholder="سبب الانقطاع (سفر، عدم اقتناع…)" />
-                <button className="btn btn-danger" onClick={dropPackage}>تأكيد</button>
-                <button className="btn btn-ghost" onClick={() => setDropping(false)}>تراجع</button>
+                  placeholder={t('prpDrawer.dropPh')} />
+                <button className="btn btn-danger" onClick={dropPackage}>{t('common.confirm')}</button>
+                <button className="btn btn-ghost" onClick={() => setDropping(false)}>{t('common.undo')}</button>
               </div>
             )}
           </div>

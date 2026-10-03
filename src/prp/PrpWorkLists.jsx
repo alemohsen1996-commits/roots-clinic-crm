@@ -4,26 +4,26 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtDate, fmtNum, openWhatsApp, timeAgo } from '../lib/format'
+import i18n from '../i18n'
+import useT from '../i18n/useT'
 
 const todayRiyadh = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' })
 
-const OUTCOME = {
-  wa_sent:        'اتبعتله واتساب',
-  will_book:      'رد وهيحجز',
-  no_answer:      'مردش',
-  not_interested: 'مش مهتم دلوقتي',
-}
-const DROP_REASONS = ['سافر', 'مش مقتنع بالنتيجة', 'ظروف مادية', 'ظروف صحية', 'بيعمل الجلسات برا', 'أخرى']
+// نتائج التواصل (أكواد في الداتابيز) — الأسماء من prpFu.outcome.*
+const OUTCOME = (o) => i18n.t(`prpFu.outcome.${o}`, { defaultValue: o })
+// أسباب الانقطاع: القيمة المخزّنة عربي ثابت (بيانات مشتركة)، والعرض بلغة الموظف
+const DROP_REASONS = [
+  { v: 'سافر', k: 'travel' }, { v: 'مش مقتنع بالنتيجة', k: 'notConvinced' }, { v: 'ظروف مادية', k: 'financial' },
+  { v: 'ظروف صحية', k: 'health' }, { v: 'بيعمل الجلسات برا', k: 'elsewhere' }, { v: 'أخرى', k: 'other' },
+]
 
 function reasonText(r) {
-  if (r.reason === 'missed_twice') {
-    return `فوّت ${fmtNum(r.misses_in_row)} جلسات ورا بعض` + (r.last_done ? ` · آخر حضور ${fmtDate(r.last_done)}` : '')
-  }
-  if (r.reason === 'stale') {
-    return `عدّى ${fmtNum(r.days_idle)} يوم من غير جلسة` + (r.last_done ? ` · آخر حضور ${fmtDate(r.last_done)}` : '')
-  }
-  if (r.reason === 'missed') return `ماحضرش جلسة ${fmtNum(r.next_session_no)} ومحتاج ميعاد جديد`
-  return `جلسة ${fmtNum(r.next_session_no)} مالهاش ميعاد`
+  const t = i18n.t
+  const last = r.last_done ? ` · ${t('prpFu.lastAttended')} ${fmtDate(r.last_done)}` : ''
+  if (r.reason === 'missed_twice') return t('prpFu.missedInRow', { n: fmtNum(r.misses_in_row) }) + last
+  if (r.reason === 'stale') return t('prpFu.idleDays', { n: fmtNum(r.days_idle) }) + last
+  if (r.reason === 'missed') return t('prpFu.missedNeedsDate', { n: fmtNum(r.next_session_no) })
+  return t('prpFu.noDate', { n: fmtNum(r.next_session_no) })
 }
 
 function waMessage(r) {
@@ -36,6 +36,7 @@ function waMessage(r) {
 
 // ---------- جلسات متسجلتش ----------
 export function UnrecordedSessions({ rows, canAct, onChanged }) {
+  const { t } = useT()
   const [busy, setBusy] = useState(null)
   const [err, setErr] = useState('')
   const { profile } = canAct
@@ -49,21 +50,21 @@ export function UnrecordedSessions({ rows, canAct, onChanged }) {
       : { status }
     const { error } = await supabase.from('prp_sessions').update(patch).eq('id', r.session_id)
     setBusy(null)
-    if (error) { setErr('تعذر التسجيل — ' + error.message); return }
+    if (error) { setErr(t('prpFu.recordFailed') + ' — ' + error.message); return }
     onChanged()
   }
 
   return (
     <div className="card prp-list" style={{ borderColor: 'var(--danger)' }}>
       <div className="prp-list-head">
-        <h2 style={{ color: 'var(--danger)' }}>جلسات فات ميعادها ولسه متسجلتش ({fmtNum(rows.length)})</h2>
-        <div className="hint">سجّل كل جلسة: حضر ولا ماحضرش — من غيرها أرقام البلازما مش هتطلع صح</div>
+        <h2 style={{ color: 'var(--danger)' }}>{t('prpFu.unrecordedTitle')} ({fmtNum(rows.length)})</h2>
+        <div className="hint">{t('prpFu.unrecordedHint')}</div>
       </div>
       {err && <div className="alert alert-error" style={{ margin: '0 16px 8px' }}>{err}</div>}
       <div style={{ overflowX: 'auto' }}>
         <table className="table">
           <thead>
-            <tr><th>المريض</th><th>الجلسة</th><th>ميعادها</th><th>المنسقة</th><th style={{ width: 210 }}></th></tr>
+            <tr><th>{t('statements.patient')}</th><th>{t('prpFu.session')}</th><th>{t('prpFu.scheduledFor')}</th><th>{t('lead.coordShort')}</th><th style={{ width: 210 }}></th></tr>
           </thead>
           <tbody>
             {rows.map(r => {
@@ -71,11 +72,11 @@ export function UnrecordedSessions({ rows, canAct, onChanged }) {
               return (
                 <tr key={r.session_id}>
                   <td style={{ fontWeight: 600 }}>{r.full_name}</td>
-                  <td>جلسة {fmtNum(r.session_no)} من {fmtNum(r.sessions_total)}</td>
+                  <td>{t('prpFu.sessionOf', { n: fmtNum(r.session_no), total: fmtNum(r.sessions_total) })}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     {fmtDate(r.planned_date)}{' '}
                     <span className={'badge ' + (r.days_late > 0 ? 'badge-suspended' : 'badge-pending')}>
-                      {r.days_late > 0 ? `من ${fmtNum(r.days_late)} يوم` : 'النهارده'}
+                      {r.days_late > 0 ? t('deals.daysAgo', { n: fmtNum(r.days_late) }) : t('deals.today')}
                     </span>
                   </td>
                   <td style={{ fontSize: 13 }}>{r.coordinator_name ?? '—'}</td>
@@ -83,11 +84,11 @@ export function UnrecordedSessions({ rows, canAct, onChanged }) {
                     {allowed ? (
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-primary btn-sm" disabled={busy === r.session_id}
-                          onClick={() => mark(r, 'done')}>✓ حضر</button>
+                          onClick={() => mark(r, 'done')}>✓ {t('apptStatus.attended')}</button>
                         <button className="btn btn-ghost btn-sm" disabled={busy === r.session_id}
-                          onClick={() => mark(r, 'missed')}>ماحضرش</button>
+                          onClick={() => mark(r, 'missed')}>{t('sessionStatus.missed')}</button>
                       </div>
-                    ) : <span className="hint">منسقة تانية</span>}
+                    ) : <span className="hint">{t('prpFu.otherCoord')}</span>}
                   </td>
                 </tr>
               )
@@ -101,9 +102,10 @@ export function UnrecordedSessions({ rows, canAct, onChanged }) {
 
 // ---------- قايمة المتابعة ----------
 export function FollowupList({ rows, canAct, onChanged, onOpen }) {
+  const { t } = useT()
   const [mode, setMode] = useState(null)        // { id, kind: 'book'|'contact'|'drop' }
   const [date, setDate] = useState('')
-  const [dropReason, setDropReason] = useState(DROP_REASONS[0])
+  const [dropReason, setDropReason] = useState(DROP_REASONS[0].v)
   const [busy, setBusy] = useState(null)
   const [err, setErr] = useState('')
   const { profile } = canAct
@@ -112,7 +114,7 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
   const open = (id, kind) => {
     setErr(''); setMode({ id, kind })
     if (kind === 'book') setDate(todayRiyadh())
-    if (kind === 'drop') setDropReason(DROP_REASONS[0])
+    if (kind === 'drop') setDropReason(DROP_REASONS[0].v)
   }
   const close = () => setMode(null)
 
@@ -121,7 +123,7 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
     const { error } = await supabase.from('prp_followups')
       .insert({ package_id: r.package_id, outcome, created_by: profile?.id })
     setBusy(null)
-    if (error) { setErr('تعذر تسجيل التواصل — ' + error.message); return false }
+    if (error) { setErr(t('prpFu.contactFailed') + ' — ' + error.message); return false }
     return true
   }
 
@@ -135,11 +137,11 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
   }
 
   async function book(r) {
-    if (!date || date < todayRiyadh()) { setErr('اختر تاريخ النهارده أو بعده'); return }
+    if (!date || date < todayRiyadh()) { setErr(t('prpFu.pickTodayOrLater')); return }
     setBusy(r.package_id); setErr('')
     const { error } = await supabase.rpc('prp_book_next_session', { p_package_id: r.package_id, p_date: date })
     setBusy(null)
-    if (error) { setErr('تعذر الحجز — ' + error.message); return }
+    if (error) { setErr(t('appts.bookFailed') + ' — ' + error.message); return }
     close(); onChanged()
   }
 
@@ -148,17 +150,16 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
     const { error } = await supabase.from('prp_packages')
       .update({ status: 'dropped', dropped_reason: dropReason }).eq('id', r.package_id)
     setBusy(null)
-    if (error) { setErr('تعذر التسجيل — ' + error.message); return }
+    if (error) { setErr(t('prpFu.recordFailed') + ' — ' + error.message); return }
     close(); onChanged()
   }
 
   return (
     <div className="card prp-list" style={{ borderColor: 'var(--warn)' }}>
       <div className="prp-list-head">
-        <h2 style={{ color: 'var(--warn)' }}>قايمة المتابعة ({fmtNum(rows.length)})</h2>
+        <h2 style={{ color: 'var(--warn)' }}>{t('prpFu.followupTitle')} ({fmtNum(rows.length)})</h2>
         <div className="hint">
-          مرضى محتاجين تواصل — المريض بيخرج من القايمة لما يتحجزله ميعاد أو يتسجل منقطع،
-          وبعد التواصل بيرجع لوحده لو محصلش حجز
+          {t('prpFu.followupHint')}
         </div>
       </div>
       {err && <div className="alert alert-error" style={{ margin: '0 16px 8px' }}>{err}</div>}
@@ -174,7 +175,7 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
                 <div className="prp-fu-title">
                   <button type="button" className="link-btn" onClick={() => onOpen(r)}>{r.full_name}</button>
                   <span className="deals-sub" style={{ marginTop: 0 }}>
-                    جلسة {fmtNum(r.sessions_done)} من {fmtNum(r.sessions_total)} · فاضل {fmtNum(left)}
+                    {t('prpFu.sessionOf', { n: fmtNum(r.sessions_done), total: fmtNum(r.sessions_total) })} · {t('prpFu.left', { n: fmtNum(left) })}
                     {r.branch_name ? ` · ${r.branch_name}` : ''}
                   </span>
                 </div>
@@ -182,9 +183,9 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
                   {reasonText(r)}
                 </div>
                 <div className="deals-sub">
-                  آخر تواصل: {r.last_contact_at
-                    ? `${timeAgo(r.last_contact_at)} — ${OUTCOME[r.last_outcome] ?? r.last_outcome}${r.last_contact_by ? ` (${r.last_contact_by})` : ''}`
-                    : 'لسه محدش اتواصل'}
+                  {t('prpFu.lastContact')}: {r.last_contact_at
+                    ? `${timeAgo(r.last_contact_at)} — ${OUTCOME(r.last_outcome)}${r.last_contact_by ? ` (${r.last_contact_by})` : ''}`
+                    : t('prpFu.noContactYet')}
                 </div>
               </div>
 
@@ -193,22 +194,22 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
                   {!isOpen && (
                     <>
                       <button className="btn btn-primary btn-sm" disabled={!r.phone || busy === r.package_id}
-                        onClick={() => whatsapp(r)}>واتساب</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => open(r.package_id, 'book')}>احجز جلسة</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => open(r.package_id, 'contact')}>اتواصلت</button>
+                        onClick={() => whatsapp(r)}>WhatsApp</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => open(r.package_id, 'book')}>{t('prpFu.bookSession')}</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => open(r.package_id, 'contact')}>{t('prpFu.contacted')}</button>
                       <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
-                        onClick={() => open(r.package_id, 'drop')}>انقطع نهائي</button>
+                        onClick={() => open(r.package_id, 'drop')}>{t('prpFu.droppedForGood')}</button>
                     </>
                   )}
 
                   {isOpen && mode.kind === 'book' && (
                     <>
                       <label className="prp-inline">
-                        <span>ميعاد جلسة {fmtNum(r.next_session_no)}</span>
+                        <span>{t('prpFu.sessionDateN', { n: fmtNum(r.next_session_no) })}</span>
                         <input type="date" value={date} min={todayRiyadh()} onChange={e => setDate(e.target.value)} />
                       </label>
-                      <button className="btn btn-primary btn-sm" disabled={busy === r.package_id} onClick={() => book(r)}>حجز</button>
-                      <button className="btn btn-ghost btn-sm" onClick={close}>رجوع</button>
+                      <button className="btn btn-primary btn-sm" disabled={busy === r.package_id} onClick={() => book(r)}>{t('prpFu.book')}</button>
+                      <button className="btn btn-ghost btn-sm" onClick={close}>{t('common.back')}</button>
                     </>
                   )}
 
@@ -216,27 +217,27 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
                     <>
                       {['will_book', 'no_answer', 'not_interested'].map(o => (
                         <button key={o} className="btn btn-ghost btn-sm" disabled={busy === r.package_id}
-                          onClick={() => contact(r, o)}>{OUTCOME[o]}</button>
+                          onClick={() => contact(r, o)}>{OUTCOME(o)}</button>
                       ))}
-                      <button className="btn btn-ghost btn-sm" onClick={close}>رجوع</button>
+                      <button className="btn btn-ghost btn-sm" onClick={close}>{t('common.back')}</button>
                     </>
                   )}
 
                   {isOpen && mode.kind === 'drop' && (
                     <>
                       <label className="prp-inline">
-                        <span>السبب</span>
+                        <span>{t('prpFu.reason')}</span>
                         <select value={dropReason} onChange={e => setDropReason(e.target.value)}>
-                          {DROP_REASONS.map(x => <option key={x} value={x}>{x}</option>)}
+                          {DROP_REASONS.map(x => <option key={x.v} value={x.v}>{t(`prpFu.drop.${x.k}`)}</option>)}
                         </select>
                       </label>
-                      <button className="btn btn-danger btn-sm" disabled={busy === r.package_id} onClick={() => drop(r)}>تأكيد الانقطاع</button>
-                      <button className="btn btn-ghost btn-sm" onClick={close}>رجوع</button>
+                      <button className="btn btn-danger btn-sm" disabled={busy === r.package_id} onClick={() => drop(r)}>{t('prpFu.confirmDrop')}</button>
+                      <button className="btn btn-ghost btn-sm" onClick={close}>{t('common.back')}</button>
                     </>
                   )}
                 </div>
               ) : (
-                <span className="hint">منسقة تانية</span>
+                <span className="hint">{t('prpFu.otherCoord')}</span>
               )}
             </div>
           )
