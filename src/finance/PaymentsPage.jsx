@@ -7,6 +7,7 @@ import { fmtNum, fmtDateTime, openWhatsApp } from '../lib/format'
 import { exportCsv } from '../lib/exportCsv'
 import { uploadReceipt, discardReceipt, openReceipt } from './receipts'
 import AddPaymentModal from './AddPaymentModal'
+import useT from '../i18n/useT'
 
 // تاريخ مختصر يمنع تكسّر الخلية في جدول متعدد الأعمدة
 const shortDT = (d) => {
@@ -16,15 +17,11 @@ const shortDT = (d) => {
        + ' · ' + x.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })
 }
 
-const METHOD_AR = {
-  cash: 'نقدًا', mada: 'مدى', visa: 'فيزا', mastercard: 'ماستركارد',
-  card: 'شبكة (قديم)', transfer: 'تحويل',
-  tabby: 'تابي', tamara: 'تمارا', other: 'أخرى',
-}
+const METHODS = ['cash', 'mada', 'visa', 'mastercard', 'card', 'transfer', 'tabby', 'tamara', 'other']
 // "كل الشبكة" في الفلتر = القديم + مدى + فيزا + ماستركارد
 const CARD_METHODS = ['card', 'mada', 'visa', 'mastercard']
 
-const STATUS_AR = { active: 'السارية', void_requested: 'طلبات الإلغاء', void: 'الملغية' }
+const STATUSES = ['active', 'void_requested', 'void']
 
 const PAGE = 100
 const today = () => new Date().toISOString().slice(0, 10)
@@ -45,6 +42,9 @@ const SELECT = `
 
 export default function PaymentsPage() {
   const { profile, isManager, roleCode } = useAuth()
+  const { t } = useT()
+  const SAR = t('common.currency')
+  const methodLabel = (m) => t(`payMethod.${m}`, { defaultValue: m })
   const canConfirm = isManager || roleCode === 'accountant'
   const canApproveVoid = isManager || roleCode === 'accountant'
 
@@ -153,22 +153,22 @@ export default function PaymentsPage() {
     const { error } = await supabase.from('payments').update({
       confirmed_by: profile.id, confirmed_at: new Date().toISOString(),
     }).eq('id', id)
-    if (error) { flash('تعذر التأكيد — ' + error.message); return }
-    flash('تم تأكيد الدفعة محاسبيًا')
+    if (error) { flash(t('payments.err.confirm') + ' — ' + error.message); return }
+    flash(t('payments.confirmed'))
     load(); loadStats(); loadPendingVoids()
   }
 
   async function confirmBulk() {
     const ids = [...selected]
     if (!ids.length) return
-    if (!window.confirm(`تأكيد ${ids.length} دفعة محاسبيًا؟`)) return
+    if (!window.confirm(t('payments.confirmBulkQ', { n: ids.length }))) return
     setBusy(true)
     const { error } = await supabase.from('payments').update({
       confirmed_by: profile.id, confirmed_at: new Date().toISOString(),
     }).in('id', ids)
     setBusy(false)
-    if (error) { flash('تعذر التأكيد — ' + error.message); return }
-    flash(`تم تأكيد ${ids.length} دفعة`)
+    if (error) { flash(t('payments.err.confirm') + ' — ' + error.message); return }
+    flash(t('payments.confirmedN', { n: ids.length }))
     setSelected(new Set())
     load(); loadStats(); loadPendingVoids()
   }
@@ -179,21 +179,21 @@ export default function PaymentsPage() {
       p_payment_id: voidingId, p_reason: voidReason.trim(),
     })
     setVoidingId(null); setVoidReason('')
-    if (error) { flash('تعذر إرسال طلب الإلغاء'); return }
-    flash('تم إرسال طلب الإلغاء — بانتظار موافقة الإدارة')
+    if (error) { flash(t('payments.err.voidRequest')); return }
+    flash(t('payments.voidRequested'))
     load(); loadStats(); loadPendingVoids()
   }
 
   async function approveVoid(id) {
     const { error } = await supabase.rpc('approve_payment_void', { p_payment_id: id })
-    if (error) { flash('تعذر اعتماد الإلغاء'); return }
-    flash('تم إلغاء الدفعة'); load(); loadStats(); loadPendingVoids()
+    if (error) { flash(t('payments.err.approveVoid')); return }
+    flash(t('payments.voided')); load(); loadStats(); loadPendingVoids()
   }
 
   async function rejectVoid(id) {
     const { error } = await supabase.rpc('reject_payment_void', { p_payment_id: id })
-    if (error) { flash('تعذر رفض الطلب'); return }
-    flash('تم رفض طلب الإلغاء — الدفعة سارية'); load(); loadStats(); loadPendingVoids()
+    if (error) { flash(t('payments.err.rejectVoid')); return }
+    flash(t('payments.voidRejected')); load(); loadStats(); loadPendingVoids()
   }
 
   // إرفاق إيصال لدفعة قديمة مالهاش صورة (المحاسب/المدير)
@@ -208,8 +208,8 @@ export default function PaymentsPage() {
     }
     const { error } = await supabase.from('payments').update({ receipt_path: path }).eq('id', p.id)
     setAttachingId(null)
-    if (error) { discardReceipt(path); flash('تعذر إرفاق الإيصال — ' + error.message); return }
-    flash(`اتأرفق إيصال ${p.receipt_no}`); load({ silent: true })
+    if (error) { discardReceipt(path); flash(t('payments.err.attach') + ' — ' + error.message); return }
+    flash(t('payments.attached', { no: p.receipt_no })); load({ silent: true })
   }
 
   // ---------- التصدير ----------
@@ -223,26 +223,24 @@ export default function PaymentsPage() {
           .order('id', { ascending: sortAsc }).range(off, off + 999)
       )
       const { data, error } = await q
-      if (error) { setBusy(false); flash('تعذر التصدير'); return }
+      if (error) { setBusy(false); flash(t('exportLeads.failed')); return }
       all.push(...(data ?? []))
       if ((data ?? []).length < 1000) break
     }
     setBusy(false)
 
-    const ST = { active: 'سارية', void: 'ملغية', void_requested: 'طلب إلغاء' }
+    const ST = (st) => t(`payments.st.${st}`, { defaultValue: st })
     exportCsv(
       `payments-${from || 'all'}-to-${to || 'now'}.csv`,
-      ['#', 'التاريخ', 'الإيصال', 'العميل', 'رقم الملف', 'الهاتف', 'السيلز', 'المنسقة',
-       'المبلغ', 'الضريبة', 'صافي العملية', 'قيمة التعاقد',
-       'الطريقة', 'المرجع', 'سجّلتها', 'الحالة', 'التأكيد', 'صورة الإيصال'],
+      t('payments.exportHeaders', { returnObjects: true }),
       all.map((p, i) => [
         i + 1, fmtDateTime(p.paid_at), p.receipt_no, p.deals?.leads?.full_name, p.deals?.leads?.file_no,
         p.deals?.leads?.phone, p.deals?.agent?.full_name, p.deals?.coordinator?.full_name,
         p.amount, p.deals?.tax_amount ?? '', p.deals?.net_amount ?? '', p.deals?.total_amount ?? '',
-        METHOD_AR[p.method] ?? p.method, p.reference ?? '',
+        methodLabel(p.method), p.reference ?? '',
         p.received?.full_name ?? '',
-        ST[p.status] ?? p.status, p.confirmed_at ? 'مؤكدة' : 'غير مؤكدة',
-        p.receipt_path ? 'مرفقة' : 'غير مرفقة',
+        ST(p.status), p.confirmed_at ? t('payments.confirmedBadge') : t('payments.unconfirmedBadge'),
+        p.receipt_path ? t('payments.attachedBadge') : t('payments.notAttached'),
       ])
     )
   }
@@ -273,21 +271,21 @@ export default function PaymentsPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>التحصيلات</h1>
+          <h1>{t('nav.payments')}</h1>
           <div className="hint">
             {sums
-              ? `${fmtNum(sums.active_count)} دفعة سارية · ${fmtNum(sums.active_total)} ر.س`
+              ? t('payments.activeSummary', { n: fmtNum(sums.active_count), total: fmtNum(sums.active_total), cur: SAR })
               : '—'}
-            {hasFilters && <span style={{ color: 'var(--gold)' }}> (ضمن الفلاتر)</span>}
+            {hasFilters && <span style={{ color: 'var(--gold)' }}> ({t('payments.withinFilters')})</span>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {canConfirm && (
             <button className="btn btn-ghost" onClick={doExport} disabled={busy || !total}>
-              {busy ? '…' : '⬇ تصدير'}
+              {busy ? '…' : `⬇ ${t('payments.export')}`}
             </button>
           )}
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ تسجيل دفعة</button>
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ {t('payment.title')}</button>
         </div>
       </div>
 
@@ -297,19 +295,19 @@ export default function PaymentsPage() {
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 18 }}>
           {[
-            { label: 'تحصيلات اليوم', value: fmtNum(stats.today) + ' ر.س',
-              sub: `${fmtNum(stats.today_count)} دفعة`, gold: true },
-            { label: 'تحصيلات الشهر', value: fmtNum(stats.month) + ' ر.س',
-              sub: `${fmtNum(stats.month_count)} دفعة`, gold: true },
-            { label: 'بانتظار التأكيد', value: fmtNum(stats.unconfirmed),
-              sub: fmtNum(stats.unconfirmed_total) + ' ر.س',
+            { label: t('payments.todayCollections'), value: fmtNum(stats.today) + ' ' + SAR,
+              sub: t('payments.nPayments', { n: fmtNum(stats.today_count) }), gold: true },
+            { label: t('payments.monthCollections'), value: fmtNum(stats.month) + ' ' + SAR,
+              sub: t('payments.nPayments', { n: fmtNum(stats.month_count) }), gold: true },
+            { label: t('payments.awaitingConfirm'), value: fmtNum(stats.unconfirmed),
+              sub: fmtNum(stats.unconfirmed_total) + ' ' + SAR,
               warn: stats.unconfirmed > 0,
               onClick: () => { setOnlyUnconfirmed(true); setFrom(''); setTo('') } },
-            { label: 'صافي إيراد الشهر', value: fmtNum(stats.net_month) + ' ر.س',
-              sub: `${fmtNum(stats.net_month_count)} عملية · ضريبة ${fmtNum(stats.tax_month)} ر.س`,
+            { label: t('payments.netMonth'), value: fmtNum(stats.net_month) + ' ' + SAR,
+              sub: t('payments.netMonthSub', { n: fmtNum(stats.net_month_count), tax: fmtNum(stats.tax_month), cur: SAR }),
               gold: true },
-            { label: 'طلبات إلغاء', value: fmtNum(stats.void_pending),
-              sub: stats.void_pending > 0 ? 'تحتاج قرارك' : 'لا شيء',
+            { label: t('payments.voidRequests'), value: fmtNum(stats.void_pending),
+              sub: stats.void_pending > 0 ? t('payments.needsDecision') : t('common.none'),
               danger: stats.void_pending > 0 },
           ].map(c => (
             <div key={c.label} className="card"
@@ -331,12 +329,12 @@ export default function PaymentsPage() {
       {canApproveVoid && pendingVoids.length > 0 && (
         <div className="card" style={{ marginBottom: 20, borderColor: 'var(--warn)' }}>
           <div style={{ padding: '14px 16px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h2 style={{ fontSize: 15, color: 'var(--warn)' }}>طلبات إلغاء بانتظار موافقتك</h2>
+            <h2 style={{ fontSize: 15, color: 'var(--warn)' }}>{t('payments.pendingVoids')}</h2>
             <span className="badge badge-pending">{pendingVoids.length}</span>
           </div>
           <table className="table compact" style={{ marginTop: 10 }}>
             <thead>
-              <tr><th>الإيصال</th><th>العميل</th><th>المبلغ</th><th>سبب الإلغاء</th><th>طلبها</th><th>الصورة</th><th></th></tr>
+              <tr><th>{t('payments.receipt')}</th><th>{t('lead.client')}</th><th>{t('payment.amount')}</th><th>{t('payments.voidReason')}</th><th>{t('payments.requestedBy')}</th><th>{t('payments.image')}</th><th></th></tr>
             </thead>
             <tbody>
               {pendingVoids.map(p => (
@@ -344,18 +342,18 @@ export default function PaymentsPage() {
                   <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{p.receipt_no}</td>
                   <td>{p.deals?.leads?.full_name}</td>
                   <td style={{ color: 'var(--gold)', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {fmtNum(p.amount)} ر.س
+                    {fmtNum(p.amount)} {SAR}
                   </td>
                   <td>{p.void_reason}</td>
                   <td>{p.void_requester?.full_name ?? '—'}</td>
                   <td>
                     {p.receipt_path
-                      ? <button className="icon-btn" title="عرض صورة الإيصال" onClick={() => openReceipt(p.receipt_path)}>📎</button>
+                      ? <button className="icon-btn" title={t('payments.viewReceipt')} onClick={() => openReceipt(p.receipt_path)}>📎</button>
                       : <span style={{ color: 'var(--ink-soft)' }}>—</span>}
                   </td>
                   <td style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-danger btn-sm" onClick={() => approveVoid(p.id)}>اعتماد</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => rejectVoid(p.id)}>رفض</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => approveVoid(p.id)}>{t('payments.approve')}</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => rejectVoid(p.id)}>{t('payments.reject')}</button>
                   </td>
                 </tr>
               ))}
@@ -366,37 +364,37 @@ export default function PaymentsPage() {
 
       {/* الفلاتر */}
       <div className="card filters-bar">
-        <input className="filter-search" placeholder="بحث برقم الإيصال…"
+        <input className="filter-search" placeholder={t('payments.searchPh')}
           value={search} onChange={e => setSearch(e.target.value)} />
-        <label style={{ fontSize: 13, fontWeight: 600 }}>من</label>
+        <label style={{ fontSize: 13, fontWeight: 600 }}>{t('drawer.from')}</label>
         <input type="date" value={from} onChange={e => setFrom(e.target.value)} />
-        <label style={{ fontSize: 13, fontWeight: 600 }}>إلى</label>
+        <label style={{ fontSize: 13, fontWeight: 600 }}>{t('leads.f.to')}</label>
         <input type="date" value={to} onChange={e => setTo(e.target.value)} />
         <select value={method} onChange={e => setMethod(e.target.value)}>
-          <option value="">كل الطرق</option>
-          <option value="card_all">كل الشبكة (مدى/فيزا/ماستركارد)</option>
-          {Object.entries(METHOD_AR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          <option value="">{t('payments.allMethods')}</option>
+          <option value="card_all">{t('payments.allCards')}</option>
+          {METHODS.map(k => <option key={k} value={k}>{methodLabel(k)}</option>)}
         </select>
         <select value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="">كل الحالات</option>
-          {Object.entries(STATUS_AR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          <option value="">{t('payments.allStatuses')}</option>
+          {STATUSES.map(k => <option key={k} value={k}>{t(`payments.stFilter.${k}`)}</option>)}
         </select>
         <button className={'chip' + (status === 'void' ? ' on' : '')}
           onClick={() => setStatus(v => v === 'void' ? '' : 'void')}>
-          الملغية
+          {t('payments.stFilter.void')}
         </button>
         <button className={'chip' + (onlyUnconfirmed ? ' on' : '')}
           onClick={() => setOnlyUnconfirmed(v => !v)}>
-          غير المؤكدة
+          {t('payments.unconfirmedFilter')}
         </button>
         <button className="btn btn-ghost btn-sm"
-          onClick={() => { setFrom(today()); setTo(today()) }}>اليوم</button>
+          onClick={() => { setFrom(today()); setTo(today()) }}>{t('task.quick.today')}</button>
         <button className="btn btn-ghost btn-sm"
-          onClick={() => { setFrom(monthStart()); setTo(today()) }}>هذا الشهر</button>
+          onClick={() => { setFrom(monthStart()); setTo(today()) }}>{t('payments.thisMonth')}</button>
         {hasFilters && (
           <button className="btn btn-ghost btn-sm"
             onClick={() => { setSearch(''); setFrom(''); setTo(''); setMethod(''); setStatus(''); setOnlyUnconfirmed(false) }}>
-            مسح الفلاتر
+            {t('deals.clearFilters')}
           </button>
         )}
       </div>
@@ -404,20 +402,20 @@ export default function PaymentsPage() {
       {/* شريط التأكيد الجماعي */}
       {canConfirm && selected.size > 0 && (
         <div className="card bulk-bar">
-          <div className="bulk-count"><b>{fmtNum(selected.size)}</b> دفعة محددة</div>
+          <div className="bulk-count"><b>{fmtNum(selected.size)}</b> {t('payments.selected')}</div>
           <button className="btn btn-primary" onClick={confirmBulk} disabled={busy}>
-            {busy ? 'جارٍ التأكيد…' : '✓ تأكيد المحدد محاسبيًا'}
+            {busy ? t('payments.confirming') : `✓ ${t('payments.confirmSelected')}`}
           </button>
-          <button className="btn btn-ghost" onClick={() => setSelected(new Set())}>إلغاء التحديد</button>
+          <button className="btn btn-ghost" onClick={() => setSelected(new Set())}>{t('bulk.clearSelection')}</button>
         </div>
       )}
 
       {loading ? (
-        <div className="empty">جارٍ التحميل…</div>
+        <div className="empty">{t('common.loading')}</div>
       ) : rows.length === 0 ? (
         <div className="card empty">
-          <strong>لا توجد دفعات</strong>
-          {hasFilters ? 'جرّب تعديل الفلاتر' : 'سجّل أول تحصيل وسيحصل على رقم إيصال تلقائي'}
+          <strong>{t('payments.noPayments')}</strong>
+          {hasFilters ? t('leads.noResultsBody') : t('payments.noPaymentsHint')}
         </div>
       ) : (
         <div className="card">
@@ -431,20 +429,20 @@ export default function PaymentsPage() {
                       disabled={!confirmable.length}
                       onChange={e => toggleAll(e.target.checked)}
                       style={{ width: 15, height: 15, cursor: 'pointer' }}
-                      title="تحديد غير المؤكدة في هذه الصفحة" />
+                      title={t('payments.selectUnconfirmedPage')} />
                   </th>
                 )}
                 <th style={{ width: 40 }}>#</th>
                 <th aria-sort={sortAsc ? 'ascending' : 'descending'}>
                   <button type="button" className="th-sort on" onClick={() => setSortAsc(v => !v)}
-                    title={sortAsc ? 'الأقدم أولًا — اضغط للأحدث' : 'الأحدث أولًا — اضغط للأقدم'}>
-                    التاريخ {sortAsc ? '↑' : '↓'}
+                    title={sortAsc ? t('payments.sortOldest') : t('payments.sortNewest')}>
+                    {t('payments.date')} {sortAsc ? '↑' : '↓'}
                   </button>
                 </th>
-                <th>العميل</th><th>الإيصال</th><th>الهاتف</th><th>السيلز</th><th>المنسقة</th>
-                <th>المبلغ</th><th>الضريبة</th><th>صافي العملية</th>
-                <th>الطريقة</th><th>سجّلتها</th>
-                <th>التأكيد</th><th></th>
+                <th>{t('lead.client')}</th><th>{t('payments.receipt')}</th><th>{t('lead.phone')}</th><th>{t('rolesShort.agent')}</th><th>{t('lead.coordShort')}</th>
+                <th>{t('payment.amount')}</th><th>{t('deal.tax')}</th><th>{t('payments.opNet')}</th>
+                <th>{t('payments.method')}</th><th>{t('payments.recordedBy')}</th>
+                <th>{t('payments.confirmation')}</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -477,18 +475,18 @@ export default function PaymentsPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         {p.receipt_no}
                         {p.receipt_path ? (
-                          <button className="icon-btn" title="عرض صورة الإيصال" aria-label="عرض صورة الإيصال"
+                          <button className="icon-btn" title={t('payments.viewReceipt')} aria-label={t('payments.viewReceipt')}
                             onClick={() => openReceipt(p.receipt_path)}>📎</button>
                         ) : canConfirm && !isVoid ? (
                           <label className="btn btn-ghost btn-sm" style={{ fontFamily: 'var(--font-body)', cursor: 'pointer' }}
-                            title="الدفعة دي متسجلة قبل ما الصورة تبقى إجبارية">
-                            {attachingId === p.id ? '…' : 'إرفاق'}
+                            title={t('payments.attachHint')}>
+                            {attachingId === p.id ? '…' : t('payments.attach')}
                             <input type="file" accept="image/*,application/pdf" hidden
                               disabled={attachingId === p.id}
                               onChange={e => { attachReceipt(p, e.target.files?.[0]); e.target.value = '' }} />
                           </label>
                         ) : (
-                          <span title="مفيش صورة إيصال" style={{ color: 'var(--ink-soft)' }}>—</span>
+                          <span title={t('payments.noReceipt')} style={{ color: 'var(--ink-soft)' }}>—</span>
                         )}
                       </div>
                     </td>
@@ -497,14 +495,14 @@ export default function PaymentsPage() {
                         <span dir="ltr">{p.deals?.leads?.phone ?? '—'}</span>
                         {p.deals?.leads?.phone && (
                           <>
-                            <a className="icon-btn" href={`tel:${p.deals.leads.phone}`} title="اتصال">☎</a>
-                            <button className="icon-btn" title="واتساب"
+                            <a className="icon-btn" href={`tel:${p.deals.leads.phone}`} title={t('lead.call')}>☎</a>
+                            <button className="icon-btn" title="WhatsApp"
                             onClick={() => openWhatsApp(p.deals.leads.phone)}>
                               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
                                 <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.22 8.22 0 0 1-1.26-4.38c0-4.54 3.7-8.23 8.25-8.23a8.23 8.23 0 0 1 0 16.47Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.8-.78.97-.14.16-.29.19-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.43.12-.15.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.35-.77-1.84-.2-.49-.4-.42-.56-.43h-.47c-.16 0-.43.06-.65.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.64 4.19 3.7.58.25 1.04.4 1.4.52.59.19 1.12.16 1.54.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.22-.16-.47-.29Z"/>
                               </svg>
                             </button>
-                            <button className="icon-btn" title="نسخ الرقم"
+                            <button className="icon-btn" title={t('lead.copyPhone')}
                               onClick={() => navigator.clipboard?.writeText(p.deals.leads.phone)}>⧉</button>
                           </>
                         )}
@@ -513,36 +511,36 @@ export default function PaymentsPage() {
                     <td style={{ fontSize: 12.5 }}>{p.deals?.agent?.full_name ?? '—'}</td>
                     <td style={{ fontSize: 12.5 }}>{p.deals?.coordinator?.full_name ?? '—'}</td>
                     <td style={{ color: 'var(--gold)', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      {fmtNum(p.amount)} ر.س
+                      {fmtNum(p.amount)} {SAR}
                     </td>
                     <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: 'var(--ink-soft)' }}>
-                      {Number(p.deals?.tax_amount) > 0 ? fmtNum(p.deals.tax_amount) + ' ر.س' : '—'}
+                      {Number(p.deals?.tax_amount) > 0 ? fmtNum(p.deals.tax_amount) + ' ' + SAR : '—'}
                     </td>
                     <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', fontWeight: 600 }}
-                      title="صافي العيادة من هذه العملية بعد خصم الضريبة">
-                      {p.deals?.net_amount ? fmtNum(p.deals.net_amount) + ' ر.س' : '—'}
+                      title={t('payments.opNetHint')}>
+                      {p.deals?.net_amount ? fmtNum(p.deals.net_amount) + ' ' + SAR : '—'}
                     </td>
                     <td style={{ fontSize: 12.5 }}>
-                      {METHOD_AR[p.method] ?? p.method}
+                      {methodLabel(p.method)}
                       {p.reference && <small style={{ color: 'var(--ink-soft)', display: 'block' }}>{p.reference}</small>}
                     </td>
                     <td style={{ fontSize: 12.5 }}>{p.received?.full_name ?? '—'}</td>
                     <td>
                       {isVoid
-                        ? <span className="badge badge-suspended">ملغية</span>
+                        ? <span className="badge badge-suspended">{t('payments.st.void')}</span>
                         : isVoidReq
-                          ? <span className="badge badge-pending">طلب إلغاء</span>
+                          ? <span className="badge badge-pending">{t('payments.st.void_requested')}</span>
                           : p.confirmed_at
-                            ? <span className="badge badge-active">مؤكدة</span>
+                            ? <span className="badge badge-active">{t('payments.confirmedBadge')}</span>
                             : canConfirm
-                              ? <button className="btn btn-ghost btn-sm" onClick={() => confirm(p.id)}>تأكيد</button>
-                              : <span className="badge badge-pending">بانتظار المحاسب</span>}
+                              ? <button className="btn btn-ghost btn-sm" onClick={() => confirm(p.id)}>{t('common.confirm')}</button>
+                              : <span className="badge badge-pending">{t('payments.awaitingAccountant')}</span>}
                     </td>
                     <td>
                       {p.status === 'active' && (
                         <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
                           onClick={() => { setVoidingId(p.id); setVoidReason('') }}>
-                          إلغاء
+                          {t('payments.void')}
                         </button>
                       )}
                     </td>
@@ -556,12 +554,12 @@ export default function PaymentsPage() {
           {total > PAGE && (
             <div className="pager">
               <button className="btn btn-ghost" disabled={page === 0}
-                onClick={() => setPage(p => Math.max(0, p - 1))}>← السابق</button>
+                onClick={() => setPage(p => Math.max(0, p - 1))}>{t('common.prev')}</button>
               <span className="pager-info">
-                صفحة {fmtNum(page + 1)} من {fmtNum(totalPages)} · {fmtNum(total)} دفعة
+                {t('common.pageOf', { page: fmtNum(page + 1), total: fmtNum(totalPages) })} · {t('payments.nPayments', { n: fmtNum(total) })}
               </span>
               <button className="btn btn-ghost" disabled={page + 1 >= totalPages}
-                onClick={() => setPage(p => p + 1)}>التالي →</button>
+                onClick={() => setPage(p => p + 1)}>{t('common.next')}</button>
             </div>
           )}
         </div>
@@ -578,19 +576,19 @@ export default function PaymentsPage() {
       {voidingId && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setVoidingId(null)}>
           <div className="modal" style={{ maxWidth: 420 }}>
-            <h2>طلب إلغاء دفعة</h2>
-            <p className="sub">اكتب سبب الإلغاء — سيراجعه المدير أو المحاسب قبل الاعتماد</p>
+            <h2>{t('payments.voidTitle')}</h2>
+            <p className="sub">{t('payments.voidSub')}</p>
             <div className="field">
-              <label>سبب الإلغاء</label>
+              <label>{t('payments.voidReason')}</label>
               <input value={voidReason} onChange={e => setVoidReason(e.target.value)}
-                placeholder="مثال: خطأ في المبلغ المُدخل"
+                placeholder={t('payments.voidPh')}
                 onKeyDown={e => e.key === 'Enter' && submitVoidRequest()} autoFocus />
             </div>
             <div className="modal-actions">
               <button className="btn btn-primary" onClick={submitVoidRequest} disabled={!voidReason.trim()}>
-                إرسال الطلب
+                {t('payments.sendRequest')}
               </button>
-              <button className="btn btn-ghost" onClick={() => setVoidingId(null)}>إلغاء</button>
+              <button className="btn btn-ghost" onClick={() => setVoidingId(null)}>{t('common.cancel')}</button>
             </div>
           </div>
         </div>

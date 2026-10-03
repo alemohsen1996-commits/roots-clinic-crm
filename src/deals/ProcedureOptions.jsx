@@ -1,13 +1,14 @@
 // قائمة أنواع البيع مجمّعة (optgroup): عمليات / جلسات علاج / منتجات
-import { KIND_LABEL } from './useDealRefs'
+import { KINDS, kindLabel } from './useDealRefs'
+import { dbName } from '../lib/lang'
 
 export default function ProcedureOptions({ procedures }) {
-  return ['surgery', 'treatment', 'product'].map(k => {
+  return KINDS.map(k => {
     const list = (procedures ?? []).filter(p => (p.kind ?? 'surgery') === k)
     if (!list.length) return null
     return (
-      <optgroup key={k} label={KIND_LABEL[k]}>
-        {list.map(p => <option key={p.id} value={p.id}>{p.name_ar}</option>)}
+      <optgroup key={k} label={kindLabel(k)}>
+        {list.map(p => <option key={p.id} value={p.id}>{dbName(p)}</option>)}
       </optgroup>
     )
   })

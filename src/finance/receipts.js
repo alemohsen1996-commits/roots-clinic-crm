@@ -1,4 +1,5 @@
 // صور إيصالات الدفعات — bucket خاص "receipts"، كل مستخدم بيرفع في فولدر باسمه
+import i18n from '../i18n'
 import { supabase } from '../lib/supabase'
 
 const BUCKET = 'receipts'
@@ -25,9 +26,9 @@ async function shrinkImage(file) {
 
 // بيرفع الملف ويرجّع المسار اللي يتحفظ على الدفعة
 export async function uploadReceipt(file, userId) {
-  if (!file) throw new Error('اختار صورة الإيصال')
+  if (!file) throw new Error(i18n.t('payment.err.receipt'))
   const ready = await shrinkImage(file)
-  if (ready.size > MAX_BYTES) throw new Error('الملف أكبر من 5 ميجا')
+  if (ready.size > MAX_BYTES) throw new Error(i18n.t('payment.err.tooBig'))
   const ext = ready.type === 'application/pdf' ? 'pdf'
     : ready.type === 'image/png' ? 'png'
     : ready.type === 'image/webp' ? 'webp'
@@ -36,7 +37,7 @@ export async function uploadReceipt(file, userId) {
   const { error } = await supabase.storage.from(BUCKET).upload(path, ready, {
     contentType: ready.type || 'image/jpeg', upsert: false,
   })
-  if (error) throw new Error('تعذر رفع الإيصال — ' + error.message)
+  if (error) throw new Error(i18n.t('payment.err.uploadFailed') + ' — ' + error.message)
   return path
 }
 
@@ -51,7 +52,7 @@ export async function openReceipt(path) {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 300)
   if (error || !data?.signedUrl) {
     win?.close()
-    alert('تعذر فتح الإيصال')
+    alert(i18n.t('payment.err.openFailed'))
     return
   }
   if (win) win.location.href = data.signedUrl

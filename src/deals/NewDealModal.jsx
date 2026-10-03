@@ -8,9 +8,11 @@ import { fmtNum } from '../lib/format'
 import { STAGE } from '../lib/stageCodes'
 import { kindOf, dateLabel } from './useDealRefs'
 import ProcedureOptions from './ProcedureOptions'
+import useT from '../i18n/useT'
 
 export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) {
   const { profile, roleCode } = useAuth()
+  const { t, dn, isEn } = useT()
   const isCoordinator = roleCode === 'coordinator'
 
   const [dealLeads, setDealLeads] = useState([])   // ليدات في مرحلة الديل بلا ديل نشط
@@ -33,7 +35,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
   const [branches, setBranches] = useState([])
 
   useEffect(() => {
-    supabase.from('branches').select('id, name').eq('is_active', true).order('name')
+    supabase.from('branches').select('id, name, name_en').eq('is_active', true).order('name')
       .then(({ data }) => setBranches(data ?? []))
   }, [])
 
@@ -129,11 +131,11 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
   )
 
   async function save() {
-    if (!form.lead_id) { setErr('اختر العميل'); return }
-    if (!form.coordinator_id) { setErr('اختيار المنسقة إجباري عند التعاقد'); return }
-    if (!form.branch_id) { setErr('اختيار الفرع إجباري — علشان نعرف العميل تبع أنهي فرع'); return }
-    if (!total || total <= 0) { setErr('أدخل قيمة التعاقد'); return }
-    if (taxTooBig) { setErr('الضريبة لا يمكن أن تساوي قيمة التعاقد أو تتجاوزها'); return }
+    if (!form.lead_id) { setErr(t('newDeal.err.pickClient')); return }
+    if (!form.coordinator_id) { setErr(t('newDeal.err.coordRequired')); return }
+    if (!form.branch_id) { setErr(t('newDeal.err.branchRequired')); return }
+    if (!total || total <= 0) { setErr(t('newDeal.err.amountRequired')); return }
+    if (taxTooBig) { setErr(t('newDeal.err.taxTooBig')); return }
     setErr(''); setBusy(true)
 
     const selected = dealLeads.find(l => l.id === Number(form.lead_id))
@@ -143,7 +145,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
     if (String(selected?.branch_id ?? '') !== form.branch_id) {
       const { error: bErr } = await supabase.from('leads')
         .update({ branch_id: Number(form.branch_id) }).eq('id', Number(form.lead_id))
-      if (bErr) { setBusy(false); setErr('تعذّر تحديد فرع العميل — ' + bErr.message); return }
+      if (bErr) { setBusy(false); setErr(t('newDeal.err.branchSetFailed') + ' — ' + bErr.message); return }
     }
 
     const { error } = await supabase.from('deals').insert({
@@ -165,8 +167,8 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
     setBusy(false)
     if (error) {
       setErr(error.message.includes('uq_deals_active_lead')
-        ? 'هذا العميل لديه عملية نشطة — أنهِ العملية الحالية قبل فتح عملية جديدة'
-        : 'تعذر الحفظ — ' + error.message)
+        ? t('newDeal.err.activeExists')
+        : t('addLead.saveFailed') + ' — ' + error.message)
       return
     }
     onSaved()
@@ -175,50 +177,50 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: 520 }}>
-        <h2>ملف تعاقد جديد</h2>
-        <p className="sub">المنسقة والفرع إجباريين — ويمكن فتح عملية إضافية لعميل أنهى عمليته السابقة</p>
+        <h2>{t('newDeal.title')}</h2>
+        <p className="sub">{t('newDeal.sub')}</p>
 
         {err && <div className="alert alert-error">{err}</div>}
 
         <div className="field">
-          <label>العميل (ليدات في مرحلة الديل)</label>
+          <label>{t('newDeal.clientLabel')}</label>
           <select value={form.lead_id} onChange={e => set('lead_id', e.target.value)}>
-            <option value="">— اختر العميل —</option>
+            <option value="">{t('newDeal.pickClient')}</option>
             {dealLeads.map(l => (
               <option key={l.id} value={l.id}>
-                {l.full_name} · {l.file_no}{l.past > 0 ? ` — عملية رقم ${l.past + 1}` : ''}
+                {l.full_name} · {l.file_no}{l.past > 0 ? ` — ${t('newDeal.operationNo', { n: l.past + 1 })}` : ''}
               </option>
             ))}
           </select>
         </div>
 
         <div className="field">
-          <label>الفرع *</label>
+          <label>{t('lead.branch')} *</label>
           <select value={form.branch_id} onChange={e => set('branch_id', e.target.value)}>
-            <option value="">— اختر الفرع —</option>
-            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            <option value="">{t('addLead.pickBranch')}</option>
+            {branches.map(b => <option key={b.id} value={b.id}>{dn(b)}</option>)}
           </select>
         </div>
 
         <div className="grid-2">
           <div className="field">
-            <label>المنسقة المسؤولة *</label>
+            <label>{t('lead.coordinator')} *</label>
             {isCoordinator ? (
               <>
                 <input value={myName} disabled />
                 <small style={{ color: 'var(--ink-soft)' }}>
-                  التعاقد يُسجَّل باسمك — لا يمكن إسناده لمنسقة أخرى
+                  {t('newDeal.coordSelfNote')}
                 </small>
               </>
             ) : (
               <select value={form.coordinator_id} onChange={e => set('coordinator_id', e.target.value)}>
-                <option value="">— اختر —</option>
+                <option value="">{t('common.pick')}</option>
                 {refs.coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
               </select>
             )}
           </div>
           <div className="field">
-            <label>نوع البيع</label>
+            <label>{t('deal.saleType')}</label>
             <select value={form.procedure_type_id} onChange={e => set('procedure_type_id', e.target.value)}>
               <option value="">—</option>
               <ProcedureOptions procedures={refs.procedures} />
@@ -229,18 +231,18 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
         {kind === 'surgery' && (
         <div className="grid-2">
           <div className="field">
-            <label>التقنية المستخدمة</label>
+            <label>{t('deal.technique')}</label>
             <select value={form.technique_id} onChange={e => set('technique_id', e.target.value)}>
               <option value="">—</option>
-              {refs.techniques.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name}{t.name_ar ? ` — ${t.name_ar}` : ''}
+              {refs.techniques.map(tq => (
+                <option key={tq.id} value={tq.id}>
+                  {tq.name}{tq.name_ar && !isEn ? ` — ${tq.name_ar}` : ''}
                 </option>
               ))}
             </select>
           </div>
           <div className="field">
-            <label>عدد البصيلات</label>
+            <label>{t('deal.grafts')}</label>
             <input type="number" min={0} value={form.grafts}
               onChange={e => set('grafts', e.target.value)} />
           </div>
@@ -249,7 +251,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
 
         {kind !== 'product' && (
         <div className="field">
-          <label>الطبيب</label>
+          <label>{t('deal.doctor')}</label>
           <select value={form.doctor_id} onChange={e => set('doctor_id', e.target.value)}>
             <option value="">—</option>
             {refs.doctors.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
@@ -259,13 +261,13 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
 
         <div className="grid-2">
           <div className="field">
-            <label>قيمة التعاقد (ر.س) *</label>
+            <label>{t('deal.contractAmount')} ({t('common.currency')}) *</label>
             <input type="number" min={0} value={form.total_amount}
               onChange={e => set('total_amount', e.target.value)}
-              placeholder="المبلغ المستلم من العميل" />
+              placeholder={t('newDeal.amountPh')} />
           </div>
           <div className="field">
-            <label>الضريبة (ر.س)</label>
+            <label>{t('deal.tax')} ({t('common.currency')})</label>
             <input type="number" min={0} value={form.tax_amount}
               onChange={e => set('tax_amount', e.target.value)} />
           </div>
@@ -273,24 +275,24 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
 
         {total > 0 && (
           <div className="fin-grid" style={{ marginBottom: 16 }}>
-            <div><span>المستلم من العميل</span>{fmtNum(total)} ر.س</div>
-            <div><span>الضريبة</span>{fmtNum(tax)} ر.س</div>
-            <div className="fin-gold"><span>صافي العيادة</span>{fmtNum(net > 0 ? net : 0)} ر.س</div>
+            <div><span>{t('deal.receivedFromClient')}</span>{fmtNum(total)} {t('common.currency')}</div>
+            <div><span>{t('deal.tax')}</span>{fmtNum(tax)} {t('common.currency')}</div>
+            <div className="fin-gold"><span>{t('deal.clinicNet')}</span>{fmtNum(net > 0 ? net : 0)} {t('common.currency')}</div>
           </div>
         )}
 
         {taxTooBig && (
           <div className="alert alert-error">
-            الضريبة أكبر من قيمة التعاقد أو تساويها — راجع المبلغ
+            {t('newDeal.taxTooBigNote')}
           </div>
         )}
 
         {hasTax && !taxTooBig && (
           <div className="field">
-            <label>ملاحظة على الضريبة (اختياري)</label>
+            <label>{t('deal.taxNoteOptional')}</label>
             <input value={form.tax_note}
               onChange={e => set('tax_note', e.target.value)}
-              placeholder="مثال: ضريبة القيمة المضافة ١٠٪" />
+              placeholder={t('newDeal.taxNotePh')} />
           </div>
         )}
 
@@ -302,9 +304,9 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
 
         <div className="modal-actions">
           <button className="btn btn-primary" onClick={save} disabled={busy}>
-            {busy ? 'جارٍ الحفظ…' : 'إنشاء الديل'}
+            {busy ? t('common.saving') : t('newDeal.create')}
           </button>
-          <button className="btn btn-ghost" onClick={onClose}>إلغاء</button>
+          <button className="btn btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
         </div>
       </div>
     </div>

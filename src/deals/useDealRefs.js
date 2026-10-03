@@ -1,6 +1,7 @@
 // البيانات المرجعية لوحدة الديلات: أنواع العمليات، الأطباء، المنسقات
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import i18n from '../i18n'
 import { SALES_ROLES, sortSales } from '../lib/people'
 
 export function useDealRefs() {
@@ -63,10 +64,11 @@ function applyDealFilters(q, { status, quick, from, to, branch, agent, coordinat
   return q
 }
 
+// label = مفتاح ترجمة (deals.sorts.*)
 export const DEAL_SORTS = {
-  date:      { col: 'operation_date', label: 'تاريخ العملية' },
-  net:       { col: 'net_amount',     label: 'الصافي' },
-  remaining: { col: 'open_remaining', label: 'المتبقي' },
+  date:      { col: 'operation_date', label: 'deals.sorts.date' },
+  net:       { col: 'net_amount',     label: 'deals.sorts.net' },
+  remaining: { col: 'open_remaining', label: 'deals.sorts.remaining' },
 }
 
 // قائمة الديلات من v_deals_list — RLS تضمن أن كل دور يرى ما يخصه
@@ -123,25 +125,27 @@ export async function fetchDealFinance(dealId) {
   return data
 }
 
+// label = مفتاح ترجمة (dealStatus.* / payStatus.*) — اعرضه بـ t(x.label)
 export const DEAL_STATUS = {
-  active:    { label: 'نشط',        cls: 'badge-active' },
-  done:      { label: 'تمت العملية', cls: 'badge-active' },
-  lost:      { label: 'خسارة',       cls: 'badge-suspended' },
-  waiting:   { label: 'انتظار',      cls: 'badge-pending' },
-  cancelled: { label: 'ملغي',        cls: 'badge-suspended' },
+  active:    { label: 'dealStatus.active',    cls: 'badge-active' },
+  done:      { label: 'dealStatus.done',      cls: 'badge-active' },
+  lost:      { label: 'dealStatus.lost',      cls: 'badge-suspended' },
+  waiting:   { label: 'dealStatus.waiting',   cls: 'badge-pending' },
+  cancelled: { label: 'dealStatus.cancelled', cls: 'badge-suspended' },
 }
 
 export const PAY_STATUS = {
-  paid:    { label: 'مدفوع بالكامل', cls: 'badge-active' },
-  partial: { label: 'جزئي',          cls: 'badge-pending' },
-  unpaid:  { label: 'غير مدفوع',     cls: 'badge-suspended' },
+  paid:    { label: 'payStatus.paid',    cls: 'badge-active' },
+  partial: { label: 'payStatus.partial', cls: 'badge-pending' },
+  unpaid:  { label: 'payStatus.unpaid',  cls: 'badge-suspended' },
 }
 
-// أنواع البيع: عملية / جلسات علاج / منتج
-export const KIND_LABEL = { surgery: 'عمليات', treatment: 'جلسات علاج', product: 'منتجات' }
+// أنواع البيع: عملية / جلسات علاج / منتج — بلغة الواجهة الحالية
+export const KINDS = ['surgery', 'treatment', 'product']
+export const kindLabel = (k) => i18n.t(`kind.${k}`, { defaultValue: k })
 export const kindOf = (procedures, typeId) =>
   (procedures ?? []).find(p => String(p.id) === String(typeId))?.kind ?? 'surgery'
 // اسم خانة التاريخ حسب النوع
 export const dateLabel = (kind) =>
-  kind === 'product' ? 'تاريخ التسليم' : kind === 'treatment' ? 'تاريخ أول جلسة' : 'تاريخ العملية'
+  i18n.t(kind === 'product' ? 'deals.dateDelivery' : kind === 'treatment' ? 'deals.dateFirstSession' : 'deals.dateOperation')
 

@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtNum } from '../lib/format'
+import useT from '../i18n/useT'
 
 export default function ScheduleModal({ onClose, onSaved }) {
+  const { t } = useT()
+  const SAR = t('common.currency')
   const [deals, setDeals] = useState([])
   const [dealId, setDealId] = useState('')
   const [count, setCount] = useState(3)
@@ -59,45 +62,44 @@ export default function ScheduleModal({ onClose, onSaved }) {
   const mismatch = selected && planTotal !== Number(selected.remaining)
 
   async function save() {
-    if (!selected) { setErr('اختر الديل'); return }
-    if (mismatch) { setErr(`مجموع الأقساط (${fmtNum(planTotal)}) لا يساوي المتبقي (${fmtNum(selected.remaining)})`); return }
+    if (!selected) { setErr(t('payment.err.pickDeal')); return }
+    if (mismatch) { setErr(t('schedule.err.mismatch', { sum: fmtNum(planTotal), rem: fmtNum(selected.remaining) })); return }
     setErr(''); setBusy(true)
     const { error } = await supabase.from('installments').insert(
       plan.map(p => ({ deal_id: selected.id, ...p }))
     )
     setBusy(false)
-    if (error) { setErr('تعذر حفظ الجدولة — ' + error.message); return }
+    if (error) { setErr(t('schedule.err.saveFailed') + ' — ' + error.message); return }
     onSaved()
   }
 
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: 520 }}>
-        <h2>جدولة أقساط</h2>
-        <p className="sub">يُقسّم المتبقي تلقائيًا — وتقدر تعدّل أي مبلغ يدويًا</p>
+        <h2>{t('schedule.title')}</h2>
+        <p className="sub">{t('schedule.sub')}</p>
 
         {err && <div className="alert alert-error">{err}</div>}
 
         {hiddenCount > 0 && (
           <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
-            {hiddenCount} ديل غير معروض لأن له أقساطًا قائمة بالفعل —
-            سدِّد أقساطه أو احذفها من قاعدة البيانات قبل إعادة الجدولة
+            {t('schedule.hidden', { n: hiddenCount })}
           </div>
         )}
 
         {deals.length === 0 && hiddenCount === 0 && (
           <div className="empty" style={{ padding: 20 }}>
-            لا توجد ديلات عليها متبقٍ لجدولته
+            {t('schedule.noDeals')}
           </div>
         )}
 
         <div className="field">
-          <label>الديل</label>
+          <label>{t('payment.deal')}</label>
           <select value={dealId} onChange={e => { setDealId(e.target.value); setOverrides({}) }}>
-            <option value="">— اختر —</option>
+            <option value="">{t('common.pick')}</option>
             {deals.map(d => (
               <option key={d.id} value={d.id}>
-                {d.leads?.full_name} · {d.leads?.file_no} · متبقٍ {fmtNum(d.remaining)} ر.س
+                {d.leads?.full_name} · {d.leads?.file_no} · {t('payment.remainingShort')} {fmtNum(d.remaining)} {SAR}
               </option>
             ))}
           </select>
@@ -105,26 +107,26 @@ export default function ScheduleModal({ onClose, onSaved }) {
 
         <div className="grid-2">
           <div className="field">
-            <label>عدد الأقساط</label>
+            <label>{t('schedule.count')}</label>
             <input type="number" min={1} max={12} value={count}
               onChange={e => { setCount(Number(e.target.value)); setOverrides({}) }} />
           </div>
           <div className="field">
-            <label>الفاصل بين الأقساط (يوم)</label>
+            <label>{t('schedule.intervalDays')}</label>
             <input type="number" min={7} value={intervalDays}
               onChange={e => setIntervalDays(e.target.value)} />
           </div>
         </div>
 
         <div className="field">
-          <label>تاريخ أول قسط</label>
+          <label>{t('schedule.firstDate')}</label>
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
         </div>
 
         {plan.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <table className="table" style={{ fontSize: 13 }}>
-              <thead><tr><th>القسط</th><th>المبلغ (قابل للتعديل)</th><th>الاستحقاق</th></tr></thead>
+              <thead><tr><th>{t('schedule.installment')}</th><th>{t('schedule.amountEditable')}</th><th>{t('schedule.due')}</th></tr></thead>
               <tbody>
                 {plan.map(p => (
                   <tr key={p.seq_no}>
@@ -140,16 +142,16 @@ export default function ScheduleModal({ onClose, onSaved }) {
               </tbody>
             </table>
             <p style={{ fontSize: 12.5, marginTop: 6, color: mismatch ? 'var(--danger)' : 'var(--ok)' }}>
-              المجموع: {fmtNum(planTotal)} ر.س {mismatch ? `≠ المتبقي ${fmtNum(selected?.remaining)}` : '✓ مطابق للمتبقي'}
+              {t('common.total')}: {fmtNum(planTotal)} {SAR} {mismatch ? `≠ ${t('deals.sorts.remaining')} ${fmtNum(selected?.remaining)}` : `✓ ${t('schedule.matches')}`}
             </p>
           </div>
         )}
 
         <div className="modal-actions">
           <button className="btn btn-primary" onClick={save} disabled={busy || !selected || mismatch}>
-            {busy ? 'جارٍ الحفظ…' : 'حفظ الجدولة'}
+            {busy ? t('common.saving') : t('schedule.save')}
           </button>
-          <button className="btn btn-ghost" onClick={onClose}>إلغاء</button>
+          <button className="btn btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
         </div>
       </div>
     </div>

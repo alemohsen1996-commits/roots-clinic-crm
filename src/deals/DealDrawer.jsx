@@ -7,9 +7,12 @@ import { useAuth } from '../auth/AuthContext'
 import { fetchDealFinance, DEAL_STATUS, PAY_STATUS, kindOf, dateLabel } from './useDealRefs'
 import ProcedureOptions from './ProcedureOptions'
 import { fmtNum, fmtDate } from '../lib/format'
+import useT from '../i18n/useT'
 
 export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose, onChanged }) {
   const { isManager, isSuperAdmin, roleCode, profile } = useAuth()
+  const { t, dn, isRtl, isEn } = useT()
+  const SAR = t('common.currency')
   const [deal, setDeal] = useState(null)
   const [fin, setFin] = useState(null)
   const [err, setErr] = useState('')
@@ -24,10 +27,10 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
   const load = useCallback(async () => {
     const [{ data: d }, f] = await Promise.all([
       supabase.from('deals')
-        .select(`*, leads(file_no, full_name, phone, branches(name)),
+        .select(`*, leads(file_no, full_name, phone, branches(name, name_en)),
                  agent:profiles!deals_agent_id_fkey(full_name),
                  coordinator:profiles!deals_coordinator_id_fkey(full_name),
-                 procedure_types(name_ar, kind), techniques(name, name_ar), doctors(full_name)`)
+                 procedure_types(name_ar, name_en, kind), techniques(name, name_ar), doctors(full_name)`)
         .eq('id', dealId).single(),
       fetchDealFinance(dealId),
     ])
@@ -79,17 +82,17 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
     setErr('')
     const patch = { status }
     if (status === 'done') {
-      if (!doneDate) { setErr('حدّد تاريخ العملية'); return }
-      if (doneDate > todayRiyadh()) { setErr('تاريخ العملية لا يمكن أن يكون في المستقبل'); return }
+      if (!doneDate) { setErr(t('dealDrawer.err.setDate')); return }
+      if (doneDate > todayRiyadh()) { setErr(t('dealDrawer.err.futureDate')); return }
       patch.operation_date = doneDate
     }
     const { error } = await supabase.from('deals').update(patch).eq('id', dealId)
     if (error) {
       setErr(error.message?.includes('غير مصرح')
-        ? 'تحديد نتيجة العملية يتم عبر المنسقة أو المحاسب أو المدير'
+        ? t('dealDrawer.err.outcomeRoles')
         : error.message?.includes('المستقبل')
-          ? 'لا يمكن إتمام العملية بتاريخ في المستقبل — اختر تاريخ اليوم أو قبله'
-          : 'تعذر تحديث الحالة')
+          ? t('dealDrawer.err.doneFuture')
+          : t('dealDrawer.err.statusFailed'))
       return
     }
     setConfirmOutcome(null)
@@ -100,8 +103,8 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
   async function saveEdit() {
     setErr('')
     if (deal.status === 'done') {
-      if (!form.operation_date) { setErr('العملية تمت — تاريخ العملية مطلوب'); return }
-      if (form.operation_date > todayRiyadh()) { setErr('تاريخ العملية لا يمكن أن يكون في المستقبل'); return }
+      if (!form.operation_date) { setErr(t('dealDrawer.err.doneNeedsDate')); return }
+      if (form.operation_date > todayRiyadh()) { setErr(t('dealDrawer.err.futureDate')); return }
     }
     setSaving(true)
 
@@ -116,12 +119,12 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
 
     // المبالغ تُرسل فقط لمن يملك تعديلها، وإن تغيّرت فعلًا
     if (canEditMoney) {
-      const t = Number(form.total_amount || 0)
+      const tot = Number(form.total_amount || 0)
       const x = Number(form.tax_amount || 0)
-      if (!t || t <= 0) { setErr('أدخل قيمة التعاقد'); setSaving(false); return }
-      if (x >= t) { setErr('الضريبة لا يمكن أن تساوي قيمة التعاقد أو تتجاوزها'); setSaving(false); return }
-      if (t !== Number(deal.total_amount) || x !== Number(deal.tax_amount ?? 0)) {
-        patch.total_amount = t
+      if (!tot || tot <= 0) { setErr(t('newDeal.err.amountRequired')); setSaving(false); return }
+      if (x >= tot) { setErr(t('newDeal.err.taxTooBig')); setSaving(false); return }
+      if (tot !== Number(deal.total_amount) || x !== Number(deal.tax_amount ?? 0)) {
+        patch.total_amount = tot
         patch.tax_amount = x
         patch.tax_note = form.tax_note || null
       }
@@ -132,8 +135,8 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
 
     if (error) {
       setErr(error.message?.includes('غير مصرح') ? error.message
-           : error.message?.includes('مقفول') ? 'الديل مقفول محاسبيًا'
-           : 'تعذر الحفظ — ' + error.message)
+           : error.message?.includes('مقفول') ? t('dealDrawer.err.locked')
+           : t('addLead.saveFailed') + ' — ' + error.message)
       return
     }
 
@@ -150,7 +153,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
     }
 
     setEditing(false)
-    setFlash('تم حفظ التعديل')
+    setFlash(t('dealDrawer.saved'))
     setTimeout(() => setFlash(''), 3000)
     await load(); onChanged()
   }
@@ -159,9 +162,9 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
     const { error } = await supabase.from('deals')
       .update({ coordinator_id: id || null }).eq('id', dealId)
     if (error) {
-      setErr(error.message.includes('مقفول') ? 'الديل مقفول محاسبيًا'
-           : error.message.includes('غير مصرح') ? 'تغيير المنسقة متاح للمدير فقط'
-           : 'تعذر التعديل')
+      setErr(error.message.includes('مقفول') ? t('dealDrawer.err.locked')
+           : error.message.includes('غير مصرح') ? t('dealDrawer.err.coordManagerOnly')
+           : t('drawer.err.editFailed'))
       return
     }
     await load(); onChanged()
@@ -172,9 +175,9 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
     const { error } = await supabase.from('deals')
       .update({ agent_id: id }).eq('id', dealId)
     if (error) {
-      setErr(error.message.includes('مقفول') ? 'الديل مقفول محاسبيًا'
-           : error.message.includes('غير مصرح') ? 'تغيير السيلز متاح للمدير فقط'
-           : 'تعذر التعديل')
+      setErr(error.message.includes('مقفول') ? t('dealDrawer.err.locked')
+           : error.message.includes('غير مصرح') ? t('dealDrawer.err.agentManagerOnly')
+           : t('drawer.err.editFailed'))
       return
     }
     await load(); onChanged()
@@ -185,7 +188,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
       is_locked: !deal.is_locked,
       ...(deal.is_locked ? {} : { locked_at: new Date().toISOString() }),
     }).eq('id', dealId)
-    if (error) { setErr('القفل يتطلب صلاحية أعلى'); return }
+    if (error) { setErr(t('dealDrawer.err.lockPerm')); return }
     await load(); onChanged()
   }
 
@@ -213,26 +216,26 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
         <header className="drawer-head">
           <div>
             <div style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--ink-soft)' }}>
-              {deal.leads?.file_no} · ديل #{deal.id}
+              {deal.leads?.file_no} · {t('dealDrawer.dealNo', { n: deal.id })}
             </div>
             <h2>{deal.leads?.full_name}</h2>
             <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-              <span className={'badge ' + st?.cls}>{st?.label}</span>
-              {pay && <span className={'badge ' + pay.cls}>{pay.label}</span>}
-              {deal.is_locked && <span className="badge badge-pending">مقفول 🔒</span>}
+              <span className={'badge ' + st?.cls}>{st ? t(st.label) : ''}</span>
+              {pay && <span className={'badge ' + pay.cls}>{t(pay.label)}</span>}
+              {deal.is_locked && <span className="badge badge-pending">{t('dealDrawer.locked')} 🔒</span>}
             </div>
           </div>
           <div className="head-actions">
             {hasNav && (
-              <div className="nav-pager" title="استخدم ← و → للتنقّل">
+              <div className="nav-pager" title={t('drawer.navHint')}>
                 <button className="icon-btn" disabled={!prevDeal}
-                  onClick={() => goTo(prevDeal)} title="السابق">→</button>
-                <span className="nav-pos">{navIndex + 1} من {navList.length}</span>
+                  onClick={() => goTo(prevDeal)} title={t('drawer.prev')}>{isRtl ? '→' : '←'}</button>
+                <span className="nav-pos">{navIndex + 1} / {navList.length}</span>
                 <button className="icon-btn" disabled={!nextDeal}
-                  onClick={() => goTo(nextDeal)} title="التالي">←</button>
+                  onClick={() => goTo(nextDeal)} title={t('drawer.next')}>{isRtl ? '←' : '→'}</button>
               </div>
             )}
-            <button className="btn btn-ghost" onClick={onClose}>إغلاق</button>
+            <button className="btn btn-ghost" onClick={onClose}>{t('common.close')}</button>
           </div>
         </header>
 
@@ -242,17 +245,17 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
         {/* الملخص المالي */}
         <div className="drawer-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>المالية</h3>
+            <h3 style={{ margin: 0 }}>{t('dealDrawer.finance')}</h3>
             {!editing && canEditFields && (
               <button className="btn btn-ghost" style={{ padding: '6px 14px' }}
-                onClick={() => setEditing(true)}>تعديل الديل</button>
+                onClick={() => setEditing(true)}>{t('dealDrawer.editDeal')}</button>
             )}
           </div>
           <div className="fin-grid">
-            <div><span>المطلوب من العميل</span>{fmtNum(deal.total_amount)} ر.س</div>
-            <div><span>المحصّل</span>{fmtNum(fin?.collected)} ر.س</div>
+            <div><span>{t('dealDrawer.dueFromClient')}</span>{fmtNum(deal.total_amount)} {SAR}</div>
+            <div><span>{t('common.collected')}</span>{fmtNum(fin?.collected)} {SAR}</div>
             <div className={Number(fin?.remaining) > 0 ? 'fin-danger' : ''}>
-              <span>المتبقي على العميل</span>{fmtNum(fin?.remaining)} ر.س
+              <span>{t('dealDrawer.remainingOnClient')}</span>{fmtNum(fin?.remaining)} {SAR}
             </div>
           </div>
 
@@ -260,17 +263,16 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
             marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--line)',
           }}>
             <div className="fin-grid">
-              <div><span>الضريبة</span>{fmtNum(deal.tax_amount)} ر.س</div>
-              <div className="fin-gold"><span>صافي العيادة</span>{fmtNum(deal.net_amount)} ر.س</div>
+              <div><span>{t('deal.tax')}</span>{fmtNum(deal.tax_amount)} {SAR}</div>
+              <div className="fin-gold"><span>{t('deal.clinicNet')}</span>{fmtNum(deal.net_amount)} {SAR}</div>
             </div>
             <p style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
-              العميل مطالَب بالمبلغ كاملًا — الضريبة تُخصم من حصيلة العيادة بعد الاستلام،
-              والعمولة تُحسب على الصافي
+              {t('dealDrawer.taxHint')}
             </p>
           </div>
           {deal.tax_note && (
             <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 8 }}>
-              الضريبة: {deal.tax_note}
+              {t('deal.tax')}: {deal.tax_note}
             </p>
           )}
         </div>
@@ -278,11 +280,11 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
         {/* تفاصيل العملية */}
         {editing ? (
           <div className="drawer-section">
-            <h3>تعديل بيانات الديل</h3>
+            <h3>{t('dealDrawer.editDealData')}</h3>
 
             <div className="grid-2">
               <div className="field">
-                <label>نوع البيع</label>
+                <label>{t('deal.saleType')}</label>
                 <select value={form.procedure_type_id}
                   onChange={e => setForm(f => ({ ...f, procedure_type_id: e.target.value }))}>
                   <option value="">—</option>
@@ -291,13 +293,13 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
               </div>
               {kind === 'surgery' && (
               <div className="field">
-                <label>التقنية المستخدمة</label>
+                <label>{t('deal.technique')}</label>
                 <select value={form.technique_id}
                   onChange={e => setForm(f => ({ ...f, technique_id: e.target.value }))}>
                   <option value="">—</option>
-                  {refs.techniques.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}{t.name_ar ? ` — ${t.name_ar}` : ''}
+                  {refs.techniques.map(tq => (
+                    <option key={tq.id} value={tq.id}>
+                      {tq.name}{tq.name_ar && !isEn ? ` — ${tq.name_ar}` : ''}
                     </option>
                   ))}
                 </select>
@@ -308,7 +310,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
             <div className="grid-2">
               {kind !== 'product' && (
               <div className="field">
-                <label>الطبيب</label>
+                <label>{t('deal.doctor')}</label>
                 <select value={form.doctor_id}
                   onChange={e => setForm(f => ({ ...f, doctor_id: e.target.value }))}>
                   <option value="">—</option>
@@ -321,7 +323,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
             <div className="grid-2">
               {kind === 'surgery' && (
               <div className="field">
-                <label>عدد البصيلات</label>
+                <label>{t('deal.grafts')}</label>
                 <input type="number" min={0} value={form.grafts}
                   onChange={e => setForm(f => ({ ...f, grafts: e.target.value }))} />
               </div>
@@ -332,7 +334,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
                   max={deal.status === 'done' ? todayRiyadh() : undefined}
                   onChange={e => setForm(f => ({ ...f, operation_date: e.target.value }))} />
                 {deal.status === 'done' && (
-                  <small style={{ color: "var(--ink-soft)", fontSize: 12 }}>تعديل التاريخ ينقل الإيراد والعمولة لشهره تلقائيًا</small>
+                  <small style={{ color: "var(--ink-soft)", fontSize: 12 }}>{t('dealDrawer.dateMovesRevenue')}</small>
                 )}
               </div>
             </div>
@@ -342,49 +344,49 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
                 <div style={{ borderTop: '1px dashed var(--line)', margin: '4px 0 14px' }} />
                 <div className="grid-2">
                   <div className="field">
-                    <label>قيمة التعاقد (ر.س)</label>
+                    <label>{t('deal.contractAmount')} ({SAR})</label>
                     <input type="number" min={0} value={form.total_amount}
                       onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} />
                   </div>
                   <div className="field">
-                    <label>الضريبة (ر.س)</label>
+                    <label>{t('deal.tax')} ({SAR})</label>
                     <input type="number" min={0} value={form.tax_amount}
                       onChange={e => setForm(f => ({ ...f, tax_amount: e.target.value }))} />
                   </div>
                 </div>
                 <div className="field">
-                  <label>ملاحظة على الضريبة</label>
+                  <label>{t('dealDrawer.taxNote')}</label>
                   <input value={form.tax_note ?? ''}
                     onChange={e => setForm(f => ({ ...f, tax_note: e.target.value }))} />
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--warn)', marginBottom: 12, lineHeight: 1.7 }}>
-                  ⚠ تعديل المبالغ يغيّر الإيراد والعمولة وحالة السداد — ويُسجَّل في سجل العميل
+                  ⚠ {t('dealDrawer.amountsWarn')}
                 </div>
               </>
             ) : (
               <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12 }}>
-                تعديل المبالغ يتم عبر المحاسب أو المدير
+                {t('dealDrawer.amountsRoles')}
               </div>
             )}
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" onClick={saveEdit} disabled={saving}>
-                {saving ? 'جارٍ الحفظ…' : 'حفظ التعديل'}
+                {saving ? t('common.saving') : t('dealDrawer.saveEdit')}
               </button>
               <button className="btn btn-ghost" disabled={saving}
-                onClick={() => { setEditing(false); setErr(''); load() }}>إلغاء</button>
+                onClick={() => { setEditing(false); setErr(''); load() }}>{t('common.cancel')}</button>
             </div>
           </div>
         ) : (
           <div className="drawer-info">
-            <div><span>النوع</span>{deal.procedure_types?.name_ar ?? '—'}</div>
-            {kind === 'surgery' && <div><span>التقنية</span>{deal.techniques?.name ?? '—'}</div>}
-            {kind === 'surgery' && <div><span>البصيلات</span>{deal.grafts ? fmtNum(deal.grafts) : '—'}</div>}
-            {kind !== 'product' && <div><span>الطبيب</span>{deal.doctors?.full_name ?? '—'}</div>}
+            <div><span>{t('dealDrawer.type')}</span>{dn(deal.procedure_types) || '—'}</div>
+            {kind === 'surgery' && <div><span>{t('dealDrawer.techniqueShort')}</span>{deal.techniques?.name ?? '—'}</div>}
+            {kind === 'surgery' && <div><span>{t('dealDrawer.graftsShort')}</span>{deal.grafts ? fmtNum(deal.grafts) : '—'}</div>}
+            {kind !== 'product' && <div><span>{t('deal.doctor')}</span>{deal.doctors?.full_name ?? '—'}</div>}
             <div><span>{dateLabel(kind)}</span>{fmtDate(deal.operation_date)}</div>
-            <div><span>موظف المبيعات</span>{deal.agent?.full_name}</div>
-            <div><span>المنسقة</span>{deal.coordinator?.full_name ?? '—'}</div>
-            <div><span>الفرع</span>{deal.leads?.branches?.name ?? '—'}</div>
+            <div><span>{t('roles.agent')}</span>{deal.agent?.full_name}</div>
+            <div><span>{t('lead.coordShort')}</span>{deal.coordinator?.full_name ?? '—'}</div>
+            <div><span>{t('lead.branch')}</span>{dn(deal.leads?.branches) || '—'}</div>
           </div>
         )}
 
@@ -392,13 +394,13 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
             المنسقة لا تنقل الديل (وعمولته) لزميلتها */}
         {!deal.is_locked && isManager && (
           <div className="drawer-section">
-            <h3>المنسقة المسؤولة</h3>
+            <h3>{t('lead.coordinator')}</h3>
             <select value={deal.coordinator_id ?? ''} onChange={e => changeCoordinator(e.target.value)}>
-              <option value="">— غير محددة —</option>
+              <option value="">{t('dealDrawer.unsetDash')}</option>
               {refs.coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
             </select>
             <small style={{ color: 'var(--ink-soft)' }}>
-              تغيير المنسقة ينقل عمولة هذا الديل — متاح للمدير فقط
+              {t('dealDrawer.coordChangeNote')}
             </small>
           </div>
         )}
@@ -406,22 +408,22 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
         {/* تغيير السيلز — للمدير فقط (عمولة الديل تنتقل معه) */}
         {!deal.is_locked && isManager && (
           <div className="drawer-section">
-            <h3>موظف المبيعات (السيلز)</h3>
+            <h3>{t('roles.agent')}</h3>
             <select value={deal.agent_id ?? ''} onChange={e => changeAgent(e.target.value)}>
               {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
             </select>
             <small style={{ color: 'var(--ink-soft)' }}>
-              تغيير السيلز ينقل عمولة هذا الديل — متاح للمدير فقط
+              {t('dealDrawer.agentChangeNote')}
             </small>
           </div>
         )}
 
         {!deal.is_locked && !isManager && roleCode === 'coordinator' && (
           <div className="drawer-section">
-            <h3>المنسقة المسؤولة</h3>
+            <h3>{t('lead.coordinator')}</h3>
             <input value={deal.coordinator?.full_name ?? '—'} disabled />
             <small style={{ color: 'var(--ink-soft)' }}>
-              لتغيير المنسقة المسؤولة تواصل مع المدير
+              {t('dealDrawer.coordContactManager')}
             </small>
           </div>
         )}
@@ -429,7 +431,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
         {/* تحديد النتيجة */}
         {(deal.status === 'active' || deal.status === 'waiting') && canSetOutcome ? (
           <div className="drawer-section">
-            <h3>نتيجة العملية</h3>
+            <h3>{t('dealDrawer.outcome')}</h3>
             {!confirmOutcome ? (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button className="btn btn-primary" onClick={() => {
@@ -437,55 +439,50 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
                   const op = deal.operation_date && deal.operation_date <= todayRiyadh() ? deal.operation_date : todayRiyadh()
                   setDoneDate(op); setConfirmOutcome('done')
                 }}>
-                  ✓ تمت العملية
+                  ✓ {t('dealStatus.done')}
                 </button>
                 <button className="btn btn-ghost" onClick={() => setConfirmOutcome('waiting')}>
-                  قائمة الانتظار
+                  {t('deals.kpi.waiting')}
                 </button>
                 <button className="btn btn-danger" onClick={() => setConfirmOutcome('lost')}>
-                  خسارة العميل
+                  {t('dealDrawer.loseClient')}
                 </button>
               </div>
             ) : (
               <div>
                 <p style={{ fontSize: 13.5, marginBottom: 10 }}>
                   {confirmOutcome === 'done' && (
-                    kind === 'product'
-                      ? 'سيُحتسب الإيراد في شهر تاريخ التسليم. تأكيد؟'
-                      : kind === 'treatment'
-                        ? 'سيُحتسب الإيراد في شهر أول جلسة، وتُفتح باقة الجلسات في قسم البلازما تلقائيًا. تأكيد؟'
-                        : 'سيُحتسب الإيراد والعمولة في شهر تاريخ العملية، وتُفتح باقة بلازما تلقائيًا. تأكيد؟'
+                    t(`dealDrawer.confirmDone.${kind === 'product' ? 'product' : kind === 'treatment' ? 'treatment' : 'surgery'}`)
                   )}
-                  {confirmOutcome === 'lost' && 'سيُصنف العميل كخسارة. تأكيد؟'}
-                  {confirmOutcome === 'waiting' && 'سينتقل العميل لقائمة الانتظار. تأكيد؟'}
+                  {confirmOutcome === 'lost' && t('dealDrawer.confirmLost')}
+                  {confirmOutcome === 'waiting' && t('dealDrawer.confirmWaiting')}
                 </p>
                 {confirmOutcome === 'done' && (
                   <div className="field" style={{ marginBottom: 10, maxWidth: 220 }}>
-                    <label>{dateLabel(kind)} الفعلي</label>
+                    <label>{t('dealDrawer.actualDate', { label: dateLabel(kind) })}</label>
                     <input type="date" value={doneDate} max={todayRiyadh()}
                       onChange={e => setDoneDate(e.target.value)} />
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-primary" onClick={() => setOutcome(confirmOutcome)}>تأكيد</button>
-                  <button className="btn btn-ghost" onClick={() => setConfirmOutcome(null)}>تراجع</button>
+                  <button className="btn btn-primary" onClick={() => setOutcome(confirmOutcome)}>{t('common.confirm')}</button>
+                  <button className="btn btn-ghost" onClick={() => setConfirmOutcome(null)}>{t('common.undo')}</button>
                 </div>
               </div>
             )}
           </div>
         ) : deal.status === 'done' ? (
           <div className="alert alert-ok">
-            العملية تمت — باقة البلازما فُتحت تلقائيًا في قسم البلازما
+            {t('dealDrawer.doneNote')}
           </div>
         ) : !canSetOutcome && (
           <div className="drawer-section">
-            <h3>نتيجة العملية</h3>
+            <h3>{t('dealDrawer.outcome')}</h3>
             <div style={{
               fontSize: 12.5, color: 'var(--ink-soft)', background: 'var(--surface)',
               padding: '10px 14px', borderRadius: 8, lineHeight: 1.7,
             }}>
-              👁 تحديد نتيجة العملية يتم عبر المنسقة أو المحاسب أو المدير —
-              يمكنك متابعة حالة عميلك من هنا
+              👁 {t('dealDrawer.outcomeReadOnly')}
             </div>
           </div>
         )}
@@ -493,12 +490,12 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
         {/* القفل المحاسبي */}
         {(isManager || isSuperAdmin) && (
           <div className="drawer-section">
-            <h3>القفل المحاسبي</h3>
+            <h3>{t('dealDrawer.accountingLock')}</h3>
             <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 10 }}>
-              بعد القفل لا يمكن تعديل الديل إلا بصلاحية المدير العام — ويُسجل كل شيء في سجل التدقيق
+              {t('dealDrawer.lockHint')}
             </p>
             <button className={'btn ' + (deal.is_locked ? 'btn-ghost' : 'btn-primary')} onClick={toggleLock}>
-              {deal.is_locked ? 'فك القفل' : 'قفل الديل'}
+              {deal.is_locked ? t('dealDrawer.unlock') : t('dealDrawer.lock')}
             </button>
           </div>
         )}

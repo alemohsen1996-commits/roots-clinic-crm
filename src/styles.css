@@ -1777,6 +1777,11 @@ button.kanban-more:disabled { opacity: .6; cursor: default; }
 .theme-picker button:not(.on) { opacity: .75; }
 .theme-picker button:hover { opacity: 1; }
 
+/* خلية أرقام/هاتف LTR بتحاذي مع باقي الجدول في الاتجاهين */
+.ltr-cell { direction: ltr; unicode-bidi: isolate; }
+html[dir="rtl"] .ltr-cell { text-align: right; }
+html[dir="ltr"] .ltr-cell { text-align: left; }
+
 /* مبدّل اللغة — في السايدبار (كامل) وفي شاشة الدخول (مختصر AR/EN) */
 .lang-toggle {
   display: flex; margin-top: 10px; border-radius: 8px; overflow: hidden;

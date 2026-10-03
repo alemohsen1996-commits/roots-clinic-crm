@@ -7,21 +7,16 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtNum } from '../lib/format'
 import { uploadReceipt, discardReceipt } from './receipts'
+import useT from '../i18n/useT'
 
 // طرق الدفع للتسجيل الجديد ("شبكة" القديمة اتقسمت لمدى/فيزا/ماستركارد)
-export const PAY_METHODS = [
-  { id: 'cash', label: 'نقدًا' },
-  { id: 'mada', label: 'مدى' },
-  { id: 'visa', label: 'فيزا' },
-  { id: 'mastercard', label: 'ماستركارد' },
-  { id: 'transfer', label: 'تحويل بنكي' },
-  { id: 'tabby', label: 'تابي' },
-  { id: 'tamara', label: 'تمارا' },
-  { id: 'other', label: 'أخرى' },
-]
+// الأسماء في الترجمة: payMethod.*
+export const PAY_METHODS = ['cash', 'mada', 'visa', 'mastercard', 'transfer', 'tabby', 'tamara', 'other']
 
 export default function AddPaymentModal({ preset, onClose, onSaved }) {
   const { profile } = useAuth()
+  const { t } = useT()
+  const SAR = t('common.currency')
   // preset اختياري: { deal_id, amount, installment_id, client, installment_label }
   const [deals, setDeals] = useState([])
   const [form, setForm] = useState({
@@ -70,12 +65,12 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
     && Number(form.amount) < Number(preset.amount ?? 0)
 
   async function save() {
-    if (!form.deal_id) { setErr('اختر الديل'); return }
-    if (!form.amount || Number(form.amount) <= 0) { setErr('أدخل المبلغ'); return }
+    if (!form.deal_id) { setErr(t('payment.err.pickDeal')); return }
+    if (!form.amount || Number(form.amount) <= 0) { setErr(t('payment.err.amount')); return }
     if (fin && Number(form.amount) > Number(fin.remaining)) {
-      setErr(`المبلغ أكبر من المتبقي (${fmtNum(fin.remaining)} ر.س)`); return
+      setErr(t('payment.err.exceeds', { n: fmtNum(fin.remaining), cur: SAR })); return
     }
-    if (!file) { setErr('ارفع صورة الإيصال'); return }
+    if (!file) { setErr(t('payment.err.receipt')); return }
     setErr(''); setBusy(true)
 
     // 1) رفع الإيصال
@@ -102,7 +97,7 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
       discardReceipt(path)   // التسجيل فشل — نمسح الصورة اللي اترفعت
       setErr(error.message?.includes('القسط')
         ? error.message
-        : 'تعذر تسجيل الدفعة — ' + (error.message || 'تأكد من صلاحيتك على هذا الديل'))
+        : t('payment.err.saveFailed') + ' — ' + (error.message || t('payment.err.checkPerm')))
       return
     }
     onSaved()
@@ -111,21 +106,21 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true">
-        <h2>تسجيل دفعة</h2>
-        <p className="sub">سيُنشأ رقم إيصال تلقائيًا (RC-…)</p>
+        <h2>{t('payment.title')}</h2>
+        <p className="sub">{t('payment.sub')}</p>
 
         {err && <div className="alert alert-error">{err}</div>}
 
         <div className="field">
-          <label>الديل</label>
+          <label>{t('payment.deal')}</label>
           {preset?.deal_id ? (
-            <input value={preset.client ?? `ديل #${preset.deal_id}`} disabled />
+            <input value={preset.client ?? t('dealDrawer.dealNo', { n: preset.deal_id })} disabled />
           ) : (
             <select value={form.deal_id} onChange={e => set('deal_id', e.target.value)}>
-              <option value="">— اختر —</option>
+              <option value="">{t('common.pick')}</option>
               {deals.map(d => (
                 <option key={d.id} value={d.id}>
-                  {d.leads?.full_name} · {d.leads?.file_no} · متبقٍ {fmtNum(d.fin?.remaining)} ر.س
+                  {d.leads?.full_name} · {d.leads?.file_no} · {t('payment.remainingShort')} {fmtNum(d.fin?.remaining)} {SAR}
                 </option>
               ))}
             </select>
@@ -134,63 +129,63 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
 
         {preset?.installment_id && (
           <div className="alert alert-ok" style={{ marginBottom: 14 }}>
-            هذه الدفعة ستُسجَّل على {preset.installment_label ?? `القسط #${preset.installment_id}`}
-            {' '}— المستحق عليه {fmtNum(preset.amount)} ر.س
+            {t('payment.onInstallment', { label: preset.installment_label ?? t('payment.installmentNo', { n: preset.installment_id }) })}
+            {' '}— {t('payment.dueOnIt')} {fmtNum(preset.amount)} {SAR}
           </div>
         )}
 
         {fin && (
           <div className="fin-grid" style={{ marginBottom: 16 }}>
-            <div><span>الصافي</span>{fmtNum(fin.net_amount)} ر.س</div>
-            <div><span>المحصّل</span>{fmtNum(fin.collected)} ر.س</div>
-            <div className="fin-danger"><span>المتبقي</span>{fmtNum(fin.remaining)} ر.س</div>
+            <div><span>{t('deals.sorts.net')}</span>{fmtNum(fin.net_amount)} {SAR}</div>
+            <div><span>{t('common.collected')}</span>{fmtNum(fin.collected)} {SAR}</div>
+            <div className="fin-danger"><span>{t('deals.sorts.remaining')}</span>{fmtNum(fin.remaining)} {SAR}</div>
           </div>
         )}
 
         <div className="grid-2">
           <div className="field">
-            <label>المبلغ (ر.س)</label>
+            <label>{t('payment.amount')} ({SAR})</label>
             <input type="number" min={1} value={form.amount}
               onChange={e => set('amount', e.target.value)} />
           </div>
           <div className="field">
-            <label>طريقة الدفع</label>
+            <label>{t('payment.method')}</label>
             <select value={form.method} onChange={e => set('method', e.target.value)}>
-              {PAY_METHODS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+              {PAY_METHODS.map(m => <option key={m} value={m}>{t(`payMethod.${m}`)}</option>)}
             </select>
           </div>
         </div>
 
         {partial && (
           <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
-            سداد جزئي — سيبقى القسط مفتوحًا بحالة «جزئي» بمتبقٍ
-            {' '}{fmtNum(Number(preset.amount) - Number(form.amount))} ر.س
+            {t('payment.partialNote')}
+            {' '}{fmtNum(Number(preset.amount) - Number(form.amount))} {SAR}
           </div>
         )}
 
         <div className="grid-2">
           <div className="field">
-            <label>مرجع العملية (اختياري)</label>
+            <label>{t('payment.reference')}</label>
             <input dir="ltr" value={form.reference}
               onChange={e => set('reference', e.target.value)}
-              placeholder="رقم الحوالة / العملية" />
+              placeholder={t('payment.referencePh')} />
           </div>
           <div className="field">
-            <label>ملاحظات</label>
+            <label>{t('lead.notes')}</label>
             <input value={form.notes} onChange={e => set('notes', e.target.value)} />
           </div>
         </div>
 
         {/* صورة الإيصال — إجبارية */}
         <div className="field">
-          <label>صورة الإيصال <span style={{ color: 'var(--danger)' }}>*</span></label>
+          <label>{t('payment.receiptImage')} <span style={{ color: 'var(--danger)' }}>*</span></label>
           <input type="file" accept="image/*,application/pdf"
             onChange={e => { setFile(e.target.files?.[0] ?? null); setErr('') }} />
           <small style={{ color: 'var(--ink-soft)', fontSize: 12 }}>
-            صورة إيصال الشبكة أو التحويل أو سند القبض — صورة أو PDF (الصور بتتصغّر تلقائي)
+            {t('payment.receiptHint')}
           </small>
           {preview && (
-            <img src={preview} alt="معاينة الإيصال"
+            <img src={preview} alt={t('payment.receiptPreview')}
               style={{ marginTop: 8, maxHeight: 160, maxWidth: '100%', borderRadius: 8, border: '1px solid var(--line)' }} />
           )}
           {file && !preview && <div style={{ marginTop: 6, fontSize: 13 }}>📄 {file.name}</div>}
@@ -198,9 +193,9 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
 
         <div className="modal-actions">
           <button className="btn btn-primary" onClick={save} disabled={busy}>
-            {busy ? 'جارٍ الرفع والحفظ…' : 'حفظ الدفعة'}
+            {busy ? t('payment.uploading') : t('payment.save')}
           </button>
-          <button className="btn btn-ghost" onClick={onClose}>إلغاء</button>
+          <button className="btn btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
         </div>
       </div>
     </div>
