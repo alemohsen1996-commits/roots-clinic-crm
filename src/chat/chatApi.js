@@ -88,19 +88,40 @@ export const fetchLeadMessages = async (leadId) =>
 // ---------- المرفقات (bucket chat-attachments — مجلد لكل موظف) ----------
 const ATT_BUCKET = 'chat-attachments'
 const ATT_MAX = 10 * 1024 * 1024
-const IMG_MAX_SIDE = 1600
+// ضغط الصور قبل الرفع: أقصى ضلع 1280px + WebP (أو JPEG لو المتصفح مش بيدعم) + هدف ≤ 300KB
+// الصور بتتعاد ترميزها دايمًا (حتى الصغيرة) عشان تتشال بيانات EXIF والـ PNG الثقيلة بتتحول
+const IMG_MAX_SIDE = 1280
+const IMG_TARGET = 300 * 1024
+const RE_ENCODABLE = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/bmp', 'image/tiff']
+
+const toBlob = (canvas, type, q) => new Promise(res => canvas.toBlob(res, type, q))
 
 async function shrinkImage(file) {
-  if (!file.type.startsWith('image/') || file.type === 'image/gif') return file
+  if (!RE_ENCODABLE.includes(file.type)) return file   // GIF/SVG وغيرها زي ما هي
   try {
-    const bmp = await createImageBitmap(file)
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' })
     const scale = Math.min(1, IMG_MAX_SIDE / Math.max(bmp.width, bmp.height))
-    if (scale === 1 && file.size < 600 * 1024) return file
     const canvas = document.createElement('canvas')
-    canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale)
-    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height)
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85))
-    return blob ? new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }) : file
+    canvas.width = Math.max(1, Math.round(bmp.width * scale))
+    canvas.height = Math.max(1, Math.round(bmp.height * scale))
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height)   // الشفافية بتبقى أبيض
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height)
+    bmp.close?.()
+
+    // WebP أصغر بـ ~30% من JPEG — ولو المتصفح رجّع نوع تاني نستخدم JPEG
+    let type = 'image/webp', ext = 'webp'
+    let blob = await toBlob(canvas, type, 0.78)
+    if (!blob || blob.type !== 'image/webp') { type = 'image/jpeg'; ext = 'jpg'; blob = await toBlob(canvas, type, 0.8) }
+    // لسه كبيرة؟ ننزل الجودة تدريجيًا لحد الهدف
+    for (const q of [0.68, 0.58, 0.5]) {
+      if (!blob || blob.size <= IMG_TARGET) break
+      blob = await toBlob(canvas, type, q)
+    }
+    if (!blob) return file
+    // الأصل أصغر من الناتج (نادر: صورة صغيرة أصلًا)؟ نسيب الأصل لو هو مش PNG ضخم
+    if (blob.size >= file.size && file.type !== 'image/png') return file
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.' + ext, { type })
   } catch { return file }
 }
 
@@ -110,6 +131,7 @@ export async function uploadAttachment(file, userId) {
   const ready = await shrinkImage(file)
   if (ready.size > ATT_MAX) throw new Error(i18n.t('chat.att.tooBig'))
   const isImage = ready.type.startsWith('image/')
+  if (isImage && ready.size > 2 * 1024 * 1024) throw new Error(i18n.t('chat.att.imageTooBig'))
   const ext = (ready.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin'
   const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
   const { error } = await supabase.storage.from(ATT_BUCKET).upload(path, ready, { contentType: ready.type, upsert: false })

@@ -1183,7 +1183,8 @@
       "image": "صورة",
       "file": "ملف",
       "download": "تحميل",
-      "uploading": "جارٍ الرفع…"
+      "uploading": "جارٍ الرفع…",
+      "imageTooBig": "الصورة كبيرة جدًا حتى بعد الضغط — جرّب صورة أصغر"
     },
     "mentionHint": "اكتب @ لذكر زميل",
     "mentionsFilter": "ذُكرت فيها",

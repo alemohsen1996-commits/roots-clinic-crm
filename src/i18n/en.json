@@ -1183,7 +1183,8 @@
       "image": "Image",
       "file": "File",
       "download": "Download",
-      "uploading": "Uploading…"
+      "uploading": "Uploading…",
+      "imageTooBig": "The image is too large even after compression — try a smaller one"
     },
     "mentionHint": "Type @ to mention a colleague",
     "mentionsFilter": "Mentions me",
