@@ -13,6 +13,10 @@ import useT from '../i18n/useT'
 import i18n from '../i18n'
 import { dbErr } from '../lib/dbErrors'
 import { activityText } from '../lib/activityText'
+import { useNavigate } from 'react-router-dom'
+import LeadDiscussions from '../chat/LeadDiscussions'
+import WaTemplatesMenu from '../chat/WaTemplatesMenu'
+import { startDirect, errText as chatErr } from '../chat/chatApi'
 
 // أسماء أنواع السجل في الترجمة: activity.*
 const ACTIVITY_TYPES = ['call', 'note', 'whatsapp', 'sms', 'email', 'stage_change', 'assignment', 'system', 'offer']
@@ -39,6 +43,8 @@ function buildNoAnswerChain(stages) {
 export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings, onNavigate }) {
   const { profile, isManager, roleCode } = useAuth()
   const { t, dn, isRtl } = useT()
+  const navigate = useNavigate()
+  const [discussCount, setDiscussCount] = useState(null)
   const [lead, setLead] = useState(null)
   const [acts, setActs] = useState([])
   const [openTask, setOpenTask] = useState(null)
@@ -691,8 +697,26 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                   <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.22 8.22 0 0 1-1.26-4.38c0-4.54 3.7-8.23 8.25-8.23a8.23 8.23 0 0 1 0 16.47Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.8-.78.97-.14.16-.29.19-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.43.12-.15.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.35-.77-1.84-.2-.49-.4-.42-.56-.43h-.47c-.16 0-.43.06-.65.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.64 4.19 3.7.58.25 1.04.4 1.4.52.59.19 1.12.16 1.54.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.22-.16-.47-.29Z"/>
                 </svg>
               </button>
+              <WaTemplatesMenu lead={lead} />
               <button className="icon-btn" title={t('lead.copyPhone')}
                 onClick={() => { navigator.clipboard?.writeText(lead.phone ?? ''); say(t('lead.phoneCopied')) }}>⧉</button>
+              {(() => {
+                // «ناقش مع»: السيلز ↔ المنسقة؛ المدير بيكلّم السيلز
+                const target = lead.owner_id === profile?.id ? lead.coordinator_id
+                  : lead.coordinator_id === profile?.id ? lead.owner_id : (lead.owner_id ?? lead.coordinator_id)
+                if (!target || target === profile?.id) return null
+                const isCoord = target === lead.coordinator_id && target !== lead.owner_id
+                return (
+                  <button className="btn btn-ghost btn-sm" style={{ marginInlineStart: 4 }}
+                    title={isCoord ? t('chat.askCoordinator') : t('chat.askSales')}
+                    onClick={async () => {
+                      try { const id = await startDirect(target); navigate(`/chat?c=${id}&lead=${leadId}`); onClose?.() }
+                      catch (e) { setErr(chatErr(e)) }
+                    }}>
+                    💬 {isCoord ? t('chat.askCoordinator') : t('chat.askSales')}
+                  </button>
+                )
+              })()}
             </div>
 
             {/* الحالة الحالية */}
@@ -976,6 +1000,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             { k: 'all', l: t('common.all') },
             { k: 'log', l: t('drawer.log') },
             { k: 'calls', l: `📞 ${t('drawer.called')}${callsCount ? ` (${callsCount})` : ''}` },
+            { k: 'chat', l: `💬 ${t('chat.leadDiscussions')}${discussCount ? ` (${discussCount})` : ''}` },
           ].map(tb => (
             <button key={tb.k} className={'tab' + (tab === tb.k ? ' on' : '')}
               onClick={() => setTab(tb.k)}>{tb.l}</button>
@@ -990,6 +1015,14 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             {callsCount === 0 && <div className="empty" style={{ padding: 20 }}>{t('drawer.noPbxCalls')}</div>}
           </div>
         </div>
+
+        {tab === 'chat' && (
+          <div className="drawer-section">
+            <h3>{t('chat.leadDiscussions')}</h3>
+            <LeadDiscussions leadId={leadId} meId={profile?.id} onCount={setDiscussCount}
+              onOpen={(convId) => { navigate(`/chat?c=${convId}`); onClose?.() }} />
+          </div>
+        )}
 
         {tab === 'all' && (<>
 

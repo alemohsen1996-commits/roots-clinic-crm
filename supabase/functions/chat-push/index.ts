@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
   if (!message_id) return Response.json({ ok: false, error: "message_id" }, { status: 400 });
 
   const { data: m } = await sb.from("chat_messages")
-    .select("id, conversation_id, sender_id, body, lead_label, deleted_at, chat_conversations(kind, title), sender:profiles!chat_messages_sender_id_fkey(full_name)")
+    .select("id, conversation_id, sender_id, body, lead_label, deleted_at, attachment_type, attachment_name, mentions, chat_conversations(kind, title, announce), sender:profiles!chat_messages_sender_id_fkey(full_name)")
     .eq("id", message_id).single();
   if (!m || m.deleted_at) return Response.json({ ok: true, skipped: "no message" });
 
@@ -45,10 +45,14 @@ Deno.serve(async (req) => {
 
   // deno-lint-ignore no-explicit-any
   const conv = (m as any).chat_conversations, sender = (m as any).sender?.full_name ?? "موظف";
-  const text = m.body ? clip(m.body, 160) : `📎 ليد: ${m.lead_label ?? ""}`;
+  const text = m.body ? clip(m.body, 160)
+    : m.attachment_type === "image" ? "📷 صورة"
+    : m.attachment_type === "file" ? `📄 ${m.attachment_name ?? "ملف"}`
+    : `📎 ليد: ${m.lead_label ?? ""}`;
   const isGroup = conv?.kind === "group";
+  const mentioned = new Set<string>((m as any).mentions ?? []);
   const base = {
-    title: isGroup ? (conv.title || "جروب") : sender,
+    title: (conv?.announce ? "📣 " : "") + (isGroup ? (conv.title || "جروب") : sender),
     body: isGroup ? `${sender}: ${text}` : text,
     url: `/chat?c=${m.conversation_id}`,
     tag: `chat-${m.conversation_id}`,
@@ -56,7 +60,9 @@ Deno.serve(async (req) => {
 
   let sent = 0, removed = 0, failed = 0;
   await Promise.all(subs.map(async (s) => {
-    const payload = JSON.stringify({ ...base, unread: unreadOf.get(s.user_id) ?? 1 });
+    // اللي اتعمله منشن بيوصله عنوان مختلف عشان يفرّق
+    const title = mentioned.has(s.user_id) ? `@ ${sender} ذكرك` : base.title;
+    const payload = JSON.stringify({ ...base, title, unread: unreadOf.get(s.user_id) ?? 1 });
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },

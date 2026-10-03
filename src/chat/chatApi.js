@@ -4,7 +4,7 @@ import i18n from '../i18n'
 import { dbErr } from '../lib/dbErrors'
 import { supabase } from '../lib/supabase'
 
-const MSG_COLS = 'id, conversation_id, sender_id, body, lead_id, lead_label, reply_to, created_at, edited_at, deleted_at'
+const MSG_COLS = 'id, conversation_id, sender_id, body, lead_id, lead_label, reply_to, created_at, edited_at, deleted_at, attachment_path, attachment_type, attachment_name, attachment_size, mentions'
 export const PAGE = 50
 
 const unwrap = ({ data, error }) => { if (error) throw error; return data }
@@ -21,7 +21,7 @@ export const fetchUnreadTotal = async () => {
 
 export const fetchConversation = async (id) =>
   unwrap(await supabase.from('chat_conversations')
-    .select('id, kind, title, lead_id, created_by, created_at').eq('id', id).single())
+    .select('id, kind, title, lead_id, created_by, created_at, announce, pinned_message_id').eq('id', id).single())
 
 export const fetchParticipants = async (id) =>
   unwrap(await supabase.from('chat_participants')
@@ -51,9 +51,16 @@ export const newMsgId = () =>
   crypto.randomUUID?.() ?? '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
     (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16))
 
-export async function sendMessage({ id, convId, senderId, body, leadId = null, replyTo = null }) {
+export async function sendMessage({ id, convId, senderId, body, leadId = null, replyTo = null, attachment = null, mentions = [] }) {
   const { data, error } = await supabase.from('chat_messages')
-    .insert({ id, conversation_id: convId, sender_id: senderId, body: body || null, lead_id: leadId, reply_to: replyTo })
+    .insert({
+      id, conversation_id: convId, sender_id: senderId, body: body || null, lead_id: leadId, reply_to: replyTo,
+      mentions,
+      ...(attachment ? {
+        attachment_path: attachment.path, attachment_type: attachment.type,
+        attachment_name: attachment.name, attachment_size: attachment.size,
+      } : {}),
+    })
     .select(MSG_COLS).single()
   // اتبعتت فعلًا في محاولة سابقة بس الرد ضاع
   if (error?.code === '23505') return fetchMessage(id)
@@ -70,8 +77,77 @@ export const markRead      = async (convId) => { await supabase.rpc('chat_mark_r
 export const logMonitorView = async (convId) => { await supabase.rpc('chat_log_view', { p_conv: convId }) }
 
 export const startDirect = async (userId) => unwrap(await supabase.rpc('chat_start_direct', { p_user: userId }))
-export const createGroup = async (title, members, leadId = null) =>
-  unwrap(await supabase.rpc('chat_create_group', { p_title: title, p_members: members, p_lead_id: leadId }))
+export const createGroup = async (title, members, leadId = null, announce = false) =>
+  unwrap(await supabase.rpc('chat_create_group', { p_title: title, p_members: members, p_lead_id: leadId, p_announce: announce }))
+export const pinMessage = async (convId, msgId) => unwrap(await supabase.rpc('chat_pin_message', { p_conv: convId, p_msg: msgId }))
+
+// نقاشات ليد معيّن عبر كل المحادثات اللي الموظف شايفها
+export const fetchLeadMessages = async (leadId) =>
+  unwrap(await supabase.rpc('chat_lead_messages', { p_lead: leadId })) ?? []
+
+// ---------- المرفقات (bucket chat-attachments — مجلد لكل موظف) ----------
+const ATT_BUCKET = 'chat-attachments'
+const ATT_MAX = 10 * 1024 * 1024
+const IMG_MAX_SIDE = 1600
+
+async function shrinkImage(file) {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif') return file
+  try {
+    const bmp = await createImageBitmap(file)
+    const scale = Math.min(1, IMG_MAX_SIDE / Math.max(bmp.width, bmp.height))
+    if (scale === 1 && file.size < 600 * 1024) return file
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale)
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85))
+    return blob ? new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }) : file
+  } catch { return file }
+}
+
+// بيرجّع { path, type, name, size } للإرسال مع الرسالة
+export async function uploadAttachment(file, userId) {
+  if (!file) throw new Error(i18n.t('chat.att.pickFile'))
+  const ready = await shrinkImage(file)
+  if (ready.size > ATT_MAX) throw new Error(i18n.t('chat.att.tooBig'))
+  const isImage = ready.type.startsWith('image/')
+  const ext = (ready.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin'
+  const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const { error } = await supabase.storage.from(ATT_BUCKET).upload(path, ready, { contentType: ready.type, upsert: false })
+  if (error) throw new Error(i18n.t('chat.att.uploadFailed') + ' — ' + error.message)
+  return { path, type: isImage ? 'image' : 'file', name: file.name, size: ready.size }
+}
+
+export const discardAttachment = (path) => { if (path) supabase.storage.from(ATT_BUCKET).remove([path]).catch(() => {}) }
+
+// روابط موقّعة بكاش قصير — الصور بتتجاب بالعشرات في المحادثة الواحدة
+const urlCache = new Map()
+export async function attachmentUrl(path) {
+  const hit = urlCache.get(path)
+  if (hit && hit.exp > Date.now()) return hit.url
+  const { data, error } = await supabase.storage.from(ATT_BUCKET).createSignedUrl(path, 3600)
+  if (error || !data?.signedUrl) return null
+  urlCache.set(path, { url: data.signedUrl, exp: Date.now() + 50 * 60 * 1000 })
+  return data.signedUrl
+}
+
+// ---------- قوالب واتساب ----------
+export const fetchWaTemplates = async () =>
+  unwrap(await supabase.from('wa_templates').select('id, title, body, sort_order, is_active')
+    .order('sort_order').order('id')) ?? []
+export const fillTemplate = (body, lead) => {
+  const first = (lead?.full_name ?? '').trim().split(/\s+/)[0] || ''
+  return String(body ?? '').replace(/\{\{\s*name\s*\}\}/g, first)
+}
+
+// ---------- المنشن: @الاسم في النص ----------
+// بنخزّن في النص «@الاسم الكامل» وفي mentions الـ ids — والعرض بيلوّن الأسماء اللي في القائمة
+export function extractMentions(text, people) {
+  const ids = []
+  for (const p of people) {
+    if (p.full_name && text.includes('@' + p.full_name)) ids.push(p.id)
+  }
+  return ids
+}
 export const addMembers   = async (convId, members) => unwrap(await supabase.rpc('chat_add_members', { p_conv: convId, p_members: members }))
 export const removeMember = async (convId, userId) => unwrap(await supabase.rpc('chat_remove_member', { p_conv: convId, p_user: userId }))
 export const renameGroup  = async (convId, title) => unwrap(await supabase.rpc('chat_rename_group', { p_conv: convId, p_title: title }))

@@ -12,6 +12,7 @@ export default function NewChatModal({ meId, canGroup, onClose, onOpened }) {
   const [picked, setPicked] = useState([])
   const [title, setTitle] = useState('')
   const [lead, setLead] = useState(null)
+  const [announce, setAnnounce] = useState(false)
   const [pickLead, setPickLead] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -34,7 +35,7 @@ export default function NewChatModal({ meId, canGroup, onClose, onOpened }) {
     if (!title.trim()) return setErr(t('chat.groupNameRequired'))
     if (!picked.length) return setErr(t('chat.pickOneMember'))
     setBusy(true); setErr('')
-    try { onOpened(await createGroup(title.trim(), picked, lead?.id ?? null)) }
+    try { onOpened(await createGroup(title.trim(), picked, lead?.id ?? null, announce)) }
     catch (e) { setErr(errText(e)); setBusy(false) }
   }
 
@@ -57,6 +58,10 @@ export default function NewChatModal({ meId, canGroup, onClose, onOpened }) {
               <label>{t('chat.groupName')}</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t('chat.groupNamePh')} />
             </div>
+            <label className="chat-announce-opt">
+              <input type="checkbox" checked={announce} onChange={e => setAnnounce(e.target.checked)} />
+              <span><b>📣 {t('chat.announce')}</b><small>{t('chat.announceHint')}</small></span>
+            </label>
             <div className="field">
               <label>{t('chat.linkLead')}</label>
               {lead ? (
@@ -73,8 +78,16 @@ export default function NewChatModal({ meId, canGroup, onClose, onOpened }) {
           </>
         )}
 
-        <input className="chat-search" value={q} onChange={e => setQ(e.target.value)}
-          placeholder={t('chat.employeeSearchPh')} />
+        <div className="chat-mine-filters">
+          <input className="chat-search" value={q} onChange={e => setQ(e.target.value)}
+            placeholder={t('chat.employeeSearchPh')} />
+          {mode === 'group' && (
+            <button type="button" className={'chip' + (picked.length === people.length && people.length ? ' on' : '')}
+              onClick={() => setPicked(p => p.length === people.length ? [] : people.map(x => x.id))}>
+              {t('chat.everyone')}
+            </button>
+          )}
+        </div>
 
         <div className="chat-people">
           {shown.map(p => (

@@ -1,0 +1,12 @@
+-- (مطبّقة على المشروع svuoddaundjfnssvqnpv باسم chat_attachments_mentions_announce_pin_templates)
+-- مميزات الشات للسيلز:
+--  • chat_messages: attachment_path/type/name/size + mentions uuid[]
+--  • chat_conversations: announce (قناة إعلانات — الأدمن بس يكتب) + pinned_message_id
+--  • chat_msg_before_insert: رسالة بمرفق بس · منع الكتابة في الإعلانات لغير الأدمن · تنقية المنشن لأعضاء المحادثة · المرفق لازم يكون في مجلد المرسل
+--  • chat_msg_after_insert: المعاينة بتفرّق الصورة/الملف
+--  • chat_msg_broadcast: حدث mention على قناة كل موظف اتعمله منشن
+--  • chat_inbox: + announce, pinned_message_id, mentions_unread, is_admin
+--  • chat_create_group(..., p_announce) · chat_pin_message(p_conv, p_msg) · chat_lead_messages(p_lead)
+--  • bucket chat-attachments (10MB، صور/PDF/إكسل/وورد) بسياسات: رفع في مجلد الموظف، قراءة لأعضاء المحادثة والمراقبين
+--  • wa_templates: قوالب واتساب ({{name}} = الاسم الأول) — القراءة للكل، الإدارة للمدير
+-- النص الكامل في سجل الـ migrations على Supabase.

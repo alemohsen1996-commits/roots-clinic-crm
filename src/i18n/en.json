@@ -1174,7 +1174,33 @@
     "replyTo": "Reply to",
     "attachLead": "Attach lead",
     "typePh": "Type a message…",
-    "send": "Send"
+    "send": "Send",
+    "att": {
+      "pickFile": "Pick a file",
+      "tooBig": "File is larger than 10 MB",
+      "uploadFailed": "Could not upload the file",
+      "attach": "Attach an image or file",
+      "image": "Image",
+      "file": "File",
+      "download": "Download",
+      "uploading": "Uploading…"
+    },
+    "mentionHint": "Type @ to mention a colleague",
+    "mentionsFilter": "Mentions me",
+    "mentionedYou": "mentioned you",
+    "pinned": "Pinned",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "announce": "Announcements channel",
+    "announceHint": "Only the manager writes here — everyone else reads",
+    "announceReadOnly": "Announcements channel — read only",
+    "everyone": "Everyone",
+    "leadDiscussions": "Discussions",
+    "noLeadDiscussions": "No chat messages about this lead",
+    "openChat": "Open chat",
+    "askCoordinator": "Discuss with coordinator",
+    "askSales": "Discuss with sales agent",
+    "inChat": "in"
   },
   "reports": {
     "fromAfterTo": "Start date is after the end date",
@@ -1371,7 +1397,8 @@
       "techniques": "Techniques",
       "sale_types": "Sale types",
       "general": "Limits & commissions",
-      "teams": "Teams"
+      "teams": "Teams",
+      "wa_templates": "WhatsApp templates"
     },
     "hint": "Every change here applies immediately to the whole system — and is recorded in the audit log",
     "groupsLabel": "Settings groups",
@@ -1681,5 +1708,18 @@
     "price": "Price: {{v}}",
     "priceChanged": "Price changed from {{a}} to {{b}}",
     "dealFinance": "Deal #{{id}} finance edited: contract {{a}} → {{b}} {{cur}} · tax {{c}} → {{d}} {{cur}}"
+  },
+  "waTpl": {
+    "title": "WhatsApp templates",
+    "hint": "Ready messages sales agents use from the lead file — {{name}} is replaced with the patient's first name",
+    "name": "Template name",
+    "body": "Message text",
+    "add": "Add template",
+    "pick": "WhatsApp template",
+    "send": "Send on WhatsApp",
+    "none": "No templates — add them from Settings",
+    "bodyRequired": "Enter the message text",
+    "deleteQ": "Delete template \"{{title}}\"?",
+    "nameVar": "Write {{name}} anywhere and it's replaced with the patient's first name"
   }
 }

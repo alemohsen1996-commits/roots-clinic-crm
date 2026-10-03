@@ -13,8 +13,11 @@ import { useLeadRefs } from '../leads/useLeadRefs'
 import {
   PAGE, convName, deleteMessage, editMessage, errText, fetchConversation, fetchEmployees,
   fetchHistory, fetchInbox, fetchMessage, fetchMessages, fetchMonitorList, fetchParticipants,
-  logMonitorView, markRead, newMsgId, sendMessage,
+  logMonitorView, markRead, newMsgId, sendMessage, uploadAttachment, discardAttachment,
+  extractMentions, pinMessage,
 } from './chatApi'
+import Attachment from './Attachment'
+import { supabase } from '../lib/supabase'
 import { onChat, watchingConv } from './chatRealtime'
 import NewChatModal from './NewChatModal'
 import GroupInfoModal from './GroupInfoModal'
@@ -50,7 +53,9 @@ export default function ChatPage() {
 
   const [params, setParams] = useSearchParams()
   const activeId = params.get('c')
+  const leadParam = params.get('lead')   // جاي من ملف الليد: «ناقش مع المنسقة» — الليد بيتربط تلقائيًا
   const openConv = (id) => setParams(id ? { c: id } : {})
+  const [mentionsOnly, setMentionsOnly] = useState(false)
 
   const [tab, setTab] = useState('mine')
   const [inbox, setInbox] = useState([])
@@ -108,14 +113,20 @@ export default function ChatPage() {
         const upd = {
           ...c,
           last_message_at: p.created_at,
-          last_message_preview: p.body ? p.body.slice(0, 140) : `📎 ${t('chat.leadLabel')}: ` + (p.lead_label ?? ''),
+          last_message_preview: p.body ? p.body.slice(0, 140)
+            : p.attachment_type === 'image' ? `📷 ${t('chat.att.image')}`
+            : p.attachment_type === 'file' ? `📄 ${p.attachment_name ?? t('chat.att.file')}`
+            : `📎 ${t('chat.leadLabel')}: ` + (p.lead_label ?? ''),
           last_sender_id: p.sender_id,
           unread: counts ? (c.unread ?? 0) + 1 : c.unread,
         }
         return [upd, ...list.slice(0, i), ...list.slice(i + 1)]
       })
     } else if (event === 'read' && p.user_id === meId) {
-      setInbox(list => list.map(c => c.conversation_id === p.conversation_id ? { ...c, unread: 0 } : c))
+      setInbox(list => list.map(c => c.conversation_id === p.conversation_id ? { ...c, unread: 0, mentions_unread: 0 } : c))
+    } else if (event === 'mention') {
+      setInbox(list => list.map(c => c.conversation_id === p.conversation_id && !watchingConv(p.conversation_id)
+        ? { ...c, mentions_unread: (c.mentions_unread ?? 0) + 1 } : c))
     } else if (event === 'msg_update' || event === 'members' || event === 'resync') {
       refreshLists()
     } else if (event === 'activity' && latest.current.tab === 'monitor') {
@@ -125,9 +136,12 @@ export default function ChatPage() {
 
   const shownInbox = useMemo(() => {
     const s = filter.trim()
-    if (!s) return inbox
-    return inbox.filter(c => convName(c, meId).includes(s) || (c.last_message_preview ?? '').includes(s))
-  }, [inbox, filter, meId])
+    let out = inbox
+    if (mentionsOnly) out = out.filter(c => (c.mentions_unread ?? 0) > 0)
+    if (!s) return out
+    return out.filter(c => convName(c, meId).includes(s) || (c.last_message_preview ?? '').includes(s))
+  }, [inbox, filter, meId, mentionsOnly])
+  const mentionTotal = useMemo(() => inbox.reduce((a, c) => a + (c.mentions_unread ?? 0), 0), [inbox])
 
   const list = tab === 'monitor' ? monitor : shownInbox
 
@@ -148,7 +162,14 @@ export default function ChatPage() {
             </div>
           )}
           {tab === 'mine' ? (
-            <input className="chat-search" value={filter} onChange={e => setFilter(e.target.value)} placeholder={t('chat.searchMine')} />
+            <div className="chat-mine-filters">
+              <input className="chat-search" value={filter} onChange={e => setFilter(e.target.value)} placeholder={t('chat.searchMine')} />
+              {(mentionTotal > 0 || mentionsOnly) && (
+                <button type="button" className={'chip' + (mentionsOnly ? ' on' : '')} onClick={() => setMentionsOnly(v => !v)}>
+                  @ {t('chat.mentionsFilter')}{mentionTotal > 0 ? ` (${mentionTotal})` : ''}
+                </button>
+              )}
+            </div>
           ) : (
             <div className="chat-mon-filters">
               <select value={monUser} onChange={e => setMonUser(e.target.value)}>
@@ -174,7 +195,7 @@ export default function ChatPage() {
               className={'chat-item' + (c.conversation_id === activeId ? ' active' : '') + (c.unread ? ' unread' : '')}
               onClick={() => openConv(c.conversation_id)}>
               <span className={'chat-avatar' + (c.kind === 'group' ? ' group' : '')}>
-                {c.kind === 'group' ? '👥' : convName(c, meId).trim()[0]}
+                {c.announce ? '📣' : c.kind === 'group' ? '👥' : convName(c, meId).trim()[0]}
               </span>
               <span className="chat-item-main">
                 <span className="chat-item-top">
@@ -185,6 +206,7 @@ export default function ChatPage() {
                   <span className="chat-preview">
                     {c.last_sender_id === meId && `${t('chat.you')}: `}{c.last_message_preview || t('chat.noMessagesYet')}
                   </span>
+                  {c.mentions_unread > 0 && <span className="nav-badge chat-mention-badge">@</span>}
                   {c.unread > 0 && <span className="nav-badge">{c.unread}</span>}
                   {tab === 'monitor' && c.edited_or_deleted > 0 && (
                     <span className="chat-flag" title={t('chat.editedOrDeleted')}>✎ {c.edited_or_deleted}</span>
@@ -201,7 +223,7 @@ export default function ChatPage() {
       {/* ---------- المحادثة ---------- */}
       <section className="chat-thread-wrap">
         {activeId ? (
-          <Thread key={activeId} convId={activeId} meId={meId} canMonitor={canMonitor}
+          <Thread key={activeId} convId={activeId} meId={meId} canMonitor={canMonitor} leadParam={leadParam}
             onBack={() => openConv(null)} onListChanged={refreshLists}
             onOpenLead={setLeadOpen} onLeft={() => { openConv(null); loadInbox() }} />
         ) : (
@@ -226,7 +248,7 @@ export default function ChatPage() {
 }
 
 // =====================================================================
-function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, onLeft }) {
+function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, onOpenLead, onLeft }) {
   const { t, dn, isRtl } = useT()
   const [conv, setConv] = useState(null)
   const [parts, setParts] = useState([])
@@ -244,6 +266,10 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
   const [menuFor, setMenuFor] = useState(null)
   const [openHist, setOpenHist] = useState(null)
   const [showInfo, setShowInfo] = useState(false)
+  const [att, setAtt] = useState(null)             // { file, preview } مرفق مستني الإرسال
+  const [mention, setMention] = useState(null)     // { q, start } القائمة مفتوحة بعد @
+  const [pinnedMsg, setPinnedMsg] = useState(null)
+  const fileRef = useRef(null)
 
   const scroller = useRef(null)
   const stickBottom = useRef(true)
@@ -252,6 +278,9 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
   const me = parts.find(p => p.user_id === meId && !p.left_at)
   const isMember = !!me
   const readOnly = !isMember
+  // قناة الإعلانات: الأدمن بس اللي يكتب
+  const canWrite = isMember && (!conv?.announce || me?.is_admin)
+  const canPin = isMember && (me?.is_admin || canMonitor)
   const activeParts = parts.filter(p => !p.left_at)
   const others = activeParts.filter(p => p.user_id !== meId)
   const nameOf = useCallback((id) => parts.find(p => p.user_id === id)?.profiles?.full_name ?? t('chat.employee'), [parts, t])
@@ -282,6 +311,10 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
         setConv(c); setParts(p); setMsgs(m); setHasMore(m.length === PAGE)
         setLoading(false)
         loadHistoryFor(m)
+        if (leadParam) {
+          const { data: l } = await supabase.from('leads').select('id, file_no, full_name').eq('id', Number(leadParam)).maybeSingle()
+          if (l && !dead) { setLead(l); setTimeout(() => inputRef.current?.focus(), 50) }
+        }
         // في الخلفية — الشاشة ما تستناش
         const member = p.some(x => x.user_id === meId && !x.left_at)
         if (member) markRead(convId).then(() => window.dispatchEvent(new Event('chat:read')))
@@ -290,7 +323,16 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
       if (!dead) setLoading(false)
     })()
     return () => { dead = true }
-  }, [convId, meId, loadHistoryFor])
+  }, [convId, meId, loadHistoryFor, leadParam])
+
+  // الرسالة المثبّتة
+  useEffect(() => {
+    const id = conv?.pinned_message_id
+    if (!id) { setPinnedMsg(null); return }
+    const local = msgs.find(m => m.id === id)
+    if (local) { setPinnedMsg(local); return }
+    fetchMessage(id).then(setPinnedMsg).catch(() => setPinnedMsg(null))
+  }, [conv?.pinned_message_id, msgs])
 
   const loadOlder = async () => {
     if (!msgs.length) return
@@ -370,7 +412,14 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
   const deliver = async (m) => {
     setMsgs(list => list.map(x => x.id === m.id ? { ...x, _status: 'sending' } : x))
     try {
-      const saved = await sendMessage({ id: m.id, convId, senderId: meId, body: m.body, leadId: m.lead_id, replyTo: m.reply_to })
+      let attachment = m._attachment ?? null
+      if (m._file) {
+        setMsgs(list => list.map(x => x.id === m.id ? { ...x, _status: 'uploading' } : x))
+        attachment = await uploadAttachment(m._file, meId)
+        setMsgs(list => list.map(x => x.id === m.id ? { ...x, _attachment: attachment, _file: null, _status: 'sending' } : x))
+      }
+      const saved = await sendMessage({ id: m.id, convId, senderId: meId, body: m.body, leadId: m.lead_id, replyTo: m.reply_to,
+        attachment, mentions: m.mentions ?? [] })
       setMsgs(list => list.map(x => x.id === m.id ? saved : x))
     } catch (e) {
       setMsgs(list => list.map(x => x.id === m.id ? { ...x, _status: 'failed', _err: errText(e) } : x))
@@ -379,7 +428,7 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
 
   const send = async () => {
     const body = text.trim()
-    if (!body && !lead) return
+    if (!body && !lead && !att) return
     setErr('')
 
     if (editing) {
@@ -391,25 +440,87 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
       return
     }
 
+    const people = activeParts.map(p => ({ id: p.user_id, full_name: p.profiles?.full_name }))
     const temp = {
       id: newMsgId(), conversation_id: convId, sender_id: meId, body: body || null,
       lead_id: lead?.id ?? null,
       lead_label: lead ? [lead.file_no, lead.full_name].filter(Boolean).join(' · ') : null,
       reply_to: reply?.id ?? null, created_at: new Date().toISOString(),
       edited_at: null, deleted_at: null, _status: 'sending',
+      mentions: body ? extractMentions(body, people) : [],
+      attachment_type: att ? (att.file.type.startsWith('image/') ? 'image' : 'file') : null,
+      attachment_name: att?.file.name ?? null,
+      _file: att?.file ?? null, _preview: att?.preview ?? null,
     }
     stickBottom.current = true
     setMsgs(list => [...list, temp])
-    setText(''); setReply(null); setLead(null)
+    setText(''); setReply(null); setLead(null); setAtt(null); setMention(null)
     inputRef.current?.focus()
     deliver(temp)
   }
 
-  const discard = (m) => setMsgs(list => list.filter(x => x.id !== m.id))
+  const discard = (m) => { if (m._attachment?.path) discardAttachment(m._attachment.path); setMsgs(list => list.filter(x => x.id !== m.id)) }
+
+  // ---------- المرفق ----------
+  const pickFile = (f) => {
+    if (!f) return
+    const preview = f.type.startsWith('image/') ? URL.createObjectURL(f) : null
+    setAtt({ file: f, preview })
+    inputRef.current?.focus()
+  }
+  const onPaste = (e) => {
+    const f = [...(e.clipboardData?.files ?? [])][0]
+    if (f) { e.preventDefault(); pickFile(f) }
+  }
+
+  // ---------- المنشن: @ + اسم ----------
+  const onTextChange = (e) => {
+    const v = e.target.value
+    setText(v)
+    const caret = e.target.selectionStart ?? v.length
+    const before = v.slice(0, caret)
+    const m = /(?:^|\s)@([^@\n]{0,30})$/.exec(before)
+    setMention(m && conv?.kind === 'group' ? { q: m[1], start: caret - m[1].length - 1 } : null)
+  }
+  const mentionList = useMemo(() => {
+    if (!mention) return []
+    const q = mention.q.trim()
+    return others.filter(p => !q || (p.profiles?.full_name ?? '').includes(q)).slice(0, 6)
+  }, [mention, others])
+  const applyMention = (p) => {
+    const name = p.profiles?.full_name ?? ''
+    const caret = inputRef.current?.selectionStart ?? text.length
+    const next = text.slice(0, mention.start) + '@' + name + ' ' + text.slice(caret)
+    setText(next); setMention(null)
+    requestAnimationFrame(() => { const el = inputRef.current; if (el) { el.focus(); const pos = mention.start + name.length + 2; el.setSelectionRange(pos, pos) } })
+  }
+
+  // ---------- التثبيت ----------
+  const togglePin = async (m) => {
+    setMenuFor(null)
+    try { await pinMessage(convId, conv?.pinned_message_id === m.id ? null : m.id) }
+    catch (e) { setErr(errText(e)) }
+  }
+
+  // نص الرسالة مع تلوين المنشن
+  const memberNames = useMemo(() => activeParts.map(p => p.profiles?.full_name).filter(Boolean).sort((a, b) => b.length - a.length), [activeParts])
+  const renderBody = (body) => {
+    if (!body || !memberNames.length) return body
+    const re = new RegExp('@(' + memberNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'g')
+    const out = []; let last = 0; let m
+    while ((m = re.exec(body))) {
+      if (m.index > last) out.push(body.slice(last, m.index))
+      out.push(<b key={m.index} className="chat-mention">@{m[1]}</b>)
+      last = m.index + m[0].length
+    }
+    if (last < body.length) out.push(body.slice(last))
+    return out
+  }
 
   const onKey = (e) => {
+    if (mention && mentionList.length && (e.key === 'Enter' || e.key === 'Tab')) { e.preventDefault(); applyMention(mentionList[0]); return }
     if (e.key === 'Enter' && !e.shiftKey && !isTouch()) { e.preventDefault(); send() }
-    if (e.key === 'Escape') { setEditing(null); setReply(null); setText(editing ? '' : text) }
+    if (e.key === 'Escape') { setMention(null); setEditing(null); setReply(null); setText(editing ? '' : text) }
   }
 
   const startEdit = (m) => { setMenuFor(null); setReply(null); setEditing(m); setText(m.body ?? ''); inputRef.current?.focus() }
@@ -453,6 +564,7 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
             {conv.kind === 'group'
               ? t('chat.nMembers', { n: activeParts.length })
               : readOnly ? t('chat.directChat') : dn(others[0]?.profiles?.roles)}
+            {conv.announce && <> · 📣 {t('chat.announce')}</>}
           </small>
         </div>
         {conv.lead_id && (
@@ -465,6 +577,19 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
 
       {readOnly && (
         <div className="chat-monitor-bar">👁 {t('chat.monitorBar')}</div>
+      )}
+      {!readOnly && !canWrite && (
+        <div className="chat-monitor-bar announce">📣 {t('chat.announceReadOnly')}</div>
+      )}
+      {pinnedMsg && !pinnedMsg.deleted_at && (
+        <button type="button" className="chat-pinned" onClick={() => {
+          const el = document.getElementById('msg-' + pinnedMsg.id)
+          if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1500) }
+        }}>
+          <span className="chat-pinned-tag">📌 {t('chat.pinned')}</span>
+          <span className="chat-pinned-body">{pinnedMsg.body || pinnedMsg.attachment_name || pinnedMsg.lead_label}</span>
+          <small>{nameOf(pinnedMsg.sender_id)}</small>
+        </button>
       )}
 
       <div className="chat-messages" ref={scroller} onScroll={onScroll}>
@@ -482,8 +607,8 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
           return (
             <div key={m.id}>
               {newDay && <div className="chat-day"><span>{dayLabel(m.created_at)}</span></div>}
-              <div className={'chat-row' + (mine ? ' mine' : '')}>
-                <div className={'chat-bubble' + (m.deleted_at ? ' deleted' : '')}>
+              <div className={'chat-row' + (mine ? ' mine' : '')} id={'msg-' + m.id}>
+                <div className={'chat-bubble' + (m.deleted_at ? ' deleted' : '') + ((m.mentions ?? []).includes(meId) ? ' mentions-me' : '') + (conv.pinned_message_id === m.id ? ' pinned' : '')}>
                   {showName && <div className="chat-sender">{nameOf(m.sender_id)}</div>}
 
                   {replied && (
@@ -497,7 +622,10 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
                     <div className="chat-body muted">🚫 {t('chat.thisDeleted')}</div>
                   ) : (
                     <>
-                      {m.body && <div className="chat-body">{m.body}</div>}
+                      {(m.attachment_path || m._file || m._preview) && (
+                        <Attachment m={m} />
+                      )}
+                      {m.body && <div className="chat-body">{renderBody(m.body)}</div>}
                       {m.lead_id && (
                         <button className="chat-lead-chip" onClick={() => onOpenLead(m.lead_id)}>📎 {m.lead_label}</button>
                       )}
@@ -522,6 +650,7 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
                   <div className="chat-meta">
                     {m.edited_at && !m.deleted_at && <span>{t('chat.edited')}</span>}
                     <time>{fmtTime(m.created_at)}</time>
+                    {m._status === 'uploading' && <span className="chat-tick" title={t('chat.att.uploading')}>⬆</span>}
                     {m._status === 'sending' && <span className="chat-tick" title={t('chat.sending')}>🕓</span>}
                     {rs && <span className={'chat-tick ' + rs}
                       title={rs === 'read' ? t('chat.read') : rs === 'partial' ? t('chat.readSome') : t('chat.sent')}>
@@ -536,13 +665,14 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
                     </div>
                   )}
 
-                  {!readOnly && !m.deleted_at && !m._status && (
+                  {!readOnly && !m.deleted_at && !m._status && (canWrite || (canPin && conv.kind === 'group')) && (
                     <button className="chat-msg-menu-btn" aria-label={t('chat.options')}
                       onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === m.id ? null : m.id) }}>⋯</button>
                   )}
                   {menuFor === m.id && (
                     <div className="chat-msg-menu" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => { setMenuFor(null); setEditing(null); setReply(m); inputRef.current?.focus() }}>↩ {t('chat.reply')}</button>
+                      {canWrite && <button onClick={() => { setMenuFor(null); setEditing(null); setReply(m); inputRef.current?.focus() }}>↩ {t('chat.reply')}</button>}
+                      {canPin && conv.kind === 'group' && <button onClick={() => togglePin(m)}>📌 {conv.pinned_message_id === m.id ? t('chat.unpin') : t('chat.pin')}</button>}
                       {mine && m.body && canEditMsg(m) && <button onClick={() => startEdit(m)}>✎ {t('common.edit')}</button>}
                       {mine && <button className="danger" onClick={() => doDelete(m)}>🗑 {t('common.delete')}</button>}
                     </div>
@@ -554,7 +684,7 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
         })}
       </div>
 
-      {!readOnly && (
+      {canWrite && (
         <footer className="chat-composer">
           {(reply || editing) && (
             <div className="chat-compose-ctx">
@@ -568,6 +698,23 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
               <button className="chat-icon-btn" onClick={() => setLead(null)}>✕</button>
             </div>
           )}
+          {att && (
+            <div className="chat-compose-ctx chat-att-ctx">
+              {att.preview ? <img src={att.preview} alt="" /> : <span>📄</span>}
+              <span className="chat-att-name">{att.file.name}</span>
+              <button className="chat-icon-btn" onClick={() => setAtt(null)}>✕</button>
+            </div>
+          )}
+          {mention && mentionList.length > 0 && (
+            <div className="chat-mention-list">
+              {mentionList.map(p => (
+                <button key={p.user_id} type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyMention(p)}>
+                  <span className="chat-avatar">{(p.profiles?.full_name ?? '').trim()[0]}</span>
+                  <span>{p.profiles?.full_name}</span><small>{dn(p.profiles?.roles)}</small>
+                </button>
+              ))}
+            </div>
+          )}
           {pickLead && (
             <LeadPicker onPick={(l) => { setLead(l); setPickLead(false); inputRef.current?.focus() }}
               onClose={() => setPickLead(false)} />
@@ -575,12 +722,17 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
           {err && <div className="chat-err">{err}</div>}
           <div className="chat-compose-row">
             {!editing && (
-              <button className="chat-icon-btn" title={t('chat.attachLead')} onClick={() => setPickLead(v => !v)}>📎</button>
+              <>
+                <button className="chat-icon-btn" title={t('chat.attachLead')} onClick={() => setPickLead(v => !v)}>📎</button>
+                <button className="chat-icon-btn" title={t('chat.att.attach')} onClick={() => fileRef.current?.click()}>🖼</button>
+                <input ref={fileRef} type="file" hidden accept="image/*,.pdf,.xlsx,.xls,.docx,.csv,.txt"
+                  onChange={e => { pickFile(e.target.files?.[0]); e.target.value = '' }} />
+              </>
             )}
             <textarea ref={inputRef} rows={1} value={text} maxLength={4000}
-              onChange={e => setText(e.target.value)} onKeyDown={onKey}
-              placeholder={t('chat.typePh')} />
-            <button className="btn btn-primary chat-send" disabled={!text.trim() && !lead} onClick={send}>
+              onChange={onTextChange} onKeyDown={onKey} onPaste={onPaste}
+              placeholder={conv.kind === 'group' ? t('chat.typePh') + ' — ' + t('chat.mentionHint') : t('chat.typePh')} />
+            <button className="btn btn-primary chat-send" disabled={!text.trim() && !lead && !att} onClick={send}>
               {editing ? t('common.save') : t('chat.send')}
             </button>
           </div>

@@ -15,6 +15,7 @@ import TeamsTab from './TeamsTab'
 import BranchesTab from './BranchesTab'
 import BranchHoursTab from './BranchHoursTab'
 import GeneralTab from './GeneralTab'
+import WaTemplatesTab from './WaTemplatesTab'
 import useT from '../i18n/useT'
 
 // الفروع وساعات عملها في تبويب واحد
@@ -34,6 +35,7 @@ const GROUPS = [
     { key: 'sources',      el: SourcesTab },
     { key: 'distribution', el: DistributionTab },
     { key: 'import',       el: ImportLeadsTab },
+    { key: 'wa_templates', el: WaTemplatesTab, manager: true },
   ]},
   { key: 'clinic', tabs: [
     { key: 'branches',     el: BranchesAndHours, manager: true },
