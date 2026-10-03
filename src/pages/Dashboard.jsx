@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
-import { fmtMonth } from '../lib/format'
+import { fmtMonth, cur as curSym } from '../lib/format'
+import useT from '../i18n/useT'
 import PrpMonthStats, { usePrpMonthStats, lastMonths } from '../prp/PrpMonthStats'
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('en-US')
@@ -16,16 +17,8 @@ const thisMonth = () => monthKey(new Date())
 
 const monthLabel = (m) => fmtMonth(m)
 
-// تابات جدول أداء الفريق
-const TEAM_TABS = [
-  { key: 'all',         title: 'الكل' },
-  { key: 'sales',       title: 'السيلز' },
-  { key: 'coordinator', title: 'المنسقات' },
-]
-const ROLE_TITLE = {
-  agent: 'سيلز', coordinator: 'منسقة', super_admin: 'مدير',
-  sales_manager: 'مدير مبيعات', accountant: 'محاسب',
-}
+// تابات جدول أداء الفريق (العناوين من dashboard.tabs.*)
+const TEAM_TABS = ['all', 'sales', 'coordinator']
 const tabOf = (code) =>
   code === 'agent' ? 'sales' : code === 'coordinator' ? 'coordinator' : 'other'
 const hasNumbers = (r) =>
@@ -33,21 +26,23 @@ const hasNumbers = (r) =>
 
 // سهم التغيّر مقارنة بالشهر السابق
 function Delta({ now, before }) {
+  const { t } = useT()
   if (before === undefined || before === null) return null
   const b = Number(before), n = Number(now)
   if (!b) return null
   const pct = Math.round(((n - b) / b) * 100)
   if (pct === 0) {
-    return <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>= مثل الشهر السابق</span>
+    return <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{t('dashboard.vsPrevSame')}</span>
   }
   return (
     <span style={{ fontSize: 12, fontWeight: 700, color: pct > 0 ? 'var(--ok)' : 'var(--danger)' }}>
-      {pct > 0 ? '▲' : '▼'} {Math.abs(pct)}٪ عن الشهر السابق
+      {pct > 0 ? '▲' : '▼'} {t('dashboard.vsPrev', { pct: Math.abs(pct) })}
     </span>
   )
 }
 
 export default function Dashboard() {
+  const { t } = useT()
   const { profile, isManager, roleCode } = useAuth()
   const isPrp = roleCode === 'prp_officer'   // موظف البلازما: داشبورد البلازما بدل العمليات
   const [rows, setRows] = useState([])       // أداء الفريق (للشهر المختار)
@@ -129,7 +124,7 @@ export default function Dashboard() {
     count: t.count + Number(breakdown?.[k]?.count ?? 0),
     revenue: t.revenue + Number(breakdown?.[k]?.revenue ?? 0),
   }), { count: 0, revenue: 0 })
-  const otherSplit = [['treatment', 'جلسات علاج'], ['product', 'منتجات']]
+  const otherSplit = [['treatment', t('dashboard.treatments')], ['product', t('dashboard.products')]]
     .filter(([k]) => Number(breakdown?.[k]?.count ?? 0) > 0)
     .map(([k, l]) => `${fmt(breakdown[k].count)} ${l}`).join(' · ')
 
@@ -149,38 +144,40 @@ export default function Dashboard() {
 
   const isCurrentMonth = month === thisMonth()
 
+  // key = مفتاح الكارت (dashboard.cards.*) — ومنه نعرف أي رقم نقارنه بالشهر السابق
+  const SAR = curSym()
   const cards = isManager
     ? [
-        { label: 'العمليات', value: fmt(cur?.deals_count), before: prev?.deals_count },
-        { label: 'الإيراد', value: fmt(cur?.revenue) + ' ر.س', gold: true, before: prev?.revenue },
-        { label: 'المحصّل فعليًا', value: fmt(cur?.collected) + ' ر.س', before: prev?.collected },
-        { label: 'الليدات الواردة', value: fmt(cur?.leads_count), before: prev?.leads_count },
-        ...(other.count > 0 ? [{ label: 'جلسات ومنتجات', value: fmt(other.count), other: true }] : []),
+        { key: 'operations', value: fmt(cur?.deals_count), now: cur?.deals_count, before: prev?.deals_count },
+        { key: 'revenue', value: fmt(cur?.revenue) + ' ' + SAR, gold: true, now: cur?.revenue, before: prev?.revenue },
+        { key: 'collected', value: fmt(cur?.collected) + ' ' + SAR, now: cur?.collected, before: prev?.collected },
+        { key: 'leadsIn', value: fmt(cur?.leads_count), now: cur?.leads_count, before: prev?.leads_count },
+        ...(other.count > 0 ? [{ key: 'sessionsProducts', value: fmt(other.count), other: true }] : []),
       ]
     : [
-        { label: 'عملياتي', value: fmt(cur?.deals_count), before: prev?.deals_count },
-        { label: 'إيرادي', value: fmt(cur?.revenue) + ' ر.س', gold: true, before: prev?.revenue },
-        { label: 'المحصّل من عملائي', value: fmt(cur?.collected) + ' ر.س', before: prev?.collected },
-        { label: 'ليداتي الواردة', value: fmt(cur?.leads_received), before: prev?.leads_received },
-        ...(other.count > 0 ? [{ label: 'جلسات ومنتجات', value: fmt(other.count), other: true }] : []),
+        { key: 'myOperations', value: fmt(cur?.deals_count), now: cur?.deals_count, before: prev?.deals_count },
+        { key: 'myRevenue', value: fmt(cur?.revenue) + ' ' + SAR, gold: true, now: cur?.revenue, before: prev?.revenue },
+        { key: 'myCollected', value: fmt(cur?.collected) + ' ' + SAR, now: cur?.collected, before: prev?.collected },
+        { key: 'myLeadsIn', value: fmt(cur?.leads_received), now: cur?.leads_received, before: prev?.leads_received },
+        ...(other.count > 0 ? [{ key: 'sessionsProducts', value: fmt(other.count), other: true }] : []),
       ]
 
   return (
     <>
       <div className="page-head">
         <div>
-          <h1>لوحة التحكم</h1>
+          <h1>{t('dashboard.title')}</h1>
           <div className="hint">
             {isCurrentMonth
-              ? 'أرقام الشهر الجاري — تتحدّث لحظيًا'
-              : `أرقام ${monthLabel(month)} — مكتملة`}
+              ? t('dashboard.subCurrent')
+              : t('dashboard.subMonth', { month: monthLabel(month) })}
           </div>
         </div>
         <div className="field" style={{ marginBottom: 0, minWidth: 180 }}>
           <select value={month} onChange={e => setMonth(e.target.value)}>
             {months.map(m => (
               <option key={m} value={m}>
-                {monthLabel(m)}{m === thisMonth() ? ' (الجاري)' : ''}
+                {monthLabel(m)}{m === thisMonth() ? ` (${t('common.current')})` : ''}
               </option>
             ))}
           </select>
@@ -188,14 +185,14 @@ export default function Dashboard() {
       </div>
 
       {loading ? (
-        <div className="empty">جارٍ التحميل…</div>
+        <div className="empty">{t('common.loading')}</div>
       ) : (
         <>
           {isPrp && !isManager && (
             <>
               <PrpMonthStats stats={prpStats} loading={prpLoading} personal />
               <div className="hint" style={{ marginTop: -6 }}>
-                الجلسات اللي سجّلتها بنفسك في {monthLabel(month)} — قوايم الشغل اليومية في قسم البلازما
+                {t('dashboard.prpMineHint', { month: monthLabel(month) })}
               </div>
             </>
           )}
@@ -203,26 +200,20 @@ export default function Dashboard() {
           {!(isPrp && !isManager) && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
             {cards.map(c => (
-              <div key={c.label} className="card" style={{ padding: 20 }}>
-                <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 6 }}>{c.label}</div>
+              <div key={c.key} className="card" style={{ padding: 20 }}>
+                <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 6 }}>{t(`dashboard.cards.${c.key}`)}</div>
                 <div style={{
                   fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 26,
                   color: c.gold ? 'var(--gold)' : 'var(--ink)',
                 }}>{c.value}</div>
                 {c.other ? (
                   <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
-                    {otherSplit} · {fmt(other.revenue)} ر.س
-                    <div style={{ fontSize: 11.5 }}>داخلين في الإيراد · مش محسوبين عمليات</div>
+                    {otherSplit} · {fmt(other.revenue)} {SAR}
+                    <div style={{ fontSize: 11.5 }}>{t('dashboard.otherHint')}</div>
                   </div>
                 ) : (
                 <div style={{ marginTop: 6, minHeight: 18 }}>
-                  <Delta now={
-                    c.label.includes('الإيراد') || c.label.includes('إيرادي') ? cur?.revenue
-                    : c.label.includes('المحصّل') ? cur?.collected
-                    : c.label.includes('الليدات') || c.label.includes('ليداتي')
-                      ? (cur?.leads_count ?? cur?.leads_received)
-                    : cur?.deals_count
-                  } before={c.before} />
+                  <Delta now={c.now} before={c.before} />
                 </div>
                 )}
               </div>
@@ -241,9 +232,9 @@ export default function Dashboard() {
                 return (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                      <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>هدفي الشهري</div>
+                      <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{t('dashboard.myTarget')}</div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: reached ? 'var(--ok)' : 'var(--ink-soft)' }}>
-                        {reached ? '🎉 تجاوزت هدفك' : `باقي ${fmt(left)} ر.س`}
+                        {reached ? t('dashboard.targetReached') : t('dashboard.targetLeft', { amount: fmt(left), cur: SAR })}
                       </div>
                     </div>
 
@@ -251,7 +242,7 @@ export default function Dashboard() {
                       fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 26,
                       color: 'var(--ink)', margin: '6px 0 12px',
                     }}>
-                      {fmt(done)} <span style={{ fontSize: 16, color: 'var(--ink-soft)' }}>من {fmt(target)} ر.س</span>
+                      {fmt(done)} <span style={{ fontSize: 16, color: 'var(--ink-soft)' }}>{t('dashboard.ofTarget', { amount: fmt(target), cur: SAR })}</span>
                     </div>
 
                     <div style={{
@@ -264,18 +255,18 @@ export default function Dashboard() {
                       }} />
                     </div>
                     <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 6 }}>
-                      {pct}٪ من الهدف
+                      {t('dashboard.pctOfTarget', { pct })}
                     </div>
                   </>
                 )
               })() : (
                 <>
-                  <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 4 }}>هدفي الشهري</div>
+                  <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 4 }}>{t('dashboard.myTarget')}</div>
                   <div style={{ fontSize: 14, color: 'var(--ink)', fontWeight: 600 }}>
-                    لم يُحدَّد هدف لهذا الشهر بعد
+                    {t('dashboard.noTarget')}
                   </div>
                   <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 4 }}>
-                    يضبطه المدير من صفحة الموظفين
+                    {t('dashboard.noTargetHint')}
                   </div>
                 </>
               )}
@@ -284,8 +275,8 @@ export default function Dashboard() {
 
           {!cur && !isPrp && (
             <div className="card empty" style={{ marginTop: 16 }}>
-              <strong>لا أرقام في {monthLabel(month)}</strong>
-              لم تُسجَّل عمليات أو تحصيلات في هذا الشهر
+              <strong>{t('dashboard.noNumbersIn', { month: monthLabel(month) })}</strong>
+              {t('dashboard.noNumbersBody')}
             </div>
           )}
 
@@ -293,14 +284,14 @@ export default function Dashboard() {
           {series.length > 1 && !(isPrp && !isManager) && (
             <div className="card" style={{ marginTop: 24 }}>
               <div style={{ padding: '16px 16px 0' }}>
-                <h2 style={{ fontSize: 16 }}>سجل الشهور</h2>
+                <h2 style={{ fontSize: 16 }}>{t('dashboard.monthsLog')}</h2>
               </div>
               <div className="table-scroll" style={{ marginTop: 10, maxHeight: 300 }}>
               <table className="table sticky-head">
                 <thead>
                   <tr>
-                    <th>الشهر</th><th>العمليات</th><th>الإيراد</th>
-                    <th>المحصّل</th><th>الليدات</th>
+                    <th>{t('common.month')}</th><th>{t('common.operations')}</th><th>{t('common.revenue')}</th>
+                    <th>{t('common.collected')}</th><th>{t('common.leads')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -314,10 +305,10 @@ export default function Dashboard() {
                           fontWeight: k === month ? 700 : 400,
                           background: k === month ? 'var(--surface)' : undefined,
                         }}>
-                        <td>{monthLabel(r.month)}{k === thisMonth() ? ' (الجاري)' : ''}</td>
+                        <td>{monthLabel(r.month)}{k === thisMonth() ? ` (${t('common.current')})` : ''}</td>
                         <td>{fmt(r.deals_count)}</td>
-                        <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmt(r.revenue)} ر.س</td>
-                        <td>{fmt(r.collected)} ر.س</td>
+                        <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmt(r.revenue)} {SAR}</td>
+                        <td>{fmt(r.collected)} {SAR}</td>
                         <td>{fmt(r.leads_count ?? r.leads_received)}</td>
                       </tr>
                     )
@@ -333,11 +324,10 @@ export default function Dashboard() {
             <div className="card" style={{ marginTop: 24, opacity: teamLoading ? 0.6 : 1, transition: 'opacity .15s' }}>
               <div style={{ padding: '16px 16px 0' }}>
                 <h2 style={{ fontSize: 16 }}>
-                  {isCurrentMonth ? 'أداء الفريق هذا الشهر' : `أداء الفريق في ${monthLabel(month)}`}
+                  {isCurrentMonth ? t('dashboard.teamThisMonth') : t('dashboard.teamInMonth', { month: monthLabel(month) })}
                 </h2>
                 <div className="hint" style={{ marginTop: 4 }}>
-                  العملية الواحدة تُنسب للسيلز والمنسقة معًا لحساب العمولة —
-                  لذلك مجموع الصفوف أكبر من إجمالي العيادة بالأعلى
+                  {t('dashboard.teamHint')}
                 </div>
               </div>
               {(() => {
@@ -353,24 +343,24 @@ export default function Dashboard() {
                 return (
                   <>
                     <div className="tabs" style={{ margin: '12px 16px 0' }}>
-                      {TEAM_TABS.map(t => (
-                        <button key={t.key} type="button"
-                          className={'tab' + (teamTab === t.key ? ' on' : '')}
-                          onClick={() => setTeamTab(t.key)}>
-                          {t.title}
+                      {TEAM_TABS.map(k => (
+                        <button key={k} type="button"
+                          className={'tab' + (teamTab === k ? ' on' : '')}
+                          onClick={() => setTeamTab(k)}>
+                          {t(`dashboard.tabs.${k}`)}
                         </button>
                       ))}
                     </div>
                     {!list.length ? (
-                      <div className="hint" style={{ padding: 16 }}>لا توجد أرقام لهذا الشهر</div>
+                      <div className="hint" style={{ padding: 16 }}>{t('dashboard.noNumbersMonth')}</div>
                     ) : (
                       <div className="table-scroll" style={{ marginTop: 8 }}>
                       <table className="table sticky-head">
                         <thead>
                           <tr>
-                            <th>الموظف</th>
-                            {isAll && <th>الوظيفة</th>}
-                            <th>العمليات</th>{hasOther && <th>جلسات/منتجات</th>}<th>الإيراد</th><th>المحصّل</th><th>الليدات</th>
+                            <th>{t('common.employee')}</th>
+                            {isAll && <th>{t('common.role')}</th>}
+                            <th>{t('common.operations')}</th>{hasOther && <th>{t('dashboard.sessionsProductsCol')}</th>}<th>{t('common.revenue')}</th><th>{t('common.collected')}</th><th>{t('common.leads')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -379,24 +369,24 @@ export default function Dashboard() {
                               <td style={{ fontWeight: 600 }}>{r.full_name}</td>
                               {isAll && (
                                 <td style={{ color: 'var(--ink-soft)' }}>
-                                  {ROLE_TITLE[r.role_code] ?? r.role_code ?? '—'}
+                                  {r.role_code ? t(`rolesShort.${r.role_code}`, { defaultValue: r.role_code }) : '—'}
                                 </td>
                               )}
                               <td>{fmt(r.deals_count)}</td>
                               {hasOther && <td>{fmt(r.other_count)}</td>}
-                              <td style={{ color: 'var(--gold)', fontWeight: 600 }}>{fmt(r.revenue)} ر.س</td>
-                              <td>{fmt(r.collected)} ر.س</td>
+                              <td style={{ color: 'var(--gold)', fontWeight: 600 }}>{fmt(r.revenue)} {SAR}</td>
+                              <td>{fmt(r.collected)} {SAR}</td>
                               <td>{fmt(r.leads_received)}</td>
                             </tr>
                           ))}
                           {/* الإجمالي في تاب الوظيفة بس — في "الكل" هيبقى مكرر (العملية للسيلز والمنسقة) */}
                           {!isAll && list.length > 1 && (
                             <tr style={{ fontWeight: 700, background: 'var(--line-soft)' }}>
-                              <td>الإجمالي</td>
+                              <td>{t('common.total')}</td>
                               <td>{fmt(sum('deals_count'))}</td>
                               {hasOther && <td>{fmt(sum('other_count'))}</td>}
-                              <td style={{ color: 'var(--gold)' }}>{fmt(sum('revenue'))} ر.س</td>
-                              <td>{fmt(sum('collected'))} ر.س</td>
+                              <td style={{ color: 'var(--gold)' }}>{fmt(sum('revenue'))} {SAR}</td>
+                              <td>{fmt(sum('collected'))} {SAR}</td>
                               <td>{fmt(sum('leads_received'))}</td>
                             </tr>
                           )}
@@ -415,13 +405,13 @@ export default function Dashboard() {
           {isManager && (
             <div className="card" style={{ marginTop: 24, padding: 16 }}>
               <h2 style={{ fontSize: 16, marginBottom: 12 }}>
-                {isCurrentMonth ? 'البلازما هذا الشهر' : `البلازما في ${monthLabel(month)}`}
+                {isCurrentMonth ? t('dashboard.prpThisMonth') : t('dashboard.prpInMonth', { month: monthLabel(month) })}
               </h2>
               <PrpMonthStats stats={prpStats} loading={prpLoading} />
               {(prpStats?.by_performer ?? []).length > 0 && (
                 <div className="table-scroll">
                   <table className="table">
-                    <thead><tr><th>الموظف</th><th>جلسات عملها</th></tr></thead>
+                    <thead><tr><th>{t('common.employee')}</th><th>{t('dashboard.sessionsDone')}</th></tr></thead>
                     <tbody>
                       {prpStats.by_performer.map(p => (
                         <tr key={p.user_id}>

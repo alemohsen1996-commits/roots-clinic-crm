@@ -1,6 +1,7 @@
 // حارس المسارات: يمنع الدخول قبل التفعيل ويوجه حسب الحالة
 import { Navigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import useT from '../i18n/useT'
 
 const Center = ({ children }) => (
   <div style={{ display: 'grid', placeItems: 'center', height: '100vh', padding: 16 }}>
@@ -10,9 +11,10 @@ const Center = ({ children }) => (
 
 export function RequireAuth({ children }) {
   const { session, profile, loading, profileError, retryProfile, signOut } = useAuth()
+  const { t } = useT()
 
   if (loading) {
-    return <Center><span style={{ color: 'var(--ink-soft)' }}>جارٍ التحميل…</span></Center>
+    return <Center><span style={{ color: 'var(--ink-soft)' }}>{t('common.loading')}</span></Center>
   }
 
   if (!session) return <Navigate to="/login" replace />
@@ -22,14 +24,13 @@ export function RequireAuth({ children }) {
     return (
       <Center>
         <div className="card" style={{ maxWidth: 440, padding: 28, textAlign: 'center' }}>
-          <h2 style={{ marginBottom: 8 }}>تعذّر تحميل بيانات حسابك</h2>
+          <h2 style={{ marginBottom: 8 }}>{t('auth.profileFailedTitle')}</h2>
           <p style={{ color: 'var(--ink-soft)', fontSize: 14, lineHeight: 1.8 }}>
-            قد يكون الاتصال بالإنترنت منقطعًا، أو حسابك بحاجة لمراجعة من الإدارة.
-            جرّب إعادة المحاولة، وإن استمرت المشكلة تواصل مع المدير.
+            {t('auth.profileFailedBody')}
           </p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 18 }}>
-            <button className="btn btn-primary" onClick={retryProfile}>إعادة المحاولة</button>
-            <button className="btn btn-ghost" onClick={signOut}>تسجيل الخروج</button>
+            <button className="btn btn-primary" onClick={retryProfile}>{t('common.retry')}</button>
+            <button className="btn btn-ghost" onClick={signOut}>{t('common.logout')}</button>
           </div>
         </div>
       </Center>
@@ -41,14 +42,12 @@ export function RequireAuth({ children }) {
     return (
       <Center>
         <div className="card" style={{ maxWidth: 420, padding: 28, textAlign: 'center' }}>
-          <h2 style={{ marginBottom: 8 }}>حسابك بانتظار التفعيل</h2>
+          <h2 style={{ marginBottom: 8 }}>{t('auth.pendingTitle')}</h2>
           <p style={{ color: 'var(--ink-soft)', fontSize: 14 }}>
-            {profile.status === 'suspended'
-              ? 'هذا الحساب موقوف — تواصل مع الإدارة.'
-              : 'تواصل مع المدير ليقوم بتفعيل حسابك وتحديد صلاحياتك.'}
+            {profile.status === 'suspended' ? t('auth.suspendedBody') : t('auth.pendingBody')}
           </p>
           <button className="btn btn-ghost" style={{ marginTop: 18 }} onClick={signOut}>
-            تسجيل الخروج
+            {t('common.logout')}
           </button>
         </div>
       </Center>

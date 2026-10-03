@@ -3,10 +3,11 @@
 // وفي profiles.theme (عشان الموظف يلاقيه على أي جهاز)
 
 export const THEMES = [
-  { key: 'default', label: 'كحلي ودهبي',   swatch: ['#0f1b2d', '#1a3a5c', '#c9a24b'], bar: '#0f1b2d' },
-  { key: 'teal',    label: 'تيل وبرتقالي', swatch: ['#0b2f2e', '#0f6b63', '#e0621a'], bar: '#0b2f2e' },
-  { key: 'pink',    label: 'وردي زجاجي',   swatch: ['#f4f1f3', '#c21f72', '#8e44c9'], bar: '#f4f1f3' },
-  { key: 'dark',    label: 'ليلي بنفسجي',  swatch: ['#1a1827', '#7b64e6', '#f05aa3'], bar: '#1a1827' },
+  // label = مفتاح ترجمة (themes.*)
+  { key: 'default', label: 'themes.default', swatch: ['#0f1b2d', '#1a3a5c', '#c9a24b'], bar: '#0f1b2d' },
+  { key: 'teal',    label: 'themes.teal',    swatch: ['#0b2f2e', '#0f6b63', '#e0621a'], bar: '#0b2f2e' },
+  { key: 'pink',    label: 'themes.pink',   swatch: ['#f4f1f3', '#c21f72', '#8e44c9'], bar: '#f4f1f3' },
+  { key: 'dark',    label: 'themes.dark',   swatch: ['#1a1827', '#7b64e6', '#f05aa3'], bar: '#1a1827' },
 ]
 
 const KEY = 'theme'

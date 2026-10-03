@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { syncPushOnLogin, unlinkPushOnLogout } from '../lib/push'
+import { applyLang, getLocalLang } from '../lib/lang'
 
 const AuthCtx = createContext(null)
 
@@ -64,7 +65,7 @@ export function AuthProvider({ children }) {
     ;(async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*, roles(code, name_ar)')
+        .select('*, roles(code, name_ar, name_en)')
         .eq('id', userId)
         .single()
 
@@ -78,6 +79,8 @@ export function AuthProvider({ children }) {
       } else {
         setProfile(data)
         setProfileError(null)
+        // اللغة المختارة على جهاز تاني تتطبق هنا (المحلية اتطبقت من index.html)
+        if (data?.lang && data.lang !== getLocalLang()) applyLang(data.lang)
         syncPushOnLogin()
       }
       setLoading(false)

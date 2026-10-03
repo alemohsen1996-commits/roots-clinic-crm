@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtNum } from '../lib/format'
+import useT from '../i18n/useT'
 
 export function usePrpMonthStats(month, userId = null, refreshKey = 0) {
   const [stats, setStats] = useState(null)
@@ -31,22 +32,23 @@ export function lastMonths(count = 12) {
 }
 
 export default function PrpMonthStats({ stats, loading, personal = false }) {
+  const { t } = useT()
   const s = stats ?? {}
   const att = s.attendance_pct
   const attTone = att == null ? 'muted' : att >= 85 ? 'ok' : att >= 70 ? 'warn' : 'danger'
   const cards = [
-    { label: personal ? 'جلسات عملتها' : 'جلسات تمت', value: fmtNum(s.sessions_done),
-      sub: personal ? 'في الشهر ده' : `من ${fmtNum(s.sessions_planned)} جلسة ليها ميعاد في الشهر`, tone: 'ok' },
-    { label: 'نسبة الحضور', value: att == null ? '—' : `${att}٪`,
-      sub: `${fmtNum(s.sessions_missed)} غياب مقابل ${fmtNum(s.sessions_done)} حضور`, tone: attTone },
+    { label: personal ? t('prpStats.sessionsMine') : t('prpStats.sessionsDone'), value: fmtNum(s.sessions_done),
+      sub: personal ? t('prpStats.thisMonth') : t('prpStats.ofPlanned', { n: fmtNum(s.sessions_planned) }), tone: 'ok' },
+    { label: t('prpStats.attendance'), value: att == null ? '—' : `${att}%`,
+      sub: t('prpStats.missedVsDone', { missed: fmtNum(s.sessions_missed), done: fmtNum(s.sessions_done) }), tone: attTone },
     ...(personal ? [] : [
-      { label: 'باقات اكتملت', value: fmtNum(s.pkgs_completed),
-        sub: `${fmtNum(s.pkgs_opened)} باقة اتفتحت في الشهر`, tone: 'primary' },
-      { label: 'باقات انقطعت', value: fmtNum(s.pkgs_dropped),
-        sub: 'اتسجلت منقطعة نهائي', tone: s.pkgs_dropped > 0 ? 'danger' : 'muted' },
+      { label: t('prpStats.pkgsCompleted'), value: fmtNum(s.pkgs_completed),
+        sub: t('prpStats.pkgsOpened', { n: fmtNum(s.pkgs_opened) }), tone: 'primary' },
+      { label: t('prpStats.pkgsDropped'), value: fmtNum(s.pkgs_dropped),
+        sub: t('prpStats.droppedHint'), tone: s.pkgs_dropped > 0 ? 'danger' : 'muted' },
     ]),
-    { label: 'رجعوا بعد متابعة', value: fmtNum(s.returned),
-      sub: `من ${fmtNum(s.followups)} مريض اتواصلنا معاهم`, tone: 'warn' },
+    { label: t('prpStats.returned'), value: fmtNum(s.returned),
+      sub: t('prpStats.ofFollowups', { n: fmtNum(s.followups) }), tone: 'warn' },
   ]
   return (
     <div className="deals-kpis" style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .15s' }}>

@@ -6,6 +6,8 @@ import { useAuth } from '../auth/AuthContext'
 import { supabase } from '../lib/supabase'
 import { THEMES, getLocalTheme, applyTheme } from '../lib/theme'
 import { useChatUnread } from '../chat/useChatUnread'
+import useT from '../i18n/useT'
+import LangToggle from './LangToggle'
 
 // أيقونات خطّية موحّدة — التعرّف عليها أسرع من قراءة النص
 const I = {
@@ -33,42 +35,44 @@ const Icon = ({ k }) => (
     aria-hidden="true">{I[k]}</svg>
 )
 
+// label = مفتاح ترجمة (nav.*)
 const NAV = [
-  { section: 'العمل اليومي', items: [
-    { to: '/',      label: 'لوحة التحكم', icon: 'dashboard', roles: 'all' },
-    { to: '/tasks', label: 'مهامي اليوم',  icon: 'tasks', badge: 'tasks',
+  { section: 'daily', items: [
+    { to: '/',      label: 'dashboard', icon: 'dashboard', roles: 'all' },
+    { to: '/tasks', label: 'tasks',  icon: 'tasks', badge: 'tasks',
       roles: ['super_admin','sales_manager','agent','coordinator'] },
-    { to: '/chat', label: 'الشات', icon: 'chat', badge: 'chat', roles: 'all' },
+    { to: '/chat', label: 'chat', icon: 'chat', badge: 'chat', roles: 'all' },
     // المنسقة الآن ترى الليدات (بوردها) لمتابعة مرضاها المحوّلين إليها
-    { to: '/leads', label: 'الليدات', icon: 'leads',
+    { to: '/leads', label: 'leads', icon: 'leads',
       roles: ['super_admin','sales_manager','agent','coordinator'] },
-    { to: '/appointments', label: 'المعاينات', icon: 'appts',
+    { to: '/appointments', label: 'appointments', icon: 'appts',
       roles: ['super_admin','sales_manager','agent','coordinator'] },
-    { to: '/deals', label: 'الديلات', icon: 'deals',
+    { to: '/deals', label: 'deals', icon: 'deals',
       roles: ['super_admin','sales_manager','agent','coordinator','accountant'] },
-    { to: '/prp',   label: 'قسم البلازما', icon: 'prp',
+    { to: '/prp',   label: 'prp', icon: 'prp',
       roles: ['super_admin','sales_manager','coordinator','prp_officer'] },
   ]},
-  { section: 'المالية', items: [
-    { to: '/payments', label: 'التحصيلات', icon: 'payments',
+  { section: 'finance', items: [
+    { to: '/payments', label: 'payments', icon: 'payments',
       roles: ['super_admin','sales_manager','coordinator','accountant'] },
-    { to: '/installments', label: 'الأقساط والمتأخرات', icon: 'install',
+    { to: '/installments', label: 'installments', icon: 'install',
       roles: ['super_admin','sales_manager','accountant'] },
-    { to: '/statements', label: 'كشوف الموظفين', icon: 'statements',
+    { to: '/statements', label: 'statements', icon: 'statements',
       roles: ['super_admin','sales_manager','accountant'] },
   ]},
-  { section: 'الإدارة', items: [
-    { to: '/team',     label: 'الموظفون',      icon: 'team',     roles: ['super_admin'] },
-    { to: '/distribute', label: 'توزيع الليدات', icon: 'distribute', roles: ['super_admin','sales_manager'] },
-    { to: '/reports',  label: 'التقارير',       icon: 'reports',  roles: ['super_admin','sales_manager'] },
-    { to: '/calls',    label: 'المكالمات',      icon: 'calls',    roles: ['super_admin','sales_manager'] },
-    { to: '/archive',  label: 'أرشيف الشهور',   icon: 'archive',  roles: ['super_admin','sales_manager'] },
-    { to: '/settings', label: 'إعدادات النظام', icon: 'settings', roles: ['super_admin','sales_manager'] },
+  { section: 'admin', items: [
+    { to: '/team',     label: 'team',       icon: 'team',     roles: ['super_admin'] },
+    { to: '/distribute', label: 'distribute', icon: 'distribute', roles: ['super_admin','sales_manager'] },
+    { to: '/reports',  label: 'reports',    icon: 'reports',  roles: ['super_admin','sales_manager'] },
+    { to: '/calls',    label: 'calls',      icon: 'calls',    roles: ['super_admin','sales_manager'] },
+    { to: '/archive',  label: 'archive',    icon: 'archive',  roles: ['super_admin','sales_manager'] },
+    { to: '/settings', label: 'settings',   icon: 'settings', roles: ['super_admin','sales_manager'] },
   ]},
 ]
 
 export default function Shell() {
   const { profile, roleCode, signOut } = useAuth()
+  const { t, dn } = useT()
 
   // الثيم: المحفوظ على الجهاز يتطبق فورًا (من index.html)، وبعد تحميل الـ profile
   // لو الموظف مختار ثيم من جهاز تاني نطبقه هنا
@@ -137,12 +141,12 @@ export default function Shell() {
     <div className="shell">
       {/* شريط علوي — يظهر على الموبايل فقط */}
       <header className="topbar">
-        <button className="topbar-btn" onClick={() => setNavOpen(true)} aria-label="فتح القائمة">
+        <button className="topbar-btn" onClick={() => setNavOpen(true)} aria-label={t('common.openMenu')}>
           ☰
         </button>
-        <div className="topbar-brand">Roots Clinic · CRM</div>
+        <div className="topbar-brand">{t('common.appName')}</div>
         {chatUnread > 0 && (
-          <NavLink to="/chat" className="topbar-badge chat" title="رسائل غير مقروءة">💬 {chatUnread}</NavLink>
+          <NavLink to="/chat" className="topbar-badge chat" title={t('common.unreadMessages')}>💬 {chatUnread}</NavLink>
         )}
         {dueTasks > 0 && <span className="topbar-badge">{dueTasks}</span>}
       </header>
@@ -153,7 +157,7 @@ export default function Shell() {
       <aside className={'sidebar' + (navOpen ? ' open' : '')}>
         <div className="sidebar-top">
           <div className="brand">Roots Clinic <span>·</span> CRM</div>
-          <button className="sidebar-close" onClick={() => setNavOpen(false)} aria-label="إغلاق القائمة">
+          <button className="sidebar-close" onClick={() => setNavOpen(false)} aria-label={t('common.closeMenu')}>
             ✕
           </button>
         </div>
@@ -164,12 +168,12 @@ export default function Shell() {
             if (!visible.length) return null
             return (
               <div key={group.section} className="nav-group">
-                <div className="nav-section">{group.section}</div>
+                <div className="nav-section">{t(`nav.sections.${group.section}`)}</div>
                 {visible.map(i => (
                   <NavLink key={i.to} to={i.to} end={i.to === '/'}
                     className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
                     <Icon k={i.icon} />
-                    <span className="nav-text">{i.label}</span>
+                    <span className="nav-text">{t(`nav.${i.label}`)}</span>
                     {i.badge === 'tasks' && dueTasks > 0 && (
                       <span className="nav-badge">{dueTasks.toLocaleString('en-US')}</span>
                     )}
@@ -185,18 +189,19 @@ export default function Shell() {
 
         <div className="foot">
           <div className="name">{profile?.full_name}</div>
-          <div className="role">{profile?.roles?.name_ar}</div>
-          <div className="theme-picker" role="radiogroup" aria-label="ثيم الواجهة">
-            {THEMES.map(t => (
-              <button key={t.key} type="button" title={t.label} aria-label={t.label}
-                role="radio" aria-checked={theme === t.key}
-                className={theme === t.key ? 'on' : ''}
-                onClick={() => chooseTheme(t.key)}>
-                {t.swatch.map(c => <i key={c} style={{ background: c }} />)}
+          <div className="role">{dn(profile?.roles)}</div>
+          <div className="theme-picker" role="radiogroup" aria-label={t('common.theme')}>
+            {THEMES.map(th => (
+              <button key={th.key} type="button" title={t(th.label)} aria-label={t(th.label)}
+                role="radio" aria-checked={theme === th.key}
+                className={theme === th.key ? 'on' : ''}
+                onClick={() => chooseTheme(th.key)}>
+                {th.swatch.map(c => <i key={c} style={{ background: c }} />)}
               </button>
             ))}
           </div>
-          <button onClick={signOut}>تسجيل الخروج</button>
+          <LangToggle persist />
+          <button onClick={signOut}>{t('common.logout')}</button>
         </div>
       </aside>
 

@@ -3,8 +3,10 @@
 // (إعادة التحميل التلقائي كانت تُطلق بالخطأ مع الشبكة البطيئة
 //  فتُفقد اللوحة المفتوحة وتحدث "ريفرش" غير مبرّر)
 import { useEffect, useState } from 'react'
+import useT from '../i18n/useT'
 
 export default function ConnectionBanner() {
+  const { t } = useT()
   const [online, setOnline] = useState(navigator.onLine)
   const [justBack, setJustBack] = useState(false)
 
@@ -41,11 +43,11 @@ export default function ConnectionBanner() {
   return (
     <div className={'conn-banner ' + (justBack ? 'back' : 'off')} role="status">
       {justBack ? (
-        <>✓ عاد الاتصال</>
+        <>{t('conn.back')}</>
       ) : (
         <>
           <span className="conn-dot" />
-          انقطع الاتصال بالإنترنت — تحقّق من الشبكة
+          {t('conn.offline')}
         </>
       )}
     </div>

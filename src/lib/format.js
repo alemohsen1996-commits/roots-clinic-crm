@@ -7,33 +7,39 @@ const NUM_LOCALE = 'en-US'
 
 // التواريخ: أسماء شهور عربية بأرقام غربية (10 سبتمبر 2026)
 // لاتساقها مع بقية أرقام النظام دون فقدان عروبة الواجهة
-const DATE_LOCALE = 'ar-EG-u-nu-latn'
+// — وبالإنجليزي: en-GB (10 Sep 2026)
+import i18n from '../i18n'
+const isEn = () => i18n.language === 'en'
+const dateLocale = () => (isEn() ? 'en-GB' : 'ar-EG-u-nu-latn')
 
 export const fmtNum = (n) => Number(n ?? 0).toLocaleString(NUM_LOCALE)
 
 // اختصار للاستخدام المباشر في الشاشات
 export const n = fmtNum
 
-export const fmtMoney = (v, currency = 'ر.س') =>
-  `${fmtNum(v)} ${currency}`
+// رمز العملة حسب اللغة (ر.س / SAR)
+export const cur = () => i18n.t('common.currency')
+
+export const fmtMoney = (v, currency) =>
+  `${fmtNum(v)} ${currency ?? cur()}`
 
 export const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString(DATE_LOCALE, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+  d ? new Date(d).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
 export const fmtDateTime = (d) =>
-  d ? new Date(d).toLocaleString(DATE_LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
+  d ? new Date(d).toLocaleString(dateLocale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
 
 // وقت الحجز بنظام 12 ساعة: '14:00:00' → '2:00 م' — '09:30' → '9:30 ص' — '12:00' → '12:00 م'
 export function fmtClock(t) {
   const m = /^(\d{1,2}):(\d{2})/.exec(String(t ?? ''))
   if (!m) return ''
   const h = Number(m[1])
-  return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'ص' : 'م'}`
+  return `${h % 12 || 12}:${m[2]} ${i18n.t(h < 12 ? 'common.am' : 'common.pm')}`
 }
 
 // شهر وسنة — للوحة التحكم وأرشيف الشهور
 export const fmtMonth = (d) =>
-  d ? new Date(d).toLocaleDateString(DATE_LOCALE, { month: 'long', year: 'numeric' }) : '—'
+  d ? new Date(d).toLocaleDateString(dateLocale(), { month: 'long', year: 'numeric' }) : '—'
 
 // رقم صالح لرابط واتساب: أرقام فقط بلا + أو مسافات
 export const waNumber = (phone) => String(phone ?? '').replace(/\D/g, '')
@@ -90,12 +96,12 @@ export function openWhatsApp(phone, text) {
 export function timeAgo(d) {
   if (!d) return '—'
   const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000)
-  if (s < 60) return 'الآن'
+  if (s < 60) return i18n.t('time.now')
   const m = Math.floor(s / 60)
-  if (m < 60) return `منذ ${m} د`
+  if (m < 60) return i18n.t('time.minutesAgo', { n: m })
   const h = Math.floor(m / 60)
-  if (h < 24) return `منذ ${h} س`
+  if (h < 24) return i18n.t('time.hoursAgo', { n: h })
   const days = Math.floor(h / 24)
-  if (days < 30) return `منذ ${days} يوم`
+  if (days < 30) return i18n.t('time.daysAgo', { n: days })
   return fmtDate(d)
 }

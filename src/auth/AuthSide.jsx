@@ -1,5 +1,8 @@
 // الجانب البصري لشاشات الدخول — رمز الجذور + اسم العيادة
+import useT from '../i18n/useT'
+
 export default function AuthSide() {
+  const { t, isEn } = useT()
   return (
     <aside className="auth-side">
       <div className="auth-emblem">
@@ -55,8 +58,8 @@ export default function AuthSide() {
       </div>
 
       <div className="auth-name">
-        <h2>Roots Clinic</h2>
-        <span>عيادة الجذور</span>
+        <h2>{isEn ? 'عيادة الجذور' : 'Roots Clinic'}</h2>
+        <span>{t('common.clinicName')}</span>
       </div>
     </aside>
   )
