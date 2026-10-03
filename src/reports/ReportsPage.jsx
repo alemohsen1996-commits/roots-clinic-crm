@@ -7,6 +7,8 @@ import { fmtNum } from '../lib/format'
 import { exportCsv } from '../lib/exportCsv'
 import Funnel from './Funnel'
 import Breakdowns from './Breakdowns'
+import useT from '../i18n/useT'
+import { kindLabel } from '../deals/useDealRefs'
 
 // التواريخ بتوقيت السعودية — toISOString كان بيحوّل لجرينتش فيرجّع 3 ساعات
 // ("الشهر الجاري" كان بيبدأ من آخر يوم في الشهر اللي فات)
@@ -17,27 +19,14 @@ const monthStart = () => riyadhDate().slice(0, 8) + '01'
 const today = () => riyadhDate()
 
 // تابات ترتيب الفريق — نفس فكرة لوحة التحكم
-const TEAM_TABS = [
-  { key: 'all',         title: 'الكل' },
-  { key: 'agent',       title: 'السيلز' },
-  { key: 'coordinator', title: 'المنسقات' },
-]
+const TEAM_TABS = ['all', 'agent', 'coordinator']   // العناوين من dashboard.tabs.* (agent = sales)
 
 // فلتر نوع البيع — من غير فلتر: "العمليات" = جراحية بس والإيراد = كل المبيعات
-const KINDS = [
-  { id: '', label: 'كل المبيعات' },
-  { id: 'surgery', label: 'عمليات' },
-  { id: 'treatment', label: 'جلسات علاج' },
-  { id: 'product', label: 'منتجات' },
-]
-const KIND_NAME = { surgery: 'عمليات', treatment: 'جلسات علاج', product: 'منتجات' }
-
-const ROLE_AR = {
-  agent: 'مبيعات', coordinator: 'منسقة', sales_manager: 'مدير مبيعات',
-  super_admin: 'مدير عام', accountant: 'محاسب', prp_officer: 'بلازما',
-}
+const KINDS = ['', 'surgery', 'treatment', 'product']
 
 export default function ReportsPage() {
+  const { t } = useT()
+  const SAR = t('common.currency')
   const [from, setFrom] = useState(monthStart())
   const [to, setTo] = useState(today())
   const [stages, setStages] = useState([])
@@ -59,7 +48,7 @@ export default function ReportsPage() {
   // كل الحسابات في القاعدة (report_summary) — نداء واحد بدل ما نجيب كل الليدات للمتصفح
   const load = useCallback(async () => {
     if (from > to) {
-      setErr('تاريخ البداية بعد تاريخ النهاية'); setLoading(false)
+      setErr(t('reports.fromAfterTo')); setLoading(false)
       return
     }
     setLoading(true); setErr('')
@@ -72,7 +61,7 @@ export default function ReportsPage() {
       supabase.rpc('report_summary', { p_from: fromTs, p_to: toTs, p_kind: kind || null }),
     ])
     if (error || !r) {
-      setErr('تعذر تحميل التقرير — ' + (error?.message || ''))
+      setErr(t('reports.loadFailed') + ' — ' + (error?.message || ''))
       setLoading(false)
       return
     }
@@ -91,21 +80,22 @@ export default function ReportsPage() {
       otherSales: Number(r.other_sales ?? 0),
     })
     setByKind(r.by_kind ?? {})
-    setTeam((r.team ?? []).map(t => {
-      const leads = Number(t.leads ?? 0), deals = Number(t.deals ?? 0)
+    const i18nRole = (code) => t(`rolesShort.${code}`, { defaultValue: code })
+    setTeam((r.team ?? []).map(tm => {
+      const leads = Number(tm.leads ?? 0), deals = Number(tm.deals ?? 0)
       return {
-        name: t.name ?? '—',
-        role: ROLE_AR[t.role] ?? '—',
-        roleCode: t.role ?? null,
-        inactive: t.status && t.status !== 'active',
+        name: tm.name ?? '—',
+        role: tm.role ? i18nRole(tm.role) : '—',
+        roleCode: tm.role ?? null,
+        inactive: tm.status && tm.status !== 'active',
         leads, deals,
-        other: Number(t.other ?? 0),
-        revenue: Number(t.revenue ?? 0),
+        other: Number(tm.other ?? 0),
+        revenue: Number(tm.revenue ?? 0),
         ratio: leads ? Math.round((deals / leads) * 100) : null,
       }
     }))
     setLoading(false)
-  }, [from, to, kind])
+  }, [from, to, kind, t])
 
   useEffect(() => { load() }, [load])
 
@@ -116,18 +106,18 @@ export default function ReportsPage() {
   const funnelCounts = funnelMode === 'current' ? stageCounts : reachedCounts
 
   // كلمة العدّ حسب الفلتر، وعمود جلسات/منتجات بس من غير فلتر ولو فيه مبيعات منهم
-  const dealsWord = kind ? KIND_NAME[kind] : 'عمليات'
+  const dealsWord = kind ? kindLabel(kind) : t('kind.surgery')
   const showOther = !kind && totals.otherSales > 0
   const kindRows = ['surgery', 'treatment', 'product']
     .map(k => ({ k, count: Number(byKind[k]?.count ?? 0), revenue: Number(byKind[k]?.revenue ?? 0) }))
     .filter(x => x.count > 0)
-  const kindTotal = kindRows.reduce((t, x) => t + x.revenue, 0)
+  const kindTotal = kindRows.reduce((acc, x) => acc + x.revenue, 0)
 
   function doExport() {
     exportCsv(
       `report-${from}-to-${to}.csv`,
-      ['الموظف', 'الدور', 'الليدات', dealsWord, ...(showOther ? ['جلسات/منتجات'] : []), 'الإيراد', 'عمليات/ليدات %'],
-      team.map(t => [t.name, t.role, t.leads, t.deals, ...(showOther ? [t.other] : []), t.revenue, t.ratio ?? ''])
+      [t('common.employee'), t('common.role'), t('common.leads'), dealsWord, ...(showOther ? [t('dashboard.sessionsProductsCol')] : []), t('common.revenue'), t('reports.opsPerLeads') + ' %'],
+      team.map(tm => [tm.name, tm.role, tm.leads, tm.deals, ...(showOther ? [tm.other] : []), tm.revenue, tm.ratio ?? ''])
     )
   }
 
@@ -135,27 +125,27 @@ export default function ReportsPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>التقارير</h1>
-          <div className="hint">من {from} إلى {to}</div>
+          <h1>{t('nav.reports')}</h1>
+          <div className="hint">{t('drawer.from')} {from} {t('drawer.to')} {to}</div>
         </div>
         <button className="btn btn-ghost" onClick={doExport} disabled={loading}>
-          تصدير Excel (CSV)
+          {t('reports.exportCsv')}
         </button>
       </div>
 
       <div className="card filters-bar">
-        <label style={{ fontSize: 13, fontWeight: 600 }}>من</label>
+        <label style={{ fontSize: 13, fontWeight: 600 }}>{t('drawer.from')}</label>
         <input type="date" value={from} onChange={e => setFrom(e.target.value)} />
-        <label style={{ fontSize: 13, fontWeight: 600 }}>إلى</label>
+        <label style={{ fontSize: 13, fontWeight: 600 }}>{t('leads.f.to')}</label>
         <input type="date" value={to} onChange={e => setTo(e.target.value)} />
         <button className="btn btn-ghost" onClick={() => { setFrom(monthStart()); setTo(today()) }}>
-          الشهر الجاري
+          {t('reports.currentMonth')}
         </button>
         <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--line)', margin: '0 4px' }} />
         {KINDS.map(k => (
-          <button key={k.id || 'all'} type="button" aria-pressed={kind === k.id}
-            className={'chip' + (kind === k.id ? ' on' : '')} onClick={() => setKind(k.id)}>
-            {k.label}
+          <button key={k || 'all'} type="button" aria-pressed={kind === k}
+            className={'chip' + (kind === k ? ' on' : '')} onClick={() => setKind(k)}>
+            {k ? kindLabel(k) : t('deals.allSales')}
           </button>
         ))}
       </div>
@@ -164,28 +154,28 @@ export default function ReportsPage() {
 
       {loading ? (
         <div className="empty">
-          جارٍ التحميل…
+          {t('common.loading')}
         </div>
       ) : (
         <>
           {/* بطاقات الإجماليات */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14, marginBottom: 18 }}>
             {[
-              { label: 'ليدات الفترة', value: fmtNum(totals.leads) },
-              { label: `${dealsWord} تمت في الفترة`, value: fmtNum(totals.deals),
-                hint: showOther ? `+ ${fmtNum(totals.otherSales)} جلسات/منتجات (داخلين في الإيراد)` : undefined },
+              { label: t('reports.periodLeads'), value: fmtNum(totals.leads) },
+              { label: t('reports.doneInPeriod', { what: dealsWord }), value: fmtNum(totals.deals),
+                hint: showOther ? t('reports.otherSalesHint', { n: fmtNum(totals.otherSales) }) : undefined },
               {
-                label: 'تحويل ليدات الفترة',
-                value: cohortRate + '٪',
-                hint: `${fmtNum(totals.cohortDeals)} من ليدات هذه الفترة وصلوا لعملية`,
+                label: t('reports.cohortConversion'),
+                value: cohortRate + '%',
+                hint: t('reports.cohortHint', { n: fmtNum(totals.cohortDeals) }),
               },
               {
-                label: 'عمليات ÷ ليدات',
-                value: periodRatio + '٪',
-                hint: 'نسبة إنتاجية — العمليات قد تعود لليدات أقدم',
+                label: t('reports.opsPerLeads'),
+                value: periodRatio + '%',
+                hint: t('reports.ratioHint'),
               },
-              { label: kind ? `إيراد ال${KIND_NAME[kind]}` : 'الإيراد (متعاقد)', value: fmtNum(totals.revenue) + ' ر.س', gold: true },
-              { label: 'المحصّل فعليًا', value: fmtNum(totals.collected) + ' ر.س', gold: true },
+              { label: kind ? t('reports.kindRevenue', { kind: kindLabel(kind) }) : t('reports.contractedRevenue'), value: fmtNum(totals.revenue) + ' ' + SAR, gold: true },
+              { label: t('dashboard.cards.collected'), value: fmtNum(totals.collected) + ' ' + SAR, gold: true },
             ].map(c => (
               <div key={c.label} className="card" style={{ padding: 16 }}>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{c.label}</div>
@@ -207,15 +197,15 @@ export default function ReportsPage() {
           {/* الإيراد حسب نوع البيع */}
           {kindRows.length > 1 && (
             <div className="card" style={{ padding: 16, marginBottom: 18 }}>
-              <h2 style={{ fontSize: 15, marginBottom: 12 }}>الإيراد حسب نوع البيع</h2>
+              <h2 style={{ fontSize: 15, marginBottom: 12 }}>{t('reports.revenueByKind')}</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {kindRows.map(x => {
                   const pct = kindTotal ? Math.round((x.revenue / kindTotal) * 100) : 0
                   return (
                     <div key={x.k}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                        <span style={{ fontWeight: 700 }}>{KIND_NAME[x.k]} · {fmtNum(x.count)}</span>
-                        <span>{fmtNum(x.revenue)} ر.س ({pct}٪)</span>
+                        <span style={{ fontWeight: 700 }}>{kindLabel(x.k)} · {fmtNum(x.count)}</span>
+                        <span>{fmtNum(x.revenue)} {SAR} ({pct}%)</span>
                       </div>
                       <div className="deals-bar"><span className="full" style={{ width: pct + '%' }} /></div>
                     </div>
@@ -229,71 +219,70 @@ export default function ReportsPage() {
             <div>
               <div className="tabs" style={{ marginBottom: 10 }}>
                 <button className={'tab' + (funnelMode === 'current' ? ' on' : '')}
-                  onClick={() => setFunnelMode('current')}>وضعهم الآن</button>
+                  onClick={() => setFunnelMode('current')}>{t('reports.funnelCurrent')}</button>
                 <button className={'tab' + (funnelMode === 'reached' ? ' on' : '')}
-                  onClick={() => setFunnelMode('reached')}>مرّوا بالمرحلة</button>
+                  onClick={() => setFunnelMode('reached')}>{t('reports.funnelReached')}</button>
               </div>
               <Funnel
                 stages={stages}
                 counts={funnelCounts}
                 subtitle={funnelMode === 'current'
-                  ? 'توزيع ليدات الفترة على مراحلها الحالية'
-                  : 'كم ليد دخل كل مرحلة خلال الفترة — حتى لو غادرها بعدها'}
+                  ? t('reports.funnelCurrentSub')
+                  : t('reports.funnelReachedSub')}
               />
             </div>
 
             {/* ترتيب الفريق */}
             <div className="card">
               <div style={{ padding: '16px 16px 0' }}>
-                <h2 style={{ fontSize: 16 }}>ترتيب الفريق (Leaderboard)</h2>
+                <h2 style={{ fontSize: 16 }}>{t('reports.leaderboard')}</h2>
                 <p style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4, lineHeight: 1.6 }}>
-                  العملية الواحدة تُنسب للسيلز والمنسقة معًا لحساب العمولة —
-                  لذلك مجموع الصفوف أكبر من إجمالي العيادة
+                  {t('reports.leaderboardHint')}
                 </p>
               </div>
               {(() => {
                 const isAll = teamTab === 'all'
-                const list = isAll ? team : team.filter(t => t.roleCode === teamTab)
-                const sum = (k) => list.reduce((a, t) => a + Number(t[k] ?? 0), 0)
+                const list = isAll ? team : team.filter(tm => tm.roleCode === teamTab)
+                const sum = (k) => list.reduce((a, tm) => a + Number(tm[k] ?? 0), 0)
                 return (
                   <>
                     <div className="tabs" style={{ margin: '12px 16px 0' }}>
-                      {TEAM_TABS.map(t => (
-                        <button key={t.key} type="button"
-                          className={'tab' + (teamTab === t.key ? ' on' : '')}
-                          onClick={() => setTeamTab(t.key)}>{t.title}</button>
+                      {TEAM_TABS.map(k => (
+                        <button key={k} type="button"
+                          className={'tab' + (teamTab === k ? ' on' : '')}
+                          onClick={() => setTeamTab(k)}>{t(`dashboard.tabs.${k === 'agent' ? 'sales' : k}`)}</button>
                       ))}
                     </div>
-                    {list.length === 0 ? <div className="empty">لا بيانات في الفترة</div> : (
+                    {list.length === 0 ? <div className="empty">{t('reports.noDataPeriod')}</div> : (
                       <div style={{ overflowX: 'auto' }}>
                       <table className="table">
                         <thead>
                           <tr>
-                            <th>#</th><th>الموظف</th>{isAll && <th>الدور</th>}
-                            <th>ليدات</th><th>{dealsWord}</th>{showOther && <th>جلسات/منتجات</th>}<th>الإيراد</th>
+                            <th>#</th><th>{t('common.employee')}</th>{isAll && <th>{t('common.role')}</th>}
+                            <th>{t('common.leads')}</th><th>{dealsWord}</th>{showOther && <th>{t('dashboard.sessionsProductsCol')}</th>}<th>{t('common.revenue')}</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {list.map((t, i) => (
-                            <tr key={t.name + i} style={{ opacity: t.inactive ? .55 : 1 }}>
+                          {list.map((tm, i) => (
+                            <tr key={tm.name + i} style={{ opacity: tm.inactive ? .55 : 1 }}>
                               <td>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
                               <td style={{ fontWeight: 600 }}>
-                                {t.name}
-                                {t.inactive && (
-                                  <small style={{ color: 'var(--ink-soft)' }}> (موقوف)</small>
+                                {tm.name}
+                                {tm.inactive && (
+                                  <small style={{ color: 'var(--ink-soft)' }}> ({t('reports.suspended')})</small>
                                 )}
                               </td>
-                              {isAll && <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t.role}</td>}
-                              <td>{fmtNum(t.leads)}</td>
-                              <td>{fmtNum(t.deals)}</td>
-                              {showOther && <td>{fmtNum(t.other)}</td>}
-                              <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmtNum(t.revenue)}</td>
+                              {isAll && <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{tm.role}</td>}
+                              <td>{fmtNum(tm.leads)}</td>
+                              <td>{fmtNum(tm.deals)}</td>
+                              {showOther && <td>{fmtNum(tm.other)}</td>}
+                              <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmtNum(tm.revenue)}</td>
                             </tr>
                           ))}
                           {/* الإجمالي في تاب الوظيفة بس — في "الكل" هيبقى مكرر */}
                           {!isAll && list.length > 1 && (
                             <tr style={{ fontWeight: 700, background: 'var(--line-soft)' }}>
-                              <td></td><td>الإجمالي</td>
+                              <td></td><td>{t('common.total')}</td>
                               <td>{fmtNum(sum('leads'))}</td>
                               <td>{fmtNum(sum('deals'))}</td>
                               {showOther && <td>{fmtNum(sum('other'))}</td>}

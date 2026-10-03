@@ -22,3 +22,5 @@ alter table public.branches        add column if not exists name_en text;
 -- + تعبئة الأسماء الإنجليزية للصفوف الموجودة (roles, stages, lead_sources, lost_reasons, procedure_types, branches)
 
 -- (مطبّقة) v_deals_list: أعمدة branch_name_en و procedure_name_en مضافة في آخر الـ view
+
+-- (مطبّقة) report_summary: by_source / by_lost فيهم label_en بجانب label

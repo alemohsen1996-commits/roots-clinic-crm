@@ -3,8 +3,10 @@
 // الديلات والعمولات القديمة تبقى باسم الموظف القديم (لا تتأثر)
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import useT from '../i18n/useT'
 
 export default function BulkReassignModal({ people, onClose, onDone }) {
+  const { t, dn } = useT()
   const [fromUser, setFromUser] = useState('')
   const [toUser, setToUser] = useState('')
   const [fromStage, setFromStage] = useState('')   // '' = كل المراحل النشطة
@@ -18,7 +20,7 @@ export default function BulkReassignModal({ people, onClose, onDone }) {
   // المراحل النشطة فقط (open) — لأن النقل يقتصر عليها
   useEffect(() => {
     supabase.from('stages')
-      .select('id, name_ar, category')
+      .select('id, name_ar, name_en, category')
       .eq('is_active', true)
       .eq('category', 'open')
       .order('sort_order')
@@ -41,9 +43,9 @@ export default function BulkReassignModal({ people, onClose, onDone }) {
   )
 
   async function run() {
-    if (!fromUser || !toUser) { setErr('اختر الموظف المصدر والوجهة'); return }
-    if (fromUser === toUser) { setErr('لا يمكن النقل لنفس الموظف'); return }
-    if (!count) { setErr('لا توجد ليدات نشطة للنقل بهذا الفلتر'); return }
+    if (!fromUser || !toUser) { setErr(t('reassign.pickBoth')); return }
+    if (fromUser === toUser) { setErr(t('reassign.sameUser')); return }
+    if (!count) { setErr(t('reassign.noLeads')); return }
     setErr(''); setBusy(true)
 
     const { data, error } = await supabase.rpc('bulk_reassign_leads', {
@@ -54,7 +56,7 @@ export default function BulkReassignModal({ people, onClose, onDone }) {
     })
 
     setBusy(false)
-    if (error) { setErr('تعذر النقل — تأكد من صلاحيتك'); return }
+    if (error) { setErr(t('reassign.failed')); return }
     setDone(data)
   }
 
@@ -66,36 +68,35 @@ export default function BulkReassignModal({ people, onClose, onDone }) {
       <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: 480 }}>
         {done !== null ? (
           <>
-            <h2>تم النقل بنجاح</h2>
+            <h2>{t('reassign.doneTitle')}</h2>
             <div className="alert alert-ok" style={{ marginTop: 14 }}>
-              تم نقل {done} ليد من {fromName} إلى {toName}.
-              الديلات والعمولات القديمة بقيت كما هي باسم الموظف السابق.
+              {t('reassign.doneBody', { n: done, from: fromName, to: toName })}
             </div>
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={onDone}>تمام</button>
+              <button className="btn btn-primary" onClick={onDone}>{t('common.ok')}</button>
             </div>
           </>
         ) : (
           <>
-            <h2>نقل الليدات بين الموظفين</h2>
-            <p className="sub">ينقل الليدات النشطة فقط — الخاسرة والمكتملة تبقى كما هي</p>
+            <h2>{t('reassign.title')}</h2>
+            <p className="sub">{t('reassign.sub')}</p>
 
             {err && <div className="alert alert-error">{err}</div>}
 
             <div className="grid-2">
               <div className="field">
-                <label>من الموظف</label>
+                <label>{t('reassign.fromUser')}</label>
                 <select value={fromUser} onChange={e => { setFromUser(e.target.value); setToUser('') }}>
-                  <option value="">— اختر —</option>
+                  <option value="">{t('common.pick')}</option>
                   {activePeople.map(p => (
                     <option key={p.id} value={p.id}>{p.full_name}</option>
                   ))}
                 </select>
               </div>
               <div className="field">
-                <label>إلى الموظف</label>
+                <label>{t('reassign.toUser')}</label>
                 <select value={toUser} onChange={e => setToUser(e.target.value)} disabled={!fromUser}>
-                  <option value="">— اختر —</option>
+                  <option value="">{t('common.pick')}</option>
                   {toOptions.map(p => (
                     <option key={p.id} value={p.id}>{p.full_name}</option>
                   ))}
@@ -104,18 +105,18 @@ export default function BulkReassignModal({ people, onClose, onDone }) {
             </div>
 
             <div className="field">
-              <label>الليدات في مرحلة</label>
+              <label>{t('reassign.leadsInStage')}</label>
               <select value={fromStage} onChange={e => setFromStage(e.target.value)}>
-                <option value="">كل المراحل النشطة</option>
-                {stages.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+                <option value="">{t('reassign.allActiveStages')}</option>
+                {stages.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
               </select>
             </div>
 
             <div className="field">
-              <label>حوّلهم لمرحلة (اختياري)</label>
+              <label>{t('reassign.moveToStage')}</label>
               <select value={toStage} onChange={e => setToStage(e.target.value)}>
-                <option value="">اترك مرحلتهم كما هي</option>
-                {stages.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+                <option value="">{t('reassign.keepStage')}</option>
+                {stages.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
               </select>
             </div>
 
@@ -124,17 +125,17 @@ export default function BulkReassignModal({ people, onClose, onDone }) {
                 background: count ? 'var(--primary-soft)' : 'var(--warn-soft)',
                 color: count ? 'var(--primary)' : 'var(--warn)',
               }}>
-                {count === null ? 'جارٍ الحساب…'
-                  : count === 0 ? 'لا توجد ليدات نشطة مطابقة لهذا الفلتر'
-                  : `سيتم نقل ${count} ليد نشط`}
+                {count === null ? t('reassign.counting')
+                  : count === 0 ? t('reassign.noMatch')
+                  : t('reassign.willMove', { n: count })}
               </div>
             )}
 
             <div className="modal-actions">
               <button className="btn btn-primary" onClick={run} disabled={busy || !count}>
-                {busy ? 'جارٍ النقل…' : 'تنفيذ النقل'}
+                {busy ? t('reassign.moving') : t('reassign.run')}
               </button>
-              <button className="btn btn-ghost" onClick={onClose}>إلغاء</button>
+              <button className="btn btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
             </div>
           </>
         )}

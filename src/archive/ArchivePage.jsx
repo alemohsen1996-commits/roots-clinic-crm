@@ -2,13 +2,16 @@
 // اختيار أي شهر + مقارنة شهرين جنبًا إلى جنب + تصدير
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { fmtNum } from '../lib/format'
+import { fmtNum, fmtMonth } from '../lib/format'
+import useT from '../i18n/useT'
 import { exportCsv } from '../lib/exportCsv'
 
-const monthLabel = (m) =>
-  new Date(m).toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })
+const monthLabel = (m) => fmtMonth(m)
 
 export default function ArchivePage() {
+  const { t } = useT()
+  const SAR = t('common.currency')
+  const roleOf = (r) => (r.role_code === 'coordinator' ? t('rolesShort.coordinator') : t('rolesShort.agent'))
   const [months, setMonths] = useState([])
   const [sel, setSel] = useState('')
   const [cmp, setCmp] = useState('')          // شهر المقارنة (اختياري)
@@ -64,7 +67,7 @@ export default function ArchivePage() {
     if (pct === 0) return <small style={{ color: 'var(--ink-soft)' }}> =</small>
     return (
       <small style={{ color: pct > 0 ? 'var(--ok)' : 'var(--danger)', fontWeight: 700 }}>
-        {' '}{pct > 0 ? '▲' : '▼'}{Math.abs(pct)}٪
+        {' '}{pct > 0 ? '▲' : '▼'}{Math.abs(pct)}%
       </small>
     )
   }
@@ -72,9 +75,9 @@ export default function ArchivePage() {
   function doExport() {
     exportCsv(
       `archive-${sel}.csv`,
-      ['الموظف', 'الدور', 'العمليات', 'الإيراد', 'المحصّل', 'العمولة', 'الليدات', 'التحويل %'],
+      [t('common.employee'), t('common.role'), t('common.operations'), t('common.revenue'), t('common.collected'), t('statements.commission'), t('common.leads'), t('archive.conversion') + ' %'],
       rows.map(r => [
-        r.profiles?.full_name, r.role_code === 'coordinator' ? 'منسقة' : 'مبيعات',
+        r.profiles?.full_name, roleOf(r),
         r.deals_count, r.revenue, r.collected, r.commission,
         r.leads_received, r.conversion_pct,
       ])
@@ -85,28 +88,28 @@ export default function ArchivePage() {
     <>
       <div className="page-head">
         <div>
-          <h1>أرشيف الشهور</h1>
-          <div className="hint">أرقام مجمّدة تُحفظ تلقائيًا عند تصفير كل شهر — لا تُحذف أبدًا</div>
+          <h1>{t('nav.archive')}</h1>
+          <div className="hint">{t('archive.hint')}</div>
         </div>
-        {rows.length > 0 && <button className="btn btn-ghost" onClick={doExport}>تصدير Excel (CSV)</button>}
+        {rows.length > 0 && <button className="btn btn-ghost" onClick={doExport}>{t('reports.exportCsv')}</button>}
       </div>
 
-      {loading ? <div className="empty">جارٍ التحميل…</div> :
+      {loading ? <div className="empty">{t('common.loading')}</div> :
        months.length === 0 ? (
         <div className="card empty">
-          <strong>لا أرشيف بعد</strong>
-          أول snapshot سيُحفظ تلقائيًا مطلع الشهر القادم (مهمة close-month المجدولة)
+          <strong>{t('archive.noneYet')}</strong>
+          {t('archive.noneHint')}
         </div>
       ) : (
         <>
           <div className="card filters-bar">
-            <label style={{ fontSize: 13, fontWeight: 600 }}>الشهر</label>
+            <label style={{ fontSize: 13, fontWeight: 600 }}>{t('common.month')}</label>
             <select value={sel} onChange={e => setSel(e.target.value)}>
               {months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
             </select>
-            <label style={{ fontSize: 13, fontWeight: 600 }}>مقارنة بـ</label>
+            <label style={{ fontSize: 13, fontWeight: 600 }}>{t('archive.compareTo')}</label>
             <select value={cmp} onChange={e => setCmp(e.target.value)}>
-              <option value="">— بدون مقارنة —</option>
+              <option value="">{t('archive.noCompare')}</option>
               {months.filter(m => m !== sel).map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
             </select>
           </div>
@@ -114,10 +117,10 @@ export default function ArchivePage() {
           {/* إجماليات الشهر */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14, marginBottom: 18 }}>
             {[
-              { label: 'إجمالي العمليات', value: fmtNum(totals.deals) },
-              { label: 'الإيراد', value: fmtNum(totals.revenue) + ' ر.س', gold: true },
-              { label: 'المحصّل', value: fmtNum(totals.collected) + ' ر.س', gold: true },
-              { label: 'العمولات المستحقة', value: fmtNum(totals.commission) + ' ر.س' },
+              { label: t('archive.totalOps'), value: fmtNum(totals.deals) },
+              { label: t('common.revenue'), value: fmtNum(totals.revenue) + ' ' + SAR, gold: true },
+              { label: t('common.collected'), value: fmtNum(totals.collected) + ' ' + SAR, gold: true },
+              { label: t('archive.commissionsDue'), value: fmtNum(totals.commission) + ' ' + SAR },
             ].map(c => (
               <div key={c.label} className="card" style={{ padding: 16 }}>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{c.label}</div>
@@ -131,15 +134,15 @@ export default function ArchivePage() {
           <div className="card">
             <div style={{ padding: '16px 16px 0' }}>
               <h2 style={{ fontSize: 16 }}>
-                تفاصيل {monthLabel(sel)}
-                {cmp && <small style={{ color: 'var(--ink-soft)', fontWeight: 500 }}> — مقارنة بـ {monthLabel(cmp)}</small>}
+                {t('archive.detailsOf', { month: monthLabel(sel) })}
+                {cmp && <small style={{ color: 'var(--ink-soft)', fontWeight: 500 }}> — {t('archive.compareTo')} {monthLabel(cmp)}</small>}
               </h2>
             </div>
             <table className="table" style={{ marginTop: 10 }}>
               <thead>
                 <tr>
-                  <th>الموظف</th><th>الدور</th><th>العمليات</th>
-                  <th>الإيراد</th><th>المحصّل</th><th>العمولة</th><th>التحويل</th>
+                  <th>{t('common.employee')}</th><th>{t('common.role')}</th><th>{t('common.operations')}</th>
+                  <th>{t('common.revenue')}</th><th>{t('common.collected')}</th><th>{t('statements.commission')}</th><th>{t('archive.conversion')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -148,14 +151,14 @@ export default function ArchivePage() {
                   return (
                     <tr key={r.id}>
                       <td style={{ fontWeight: 600 }}>{r.profiles?.full_name}</td>
-                      <td>{r.role_code === 'coordinator' ? 'منسقة' : 'مبيعات'}</td>
+                      <td>{roleOf(r)}</td>
                       <td>{fmtNum(r.deals_count)}<Delta now={r.deals_count} before={b?.deals_count} /></td>
                       <td style={{ color: 'var(--gold)', fontWeight: 700 }}>
                         {fmtNum(r.revenue)}<Delta now={r.revenue} before={b?.revenue} />
                       </td>
                       <td>{fmtNum(r.collected)}<Delta now={r.collected} before={b?.collected} /></td>
                       <td>{fmtNum(r.commission)}<Delta now={r.commission} before={b?.commission} /></td>
-                      <td>{r.conversion_pct}٪</td>
+                      <td>{r.conversion_pct}%</td>
                     </tr>
                   )
                 })}

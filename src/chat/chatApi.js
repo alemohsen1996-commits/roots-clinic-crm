@@ -1,5 +1,6 @@
 // طبقة البيانات للشات الداخلي — كل الكتابة عبر دوال القاعدة (RPC)
 // عدا إرسال الرسالة: insert مباشر محمي بـ RLS (الطرف في المحادثة فقط)
+import i18n from '../i18n'
 import { supabase } from '../lib/supabase'
 
 const MSG_COLS = 'id, conversation_id, sender_id, body, lead_id, lead_label, reply_to, created_at, edited_at, deleted_at'
@@ -23,7 +24,7 @@ export const fetchConversation = async (id) =>
 
 export const fetchParticipants = async (id) =>
   unwrap(await supabase.from('chat_participants')
-    .select('user_id, is_admin, last_read_at, left_at, profiles(full_name, roles(code, name_ar))')
+    .select('user_id, is_admin, last_read_at, left_at, profiles(full_name, roles(code, name_ar, name_en))')
     .eq('conversation_id', id)) ?? []
 
 // الأحدث أولًا من القاعدة، ونرجّعها بالترتيب الزمني للعرض
@@ -76,7 +77,7 @@ export const renameGroup  = async (convId, title) => unwrap(await supabase.rpc('
 
 export const fetchEmployees = async () =>
   unwrap(await supabase.from('profiles')
-    .select('id, full_name, roles(code, name_ar)').eq('status', 'active').order('full_name')) ?? []
+    .select('id, full_name, roles(code, name_ar, name_en)').eq('status', 'active').order('full_name')) ?? []
 
 // بحث ليدات للإرفاق — حسب صلاحيات الموظف (RLS)
 export async function searchLeads(term) {
@@ -94,14 +95,14 @@ export async function searchLeads(term) {
 // (في المراقبة مفيش «أنا» — فبنعرض الطرفين)
 export function convName(conv, meId) {
   if (!conv) return ''
-  if (conv.kind === 'group') return conv.title || 'جروب'
+  if (conv.kind === 'group') return conv.title || i18n.t('chat.group')
   const members = conv.members ?? []
   const others = members.filter(m => m.id !== meId)
   if (others.length === members.length) return members.map(m => m.full_name).join(' ↔ ')
-  return others[0]?.full_name ?? 'محادثة'
+  return others[0]?.full_name ?? i18n.t('chat.conversation')
 }
 
 export const initials = (name = '') =>
   name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('')
 
-export const errText = (e) => e?.message || 'حصل خطأ — حاول تاني'
+export const errText = (e) => e?.message || i18n.t('chat.genericErr')

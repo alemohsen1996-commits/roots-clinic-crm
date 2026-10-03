@@ -2,6 +2,8 @@
 // • «محادثاتي»: محادثات الموظف الفردية والجروبات
 // • «المراقبة» (المدير العام + مدير المبيعات): كل محادثات الموظفين قراءة فقط،
 //   مع النص الأصلي لأي رسالة اتعدلت أو اتمسحت — وفتح المحادثة بيتسجل
+import i18n from '../i18n'
+import useT from '../i18n/useT'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -20,26 +22,27 @@ import LeadPicker from './LeadPicker'
 import PushToggle from './PushToggle'
 import './chat.css'
 
-const LOC = 'ar-EG-u-nu-latn'
-const fmtTime = (d) => new Date(d).toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' })
+const LOC = () => (i18n.language === 'en' ? 'en-GB' : 'ar-EG-u-nu-latn')
+const fmtTime = (d) => new Date(d).toLocaleTimeString(LOC(), { hour: '2-digit', minute: '2-digit' })
 const dayKey = (d) => new Date(d).toDateString()
 function dayLabel(d) {
   const x = new Date(d), today = new Date()
   const y = new Date(); y.setDate(today.getDate() - 1)
-  if (x.toDateString() === today.toDateString()) return 'اليوم'
-  if (x.toDateString() === y.toDateString()) return 'أمس'
+  if (x.toDateString() === today.toDateString()) return i18n.t('task.quick.today')
+  if (x.toDateString() === y.toDateString()) return i18n.t('chat.yesterday')
   return fmtDate(d)
 }
 function listTime(d) {
   if (!d) return ''
   return new Date(d).toDateString() === new Date().toDateString() ? fmtTime(d)
-    : new Date(d).toLocaleDateString(LOC, { day: 'numeric', month: 'short' })
+    : new Date(d).toLocaleDateString(LOC(), { day: 'numeric', month: 'short' })
 }
 const canEditMsg = (m) => Date.now() - new Date(m.created_at).getTime() < 24 * 3600 * 1000
 const isTouch = () => window.matchMedia?.('(pointer: coarse)').matches
 
 export default function ChatPage() {
   const { profile, roleCode } = useAuth()
+  const { t } = useT()
   const meId = profile.id
   const canMonitor = roleCode === 'super_admin' || roleCode === 'sales_manager'
   const canGroup = canMonitor
@@ -105,7 +108,7 @@ export default function ChatPage() {
         const upd = {
           ...c,
           last_message_at: p.created_at,
-          last_message_preview: p.body ? p.body.slice(0, 140) : '📎 ليد: ' + (p.lead_label ?? ''),
+          last_message_preview: p.body ? p.body.slice(0, 140) : `📎 ${t('chat.leadLabel')}: ` + (p.lead_label ?? ''),
           last_sender_id: p.sender_id,
           unread: counts ? (c.unread ?? 0) + 1 : c.unread,
         }
@@ -134,36 +137,36 @@ export default function ChatPage() {
       <aside className="chat-list">
         <div className="chat-list-head">
           <div className="chat-list-title">
-            <h1>الشات</h1>
-            <button className="btn btn-primary chat-new-btn" onClick={() => setShowNew(true)}>+ محادثة</button>
+            <h1>{t('nav.chat')}</h1>
+            <button className="btn btn-primary chat-new-btn" onClick={() => setShowNew(true)}>+ {t('chat.conversation')}</button>
           </div>
           <PushToggle />
           {canMonitor && (
             <div className="tabs chat-tabs">
-              <button className={'tab' + (tab === 'mine' ? ' on' : '')} onClick={() => setTab('mine')}>محادثاتي</button>
-              <button className={'tab' + (tab === 'monitor' ? ' on' : '')} onClick={() => setTab('monitor')}>👁 المراقبة</button>
+              <button className={'tab' + (tab === 'mine' ? ' on' : '')} onClick={() => setTab('mine')}>{t('chat.myChats')}</button>
+              <button className={'tab' + (tab === 'monitor' ? ' on' : '')} onClick={() => setTab('monitor')}>👁 {t('chat.monitor')}</button>
             </div>
           )}
           {tab === 'mine' ? (
-            <input className="chat-search" value={filter} onChange={e => setFilter(e.target.value)} placeholder="بحث في محادثاتي" />
+            <input className="chat-search" value={filter} onChange={e => setFilter(e.target.value)} placeholder={t('chat.searchMine')} />
           ) : (
             <div className="chat-mon-filters">
               <select value={monUser} onChange={e => setMonUser(e.target.value)}>
-                <option value="">كل الموظفين</option>
+                <option value="">{t('chat.allEmployees')}</option>
                 {employees.filter(e => e.id !== meId).map(e => <option key={e.id} value={e.id}>{e.full_name}</option>)}
               </select>
               <input className="chat-search" value={monSearch} onChange={e => setMonSearch(e.target.value)}
-                placeholder="كلمة في الرسائل (حتى المحذوفة) أو اسم" />
+                placeholder={t('chat.monitorSearchPh')} />
             </div>
           )}
         </div>
 
         <div className="chat-list-body">
-          {listLoading && <div className="chat-muted">جارٍ التحميل…</div>}
+          {listLoading && <div className="chat-muted">{t('common.loading')}</div>}
           {!listLoading && !list.length && (
             <div className="empty">
-              <strong>{tab === 'monitor' ? 'لا توجد محادثات' : 'لا توجد محادثات بعد'}</strong>
-              {tab === 'mine' && 'ابدأ محادثة مع زميل من زر «+ محادثة»'}
+              <strong>{tab === 'monitor' ? t('chat.noChats') : t('chat.noChatsYet')}</strong>
+              {tab === 'mine' && t('chat.startHint')}
             </div>
           )}
           {list.map(c => (
@@ -180,11 +183,11 @@ export default function ChatPage() {
                 </span>
                 <span className="chat-item-bottom">
                   <span className="chat-preview">
-                    {c.last_sender_id === meId && 'أنت: '}{c.last_message_preview || 'لا رسائل بعد'}
+                    {c.last_sender_id === meId && `${t('chat.you')}: `}{c.last_message_preview || t('chat.noMessagesYet')}
                   </span>
                   {c.unread > 0 && <span className="nav-badge">{c.unread}</span>}
                   {tab === 'monitor' && c.edited_or_deleted > 0 && (
-                    <span className="chat-flag" title="رسائل معدّلة أو محذوفة">✎ {c.edited_or_deleted}</span>
+                    <span className="chat-flag" title={t('chat.editedOrDeleted')}>✎ {c.edited_or_deleted}</span>
                   )}
                 </span>
               </span>
@@ -192,7 +195,7 @@ export default function ChatPage() {
           ))}
         </div>
 
-        <div className="chat-notice">🔒 المحادثات الداخلية خاضعة لمراجعة الإدارة</div>
+        <div className="chat-notice">🔒 {t('chat.notice')}</div>
       </aside>
 
       {/* ---------- المحادثة ---------- */}
@@ -204,8 +207,8 @@ export default function ChatPage() {
         ) : (
           <div className="chat-placeholder">
             <div>💬</div>
-            <strong>اختار محادثة من القائمة</strong>
-            <span>أو ابدأ محادثة جديدة مع زميل</span>
+            <strong>{t('chat.pickFromList')}</strong>
+            <span>{t('chat.orStartNew')}</span>
           </div>
         )}
       </section>
@@ -224,6 +227,7 @@ export default function ChatPage() {
 
 // =====================================================================
 function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, onLeft }) {
+  const { t, dn, isRtl } = useT()
   const [conv, setConv] = useState(null)
   const [parts, setParts] = useState([])
   const [msgs, setMsgs] = useState([])
@@ -250,7 +254,7 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
   const readOnly = !isMember
   const activeParts = parts.filter(p => !p.left_at)
   const others = activeParts.filter(p => p.user_id !== meId)
-  const nameOf = useCallback((id) => parts.find(p => p.user_id === id)?.profiles?.full_name ?? 'موظف', [parts])
+  const nameOf = useCallback((id) => parts.find(p => p.user_id === id)?.profiles?.full_name ?? t('chat.employee'), [parts, t])
 
   const title = conv?.kind === 'group'
     ? conv.title
@@ -411,7 +415,7 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
   const startEdit = (m) => { setMenuFor(null); setReply(null); setEditing(m); setText(m.body ?? ''); inputRef.current?.focus() }
   const doDelete = async (m) => {
     setMenuFor(null)
-    if (!confirm('حذف الرسالة؟')) return
+    if (!confirm(t('chat.deleteQ'))) return
     try {
       setMsgs(list => list.map(x => x.id === m.id ? { ...x, body: null, lead_id: null, lead_label: null, deleted_at: new Date().toISOString() } : x))
       await deleteMessage(m.id)
@@ -428,18 +432,18 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
 
   const byId = useMemo(() => Object.fromEntries(msgs.map(m => [m.id, m])), [msgs])
 
-  if (loading) return <div className="chat-placeholder"><span>جارٍ التحميل…</span></div>
+  if (loading) return <div className="chat-placeholder"><span>{t('common.loading')}</span></div>
   if (!conv) return (
     <div className="chat-placeholder">
-      <strong>تعذّر فتح المحادثة</strong><span>{err}</span>
-      <button className="btn btn-ghost" onClick={onBack}>رجوع</button>
+      <strong>{t('chat.openFailed')}</strong><span>{err}</span>
+      <button className="btn btn-ghost" onClick={onBack}>{t('common.back')}</button>
     </div>
   )
 
   return (
     <div className="chat-thread" onClick={() => menuFor && setMenuFor(null)}>
       <header className="chat-thread-head">
-        <button className="chat-icon-btn chat-back" onClick={onBack} aria-label="رجوع">→</button>
+        <button className="chat-icon-btn chat-back" onClick={onBack} aria-label={t('common.back')}>{isRtl ? '→' : '←'}</button>
         <span className={'chat-avatar' + (conv.kind === 'group' ? ' group' : '')}>
           {conv.kind === 'group' ? '👥' : (title ?? '').trim()[0]}
         </span>
@@ -447,25 +451,25 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
           <strong>{title}</strong>
           <small>
             {conv.kind === 'group'
-              ? `${activeParts.length} عضو`
-              : readOnly ? 'محادثة فردية' : others[0]?.profiles?.roles?.name_ar}
+              ? t('chat.nMembers', { n: activeParts.length })
+              : readOnly ? t('chat.directChat') : dn(others[0]?.profiles?.roles)}
           </small>
         </div>
         {conv.lead_id && (
-          <button className="chat-lead-chip" onClick={() => onOpenLead(conv.lead_id)}>📎 ليد الجروب</button>
+          <button className="chat-lead-chip" onClick={() => onOpenLead(conv.lead_id)}>📎 {t('chat.groupLead')}</button>
         )}
         {conv.kind === 'group' && (
-          <button className="chat-icon-btn" onClick={() => setShowInfo(true)} title="تفاصيل الجروب">ⓘ</button>
+          <button className="chat-icon-btn" onClick={() => setShowInfo(true)} title={t('chat.groupInfo')}>ⓘ</button>
         )}
       </header>
 
       {readOnly && (
-        <div className="chat-monitor-bar">👁 وضع المراقبة — قراءة فقط. فتحك للمحادثة بيتسجل.</div>
+        <div className="chat-monitor-bar">👁 {t('chat.monitorBar')}</div>
       )}
 
       <div className="chat-messages" ref={scroller} onScroll={onScroll}>
-        {hasMore && <button className="chat-older" onClick={loadOlder}>تحميل رسائل أقدم</button>}
-        {!msgs.length && <div className="chat-muted center">لا رسائل بعد — ابدأ الكلام 👋</div>}
+        {hasMore && <button className="chat-older" onClick={loadOlder}>{t('chat.loadOlder')}</button>}
+        {!msgs.length && <div className="chat-muted center">{t('chat.noMessagesStart')} 👋</div>}
 
         {msgs.map((m, i) => {
           const prev = msgs[i - 1]
@@ -485,12 +489,12 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
                   {replied && (
                     <div className="chat-reply-ref">
                       <b>{nameOf(replied.sender_id)}</b>
-                      <span>{replied.deleted_at ? '🚫 رسالة محذوفة' : (replied.body || '📎 ' + (replied.lead_label ?? 'ليد'))}</span>
+                      <span>{replied.deleted_at ? `🚫 ${t('chat.deletedMessage')}` : (replied.body || '📎 ' + (replied.lead_label ?? t('chat.leadLabel')))}</span>
                     </div>
                   )}
 
                   {m.deleted_at ? (
-                    <div className="chat-body muted">🚫 تم حذف هذه الرسالة</div>
+                    <div className="chat-body muted">🚫 {t('chat.thisDeleted')}</div>
                   ) : (
                     <>
                       {m.body && <div className="chat-body">{m.body}</div>}
@@ -504,11 +508,11 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
                   {canMonitor && hist?.length > 0 && (
                     <div className="chat-hist">
                       <button onClick={() => setOpenHist(openHist === m.id ? null : m.id)}>
-                        {m.deleted_at ? '👁 النص المحذوف' : `👁 النسخ السابقة (${hist.length})`}
+                        {m.deleted_at ? `👁 ${t('chat.deletedText')}` : `👁 ${t('chat.previousVersions')} (${hist.length})`}
                       </button>
                       {(openHist === m.id || m.deleted_at) && hist.map((h, k) => (
                         <div key={k} className="chat-hist-row">
-                          <small>{h.action === 'delete' ? 'قبل الحذف' : 'قبل التعديل'} · {fmtTime(h.at)} {dayLabel(h.at)}</small>
+                          <small>{h.action === 'delete' ? t('chat.beforeDelete') : t('chat.beforeEdit')} · {fmtTime(h.at)} {dayLabel(h.at)}</small>
                           <div>{h.old_body}</div>
                         </div>
                       ))}
@@ -516,31 +520,31 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
                   )}
 
                   <div className="chat-meta">
-                    {m.edited_at && !m.deleted_at && <span>معدّلة</span>}
+                    {m.edited_at && !m.deleted_at && <span>{t('chat.edited')}</span>}
                     <time>{fmtTime(m.created_at)}</time>
-                    {m._status === 'sending' && <span className="chat-tick" title="بتتبعت">🕓</span>}
+                    {m._status === 'sending' && <span className="chat-tick" title={t('chat.sending')}>🕓</span>}
                     {rs && <span className={'chat-tick ' + rs}
-                      title={rs === 'read' ? 'اتقرت' : rs === 'partial' ? 'اتقرت من بعض الأعضاء' : 'اتبعتت'}>
+                      title={rs === 'read' ? t('chat.read') : rs === 'partial' ? t('chat.readSome') : t('chat.sent')}>
                       {rs === 'sent' ? '✓' : '✓✓'}</span>}
                   </div>
 
                   {m._status === 'failed' && (
                     <div className="chat-failed" title={m._err}>
-                      ⚠ لم تُرسل
-                      <button onClick={() => deliver(m)}>إعادة</button>
-                      <button onClick={() => discard(m)}>إلغاء</button>
+                      ⚠ {t('chat.notSent')}
+                      <button onClick={() => deliver(m)}>{t('common.retry')}</button>
+                      <button onClick={() => discard(m)}>{t('common.cancel')}</button>
                     </div>
                   )}
 
                   {!readOnly && !m.deleted_at && !m._status && (
-                    <button className="chat-msg-menu-btn" aria-label="خيارات"
+                    <button className="chat-msg-menu-btn" aria-label={t('chat.options')}
                       onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === m.id ? null : m.id) }}>⋯</button>
                   )}
                   {menuFor === m.id && (
                     <div className="chat-msg-menu" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => { setMenuFor(null); setEditing(null); setReply(m); inputRef.current?.focus() }}>↩ رد</button>
-                      {mine && m.body && canEditMsg(m) && <button onClick={() => startEdit(m)}>✎ تعديل</button>}
-                      {mine && <button className="danger" onClick={() => doDelete(m)}>🗑 حذف</button>}
+                      <button onClick={() => { setMenuFor(null); setEditing(null); setReply(m); inputRef.current?.focus() }}>↩ {t('chat.reply')}</button>
+                      {mine && m.body && canEditMsg(m) && <button onClick={() => startEdit(m)}>✎ {t('common.edit')}</button>}
+                      {mine && <button className="danger" onClick={() => doDelete(m)}>🗑 {t('common.delete')}</button>}
                     </div>
                   )}
                 </div>
@@ -554,7 +558,7 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
         <footer className="chat-composer">
           {(reply || editing) && (
             <div className="chat-compose-ctx">
-              <span>{editing ? '✎ تعديل الرسالة' : `↩ رد على ${nameOf(reply.sender_id)}: ${reply.body ?? reply.lead_label ?? ''}`}</span>
+              <span>{editing ? `✎ ${t('chat.editMessage')}` : `↩ ${t('chat.replyTo')} ${nameOf(reply.sender_id)}: ${reply.body ?? reply.lead_label ?? ''}`}</span>
               <button className="chat-icon-btn" onClick={() => { setReply(null); if (editing) { setEditing(null); setText('') } }}>✕</button>
             </div>
           )}
@@ -571,13 +575,13 @@ function Thread({ convId, meId, canMonitor, onBack, onListChanged, onOpenLead, o
           {err && <div className="chat-err">{err}</div>}
           <div className="chat-compose-row">
             {!editing && (
-              <button className="chat-icon-btn" title="إرفاق ليد" onClick={() => setPickLead(v => !v)}>📎</button>
+              <button className="chat-icon-btn" title={t('chat.attachLead')} onClick={() => setPickLead(v => !v)}>📎</button>
             )}
             <textarea ref={inputRef} rows={1} value={text} maxLength={4000}
               onChange={e => setText(e.target.value)} onKeyDown={onKey}
-              placeholder="اكتب رسالة…" />
+              placeholder={t('chat.typePh')} />
             <button className="btn btn-primary chat-send" disabled={!text.trim() && !lead} onClick={send}>
-              {editing ? 'حفظ' : 'إرسال'}
+              {editing ? t('common.save') : t('chat.send')}
             </button>
           </div>
         </footer>

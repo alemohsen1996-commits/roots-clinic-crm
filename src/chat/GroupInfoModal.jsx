@@ -1,8 +1,10 @@
 // تفاصيل الجروب: الأعضاء + إضافة/إزالة + تغيير الاسم + الخروج
 import { useEffect, useMemo, useState } from 'react'
 import { addMembers, errText, fetchEmployees, removeMember, renameGroup } from './chatApi'
+import useT from '../i18n/useT'
 
 export default function GroupInfoModal({ conv, participants, meId, canAdmin, readOnly, onClose, onChanged, onLeft }) {
+  const { t, dn } = useT()
   const [title, setTitle] = useState(conv.title ?? '')
   const [people, setPeople] = useState([])
   const [adding, setAdding] = useState(false)
@@ -22,7 +24,7 @@ export default function GroupInfoModal({ conv, participants, meId, canAdmin, rea
   }
 
   const leave = async () => {
-    if (!confirm('تخرج من الجروب؟')) return
+    if (!confirm(t('chat.leaveQ'))) return
     setBusy(true)
     try { await removeMember(conv.id, meId); onLeft() } catch (e) { setErr(errText(e)); setBusy(false) }
   }
@@ -30,16 +32,16 @@ export default function GroupInfoModal({ conv, participants, meId, canAdmin, rea
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal chat-modal" onClick={e => e.stopPropagation()}>
-        <h2>تفاصيل الجروب</h2>
-        <div className="sub">{active.length} عضو</div>
+        <h2>{t('chat.groupInfo')}</h2>
+        <div className="sub">{t('chat.nMembers', { n: active.length })}</div>
 
         {canAdmin && !readOnly ? (
           <div className="field">
-            <label>اسم الجروب</label>
+            <label>{t('chat.groupName')}</label>
             <div style={{ display: 'flex', gap: 8 }}>
               <input style={{ flex: 1 }} value={title} onChange={e => setTitle(e.target.value)} />
               <button className="btn btn-ghost" disabled={busy || !title.trim() || title === conv.title}
-                onClick={() => run(() => renameGroup(conv.id, title.trim()))}>حفظ</button>
+                onClick={() => run(() => renameGroup(conv.id, title.trim()))}>{t('common.save')}</button>
             </div>
           </div>
         ) : <h3 style={{ marginBottom: 12 }}>{conv.title}</h3>}
@@ -49,12 +51,12 @@ export default function GroupInfoModal({ conv, participants, meId, canAdmin, rea
             <div key={p.user_id} className="chat-person">
               <span className="chat-avatar">{p.profiles?.full_name?.trim()?.[0]}</span>
               <span className="chat-person-name">
-                {p.profiles?.full_name}{p.user_id === meId && ' (أنا)'}
-                <small>{p.profiles?.roles?.name_ar}{p.is_admin && ' · أدمن الجروب'}</small>
+                {p.profiles?.full_name}{p.user_id === meId && ` (${t('chat.me')})`}
+                <small>{dn(p.profiles?.roles)}{p.is_admin && ` · ${t('chat.groupAdmin')}`}</small>
               </span>
               {canAdmin && !readOnly && p.user_id !== meId && (
-                <button className="chat-icon-btn" disabled={busy} title="إزالة"
-                  onClick={() => confirm(`إزالة ${p.profiles?.full_name} من الجروب؟`) &&
+                <button className="chat-icon-btn" disabled={busy} title={t('chat.remove')}
+                  onClick={() => confirm(t('chat.removeQ', { name: p.profiles?.full_name })) &&
                     run(() => removeMember(conv.id, p.user_id))}>✕</button>
               )}
             </div>
@@ -68,24 +70,24 @@ export default function GroupInfoModal({ conv, participants, meId, canAdmin, rea
                 <label key={p.id} className={'chat-person' + (picked.includes(p.id) ? ' on' : '')}>
                   <input type="checkbox" checked={picked.includes(p.id)}
                     onChange={() => setPicked(x => x.includes(p.id) ? x.filter(i => i !== p.id) : [...x, p.id])} />
-                  <span className="chat-person-name">{p.full_name}<small>{p.roles?.name_ar}</small></span>
+                  <span className="chat-person-name">{p.full_name}<small>{dn(p.roles)}</small></span>
                 </label>
               ))}
             </div>
             <button className="btn btn-primary" style={{ marginTop: 10 }} disabled={busy || !picked.length}
               onClick={() => run(async () => { await addMembers(conv.id, picked); setPicked([]); setAdding(false) })}>
-              إضافة ({picked.length})
+              {t('common.add')} ({picked.length})
             </button>
           </>
         ) : (
-          <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => setAdding(true)}>+ إضافة أعضاء</button>
+          <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => setAdding(true)}>+ {t('chat.addMembers')}</button>
         ))}
 
         {err && <div className="chat-err">{err}</div>}
 
         <div className="modal-actions">
-          <button className="btn btn-ghost" onClick={onClose}>إغلاق</button>
-          {!readOnly && <button className="btn btn-danger" disabled={busy} onClick={leave}>الخروج من الجروب</button>}
+          <button className="btn btn-ghost" onClick={onClose}>{t('common.close')}</button>
+          {!readOnly && <button className="btn btn-danger" disabled={busy} onClick={leave}>{t('chat.leaveGroup')}</button>}
         </div>
       </div>
     </div>

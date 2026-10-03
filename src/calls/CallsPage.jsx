@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { fmtNum } from '../lib/format'
+import i18n from '../i18n'
+import useT from '../i18n/useT'
 
 const CHUNK = 500
 const REQUIRED = ['cdr_id', 'date_time', 'from', 'to', 'calltype', 'duration']
@@ -20,7 +22,7 @@ const fmtDur = (s) => {
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
            : `${m}:${String(sec).padStart(2, '0')}`
 }
-const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0) + '٪'
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0) + '%'
 
 // قراءة الـ CSV كنصوص خام — عشان الصفر في أول الأرقام (05…) ميضيعش
 async function parseCsv(file) {
@@ -31,6 +33,7 @@ async function parseCsv(file) {
 }
 
 export default function CallsPage() {
+  const { t, isRtl } = useT()
   // الاستيراد
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState('')
@@ -81,8 +84,8 @@ export default function CallsPage() {
       const all = await parseCsv(file)
       const missing = REQUIRED.filter(k => !(k in (all[0] || {})))
       if (!all.length || missing.length) {
-        throw new Error('الملف مش بصيغة تقرير Azeer (Calls Recordings ← CSV). أعمدة ناقصة: '
-          + (missing.join('، ') || 'كل الأعمدة'))
+        throw new Error(t('callsPage.badFile') + ': '
+          + (missing.join(', ') || t('callsPage.allColumns')))
       }
       const total = { received: 0, inserted: 0, duplicates: 0, users_linked: 0, leads_linked: 0 }
       for (let i = 0; i < all.length; i += CHUNK) {
@@ -118,7 +121,7 @@ export default function CallsPage() {
     const opts = new Map()
     rows.forEach(r => {
       if (r.user_id) opts.set('u:' + r.user_id, `${r.full_name} (${r.extension})`)
-      else opts.set('e:' + r.extension, `غير مربوط — Ext ${r.extension}`)
+      else opts.set('e:' + r.extension, `${t('callsPage.unmapped')} — Ext ${r.extension}`)
     })
     mapped.forEach(p => { if (!opts.has('u:' + p.id)) opts.set('u:' + p.id, `${p.full_name} (${p.phone_ext})`) })
     return [...opts].sort((a, b) => a[1].localeCompare(b[1], 'ar'))
@@ -128,11 +131,11 @@ export default function CallsPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>المكالمات</h1>
-          <div className="hint">مكالمات السنترال (Azeer) — من {from} إلى {to}</div>
+          <h1>{t('nav.calls')}</h1>
+          <div className="hint">{t('callsPage.hint')} — {t('drawer.from')} {from} {t('drawer.to')} {to}</div>
         </div>
         <label className="btn btn-primary" style={{ opacity: busy ? .6 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
-          {busy ? `جارٍ الاستيراد… ${progress}` : 'استيراد ملف Azeer'}
+          {busy ? `${t('callsPage.importing')} ${progress}` : t('callsPage.importFile')}
           <input type="file" accept=".csv" onChange={onFile} hidden />
         </label>
       </div>
@@ -140,32 +143,32 @@ export default function CallsPage() {
       {err && <div className="alert alert-error">{err}</div>}
       {result && (
         <div className="alert" style={{ background: 'var(--ok-soft)', color: 'var(--ok)' }}>
-          اتسجّل <b>{fmtNum(result.inserted)}</b> مكالمة جديدة من أصل {fmtNum(result.received)}
-          {result.duplicates > 0 && <> — و {fmtNum(result.duplicates)} مستوردة قبل كده اتجاهلت</>}.
-          {' '}اتربط {fmtNum(result.leads_linked)} مكالمة بليدز و {fmtNum(result.users_linked)} بموظفين.
+          {t('callsPage.resultInserted', { n: fmtNum(result.inserted), total: fmtNum(result.received) })}
+          {result.duplicates > 0 && <> — {t('callsPage.resultDup', { n: fmtNum(result.duplicates) })}</>}.
+          {' '}{t('callsPage.resultLinked', { leads: fmtNum(result.leads_linked), users: fmtNum(result.users_linked) })}
         </div>
       )}
 
       {/* تنبيه صغير لو فيه Extensions مش مربوطة — الربط نفسه من صفحة فريق العمل */}
       {unmapped.length > 0 && (
         <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--ink)', lineHeight: 1.8 }}>
-          ⚠️ فيه {unmapped.length} Extension مش مربوطين بموظف، ومكالماتهم بتظهر «غير مربوط»:{' '}
+          ⚠️ {t('callsPage.unmappedWarn', { n: unmapped.length })}{' '}
           <b style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>
-            {unmapped.map(([ext, n]) => `${ext} (${fmtNum(n)})`).join('، ')}
+            {unmapped.map(([ext, n]) => `${ext} (${fmtNum(n)})`).join(', ')}
           </b>
-          {' — '}<Link to="/team">اربطهم من فريق العمل</Link>
+          {' — '}<Link to="/team">{t('callsPage.mapFromTeam')}</Link>
         </div>
       )}
 
       <div className="card filters-bar">
-        <label style={{ fontSize: 13, fontWeight: 600 }}>من</label>
+        <label style={{ fontSize: 13, fontWeight: 600 }}>{t('drawer.from')}</label>
         <input type="date" value={from} onChange={e => setFrom(e.target.value)} />
-        <label style={{ fontSize: 13, fontWeight: 600 }}>إلى</label>
+        <label style={{ fontSize: 13, fontWeight: 600 }}>{t('leads.f.to')}</label>
         <input type="date" value={to} onChange={e => setTo(e.target.value)} />
-        <button className="btn btn-ghost" onClick={() => { setFrom(today()); setTo(today()) }}>النهارده</button>
-        <button className="btn btn-ghost" onClick={() => { setFrom(monthStart()); setTo(today()) }}>الشهر الجاري</button>
+        <button className="btn btn-ghost" onClick={() => { setFrom(today()); setTo(today()) }}>{t('deals.today')}</button>
+        <button className="btn btn-ghost" onClick={() => { setFrom(monthStart()); setTo(today()) }}>{t('reports.currentMonth')}</button>
         <select value={who} onChange={e => setWho(e.target.value)} style={{ minWidth: 200 }}>
-          <option value="">كل الموظفين</option>
+          <option value="">{t('chat.allEmployees')}</option>
           {whoOptions.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
       </div>
@@ -174,25 +177,25 @@ export default function CallsPage() {
         label={whoOptions.find(([k]) => k === who)?.[1] ?? ''} onBack={() => setWho('')} />}
 
       {!who && <div className="card">
-        {loading ? <div className="empty">جارٍ التحميل…</div>
-        : rows.length === 0 ? <div className="empty">مفيش مكالمات في الفترة دي — استورد ملف Azeer من فوق</div>
+        {loading ? <div className="empty">{t('common.loading')}</div>
+        : rows.length === 0 ? <div className="empty">{t('callsPage.noCallsPeriod')}</div>
         : (
           <div style={{ overflowX: 'auto' }}>
             <table className="table">
               <thead>
                 <tr>
-                  <th>الموظف</th><th>Ext</th><th>الإجمالي</th><th>اتردّ عليها</th><th>مردّش</th>
-                  <th>نسبة الرد</th><th>وقت الكلام</th><th>متوسط المكالمة</th><th>أرقام مش في الليدز</th>
+                  <th>{t('common.employee')}</th><th>Ext</th><th>{t('common.total')}</th><th>{t('callsPage.answered')}</th><th>{t('calls.noAnswer')}</th>
+                  <th>{t('callsPage.answerRate')}</th><th>{t('callsPage.talkTime')}</th><th>{t('callsPage.avgCall')}</th><th>{t('callsPage.notInLeads')}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map(r => (
-                  <tr key={r.extension} style={{ cursor: 'pointer' }} title="تفاصيل الموظف"
+                  <tr key={r.extension} style={{ cursor: 'pointer' }} title={t('callsPage.employeeDetails')}
                     onClick={() => setWho(r.user_id ? 'u:' + r.user_id : 'e:' + r.extension)}>
                     <td style={{ fontWeight: 600 }}>
-                      {r.full_name || <span style={{ color: 'var(--danger)' }}>غير مربوط</span>}
+                      {r.full_name || <span style={{ color: 'var(--danger)' }}>{t('callsPage.unmapped')}</span>}
                     </td>
-                    <td style={{ direction: 'ltr', textAlign: 'right' }}>{r.extension}</td>
+                    <td className="ltr-cell">{r.extension}</td>
                     <td style={{ fontWeight: 700 }}>{fmtNum(r.total)}</td>
                     <td style={{ color: 'var(--ok)' }}>{fmtNum(r.answered)}</td>
                     <td style={{ color: 'var(--danger)' }}>{fmtNum(r.missed)}</td>
@@ -203,7 +206,7 @@ export default function CallsPage() {
                   </tr>
                 ))}
                 <tr style={{ fontWeight: 700, background: 'var(--line-soft)' }}>
-                  <td>الإجمالي</td><td />
+                  <td>{t('common.total')}</td><td />
                   <td>{fmtNum(totals.total)}</td><td>{fmtNum(totals.answered)}</td><td>{fmtNum(totals.missed)}</td>
                   <td>{pct(totals.answered, totals.total)}</td><td>{fmtDur(totals.talk)}</td>
                   <td>{fmtDur(totals.answered ? Math.round(totals.talk / totals.answered) : 0)}</td>
@@ -217,7 +220,7 @@ export default function CallsPage() {
 
       {mapped.length > 0 && (
         <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 12, lineHeight: 1.8 }}>
-          الـ Extensions المربوطة: {mapped.map(p => `${p.phone_ext} ${p.full_name}`).join('، ')}
+          {t('callsPage.mappedExts')}: {mapped.map(p => `${p.phone_ext} ${p.full_name}`).join(', ')}
         </p>
       )}
     </>
@@ -235,9 +238,10 @@ const dayBounds = (from, to) => {
   const [y1, m1, d1] = from.split('-').map(Number), [y2, m2, d2] = to.split('-').map(Number)
   return [new Date(y1, m1 - 1, d1).toISOString(), new Date(y2, m2 - 1, d2 + 1).toISOString()]
 }
-const fmtTime = (iso) => new Date(iso).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+const fmtTime = (iso) => new Date(iso).toLocaleString(i18n.language === 'en' ? 'en-GB' : 'ar-EG-u-nu-latn', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 
 function EmployeeCalls({ who, from, to, label, onBack }) {
+  const { t, isRtl, lang } = useT()
   const [calls, setCalls] = useState(null)
   const [err, setErr] = useState('')
 
@@ -283,24 +287,24 @@ function EmployeeCalls({ who, from, to, label, onBack }) {
       <div className="card" style={{ padding: 16, marginBottom: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
           <h2 style={{ fontSize: 17, margin: 0, flex: 1 }}>📞 {label}</h2>
-          <button className="btn btn-ghost" onClick={onBack}>← كل الموظفين</button>
+          <button className="btn btn-ghost" onClick={onBack}>{isRtl ? '←' : '→'} {t('statements.allEmployees')}</button>
         </div>
         {err && <div className="alert alert-error">{err}</div>}
-        {!calls ? <div className="empty">جارٍ التحميل…</div> : (
+        {!calls ? <div className="empty">{t('common.loading')}</div> : (
           <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-            {card('مكالمات', fmtNum(stats.total))}
-            {card('اتردّ عليها', fmtNum(stats.answered), 'var(--ok)')}
-            {card('مردّش', fmtNum(stats.total - stats.answered), 'var(--danger)')}
-            {card('نسبة الرد', pct(stats.answered, stats.total))}
-            {card('وقت الكلام', fmtDur(stats.talk))}
-            {card('متوسط المكالمة', fmtDur(stats.answered ? Math.round(stats.talk / stats.answered) : 0))}
-            {card('ليدز مختلفة', fmtNum(stats.leads))}
-            {card('أرقام مش في الليدز', fmtNum(stats.unlinked), 'var(--ink-soft)')}
+            {card(t('callsPage.calls'), fmtNum(stats.total))}
+            {card(t('callsPage.answered'), fmtNum(stats.answered), 'var(--ok)')}
+            {card(t('calls.noAnswer'), fmtNum(stats.total - stats.answered), 'var(--danger)')}
+            {card(t('callsPage.answerRate'), pct(stats.answered, stats.total))}
+            {card(t('callsPage.talkTime'), fmtDur(stats.talk))}
+            {card(t('callsPage.avgCall'), fmtDur(stats.answered ? Math.round(stats.talk / stats.answered) : 0))}
+            {card(t('callsPage.distinctLeads'), fmtNum(stats.leads))}
+            {card(t('callsPage.notInLeads'), fmtNum(stats.unlinked), 'var(--ink-soft)')}
           </div>
         )}
         {calls?.length >= DETAIL_LIMIT && (
           <p style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 10 }}>
-            معروض أحدث {fmtNum(DETAIL_LIMIT)} مكالمة بس — صغّر الفترة عشان تشوف الباقي.</p>
+            {t('callsPage.limitNote', { n: fmtNum(DETAIL_LIMIT) })}</p>
         )}
       </div>
 
@@ -308,11 +312,11 @@ function EmployeeCalls({ who, from, to, label, onBack }) {
         <div className="card" style={{ marginBottom: 18 }}>
           <div style={{ overflowX: 'auto' }}>
             <table className="table">
-              <thead><tr><th>اليوم</th><th>مكالمات</th><th>اتردّ عليها</th><th>نسبة الرد</th><th>وقت الكلام</th></tr></thead>
+              <thead><tr><th>{t('appts.day')}</th><th>{t('callsPage.calls')}</th><th>{t('callsPage.answered')}</th><th>{t('callsPage.answerRate')}</th><th>{t('callsPage.talkTime')}</th></tr></thead>
               <tbody>
                 {stats.days.map(([d, v]) => (
                   <tr key={d}>
-                    <td style={{ fontWeight: 600 }}>{new Date(d + 'T12:00').toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'short' })}</td>
+                    <td style={{ fontWeight: 600 }}>{new Date(d + 'T12:00').toLocaleDateString(lang === 'en' ? 'en-GB' : 'ar-EG-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'short' })}</td>
                     <td>{fmtNum(v.total)}</td>
                     <td style={{ color: 'var(--ok)' }}>{fmtNum(v.answered)}</td>
                     <td>{pct(v.answered, v.total)}</td>
@@ -327,22 +331,22 @@ function EmployeeCalls({ who, from, to, label, onBack }) {
 
       {calls && (
         <div className="card">
-          {calls.length === 0 ? <div className="empty">مفيش مكالمات للموظف ده في الفترة دي</div> : (
+          {calls.length === 0 ? <div className="empty">{t('callsPage.noCallsEmployee')}</div> : (
             <div style={{ overflowX: 'auto' }}>
               <table className="table">
-                <thead><tr><th>الوقت</th><th>النوع</th><th>العميل</th><th>النتيجة</th><th>التسجيل</th></tr></thead>
+                <thead><tr><th>{t('appts.time')}</th><th>{t('dealDrawer.type')}</th><th>{t('lead.client')}</th><th>{t('callsPage.outcome')}</th><th>{t('callsPage.recording')}</th></tr></thead>
                 <tbody>
                   {calls.map(c => (
                     <tr key={c.id}>
                       <td style={{ whiteSpace: 'nowrap' }}>{fmtTime(c.called_at)}</td>
-                      <td>{c.direction === 'in' ? 'واردة' : 'صادرة'}</td>
+                      <td>{c.direction === 'in' ? t('callsPage.inbound') : t('callsPage.outbound')}</td>
                       <td>
                         {c.lead ? <><b>{c.lead.full_name}</b> <span style={{ color: 'var(--ink-soft)', fontSize: 12 }}>{c.lead.file_no}</span></>
-                          : <span style={{ color: 'var(--ink-soft)' }}>مش في الليدز</span>}
-                        <div style={{ fontSize: 12, color: 'var(--ink-soft)', direction: 'ltr', textAlign: 'right' }}>+{c.client_phone}</div>
+                          : <span style={{ color: 'var(--ink-soft)' }}>{t('callsPage.notALead')}</span>}
+                        <div className="ltr-cell" style={{ fontSize: 12, color: 'var(--ink-soft)' }}>+{c.client_phone}</div>
                       </td>
                       <td style={{ color: c.answered ? 'var(--ok)' : 'var(--danger)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        {c.answered ? `اتردّ — ${fmtDur(c.duration_seconds)}` : 'مردّش'}
+                        {c.answered ? `${t('calls.answered')} — ${fmtDur(c.duration_seconds)}` : t('calls.noAnswer')}
                       </td>
                       <td style={{ minWidth: 220 }}><PlayRecording call={c} /></td>
                     </tr>
@@ -360,6 +364,7 @@ function EmployeeCalls({ who, from, to, label, onBack }) {
 // زرار ▶ بيجهّز الرابط وقت الضغط بس (مش مئات روابط مؤقتة مرة واحدة):
 // الأرشيف الخاص (رابط مؤقت) ← وإلا Azeer (.wav ثم .mp3) لو المكالمة أحدث من 30 يوم
 function PlayRecording({ call }) {
+  const { t } = useT()
   const [src, setSrc] = useState(null)
   const [state, setState] = useState('idle')   // idle | loading | ready | none
   const fromAzeer = REC_BASE + (call.recording_path || '')
@@ -382,10 +387,10 @@ function PlayRecording({ call }) {
     else setState('none')
   }
 
-  if (state === 'none') return <span style={{ color: 'var(--ink-soft)', fontSize: 12 }}>التسجيل مش متاح</span>
+  if (state === 'none') return <span style={{ color: 'var(--ink-soft)', fontSize: 12 }}>{t('calls.recordingUnavailable')}</span>
   if (state !== 'ready') {
     return <button className="btn btn-ghost btn-sm" disabled={state === 'loading'} onClick={play}>
-      {state === 'loading' ? '…' : '▶ تشغيل'}</button>
+      {state === 'loading' ? '…' : `▶ ${t('callsPage.play')}`}</button>
   }
   return <audio controls autoPlay src={src} onError={onError} style={{ width: '100%', height: 32 }} />
 }
