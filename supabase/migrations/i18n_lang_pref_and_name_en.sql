@@ -26,3 +26,6 @@ alter table public.branches        add column if not exists name_en text;
 -- (مطبّقة) report_summary: by_source / by_lost فيهم label_en بجانب label
 
 -- الإعدادات: خانة «الاسم بالإنجليزي» بتكتب في name_en للمراحل وأنواع البيع والمصادر والفروع (نفس الأعمدة فوق)
+
+-- رسايل الأخطاء الراجعة من الـ triggers/RPC بتتترجم في الواجهة (src/lib/dbErrors.js):
+-- لو ضفت raise exception جديد بنص عربي، ضيفه في MAP هناك عشان يطلع بالإنجليزي كمان.

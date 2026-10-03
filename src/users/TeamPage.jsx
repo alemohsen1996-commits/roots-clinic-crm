@@ -10,6 +10,7 @@ import AccountActions from './AccountActions'
 import useT from '../i18n/useT'
 import { fmtDate } from '../lib/format'
 import { dbName } from '../lib/lang'
+import { dbErr } from '../lib/dbErrors'
 
 export default function TeamPage() {
   const { t, dn } = useT()
@@ -255,7 +256,7 @@ function ExtCell({ person, people, onSaved, onError }) {
     setBusy(true)
     const { data, error } = await supabase.rpc('set_phone_ext', { p_user: person.id, p_ext: ext })
     setBusy(false)
-    if (error) { onError(error.message); return }
+    if (error) { onError(dbErr(error.message)); return }
     setEditing(false)
     const linked = data?.users_linked ? ` — ${t('team.extLinked', { n: data.users_linked })}` : ''
     onSaved(ext ? t('team.extSaved', { ext, name: person.full_name }) + linked : t('team.extRemoved', { name: person.full_name }))

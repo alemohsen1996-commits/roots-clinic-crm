@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 export default function SimpleCrud({ table, nameField, nameEnField, title, placeholder, extraField }) {
   const { t } = useT()
@@ -16,7 +17,7 @@ export default function SimpleCrud({ table, nameField, nameEnField, title, place
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from(table).select('*').order('id')
-    if (error) { setMsg({ ok: false, t: t('settings.loadFailed') + ' — ' + error.message }); return }
+    if (error) { setMsg({ ok: false, t: t('settings.loadFailed') + ' — ' + dbErr(error.message) }); return }
     setRows(data ?? [])
   }, [table])
   useEffect(() => { load() }, [load])
@@ -56,7 +57,7 @@ export default function SimpleCrud({ table, nameField, nameEnField, title, place
     const { error } = await supabase.from(table)
       .update({ is_active: !r.is_active }).eq('id', r.id)
     setBusy(false)
-    if (error) { say(false, t('settings.changeFailed') + ' — ' + error.message); return }
+    if (error) { say(false, t('settings.changeFailed') + ' — ' + dbErr(error.message)); return }
     load()
   }
 

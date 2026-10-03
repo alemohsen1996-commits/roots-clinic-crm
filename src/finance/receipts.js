@@ -1,6 +1,7 @@
 // صور إيصالات الدفعات — bucket خاص "receipts"، كل مستخدم بيرفع في فولدر باسمه
 import i18n from '../i18n'
 import { supabase } from '../lib/supabase'
+import { dbErr } from '../lib/dbErrors'
 
 const BUCKET = 'receipts'
 const MAX_SIDE = 1600          // أقصى طول/عرض للصورة بعد التصغير
@@ -37,7 +38,7 @@ export async function uploadReceipt(file, userId) {
   const { error } = await supabase.storage.from(BUCKET).upload(path, ready, {
     contentType: ready.type || 'image/jpeg', upsert: false,
   })
-  if (error) throw new Error(i18n.t('payment.err.uploadFailed') + ' — ' + error.message)
+  if (error) throw new Error(i18n.t('payment.err.uploadFailed') + ' — ' + dbErr(error.message))
   return path
 }
 

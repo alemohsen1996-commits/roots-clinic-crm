@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtNum } from '../lib/format'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 // الأسماء والشرح من الترجمة: saleTypes.kind.* / saleTypes.hint.*
 const KINDS = ['surgery', 'treatment', 'product']
@@ -26,7 +27,7 @@ export default function SaleTypesTab() {
       supabase.from('procedure_types').select('*').order('id'),
       supabase.from('deals').select('procedure_type_id').eq('status', 'done'),
     ])
-    if (error) { setMsg({ ok: false, t: t('settings.loadFailed') + ' — ' + error.message }); return }
+    if (error) { setMsg({ ok: false, t: t('settings.loadFailed') + ' — ' + dbErr(error.message) }); return }
     setRows(data ?? [])
     const u = {}
     for (const d of deals ?? []) if (d.procedure_type_id) u[d.procedure_type_id] = (u[d.procedure_type_id] ?? 0) + 1
@@ -63,7 +64,7 @@ export default function SaleTypesTab() {
       ? await supabase.from('procedure_types').update(payload).eq('id', editing.id)
       : await supabase.from('procedure_types').insert({ ...payload, code: `type_${Date.now()}`, is_active: true })
     setBusy(false)
-    if (error) { say(false, t('addLead.saveFailed') + ' — ' + error.message); return }
+    if (error) { say(false, t('addLead.saveFailed') + ' — ' + dbErr(error.message)); return }
     say(true, editing ? t('dealDrawer.saved') : t('saleTypes.added'))
     reset(); load()
   }
@@ -72,7 +73,7 @@ export default function SaleTypesTab() {
     setBusy(true)
     const { error } = await supabase.from('procedure_types').update({ is_active: !r.is_active }).eq('id', r.id)
     setBusy(false)
-    if (error) { say(false, t('settings.changeFailed') + ' — ' + error.message); return }
+    if (error) { say(false, t('settings.changeFailed') + ' — ' + dbErr(error.message)); return }
     load()
   }
 

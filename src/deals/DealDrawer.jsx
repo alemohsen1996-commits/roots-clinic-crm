@@ -8,6 +8,7 @@ import { fetchDealFinance, DEAL_STATUS, PAY_STATUS, kindOf, dateLabel } from './
 import ProcedureOptions from './ProcedureOptions'
 import { fmtNum, fmtDate } from '../lib/format'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose, onChanged }) {
   const { isManager, isSuperAdmin, roleCode, profile } = useAuth()
@@ -134,7 +135,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
     setSaving(false)
 
     if (error) {
-      setErr(error.message?.includes('غير مصرح') ? error.message
+      setErr(error.message?.includes('غير مصرح') ? dbErr(error.message)
            : error.message?.includes('مقفول') ? t('dealDrawer.err.locked')
            : t('addLead.saveFailed') + ' — ' + error.message)
       return

@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { fmtDate, fmtNum, openWhatsApp, timeAgo } from '../lib/format'
 import i18n from '../i18n'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 const todayRiyadh = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' })
 
@@ -50,7 +51,7 @@ export function UnrecordedSessions({ rows, canAct, onChanged }) {
       : { status }
     const { error } = await supabase.from('prp_sessions').update(patch).eq('id', r.session_id)
     setBusy(null)
-    if (error) { setErr(t('prpFu.recordFailed') + ' — ' + error.message); return }
+    if (error) { setErr(t('prpFu.recordFailed') + ' — ' + dbErr(error.message)); return }
     onChanged()
   }
 
@@ -123,7 +124,7 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
     const { error } = await supabase.from('prp_followups')
       .insert({ package_id: r.package_id, outcome, created_by: profile?.id })
     setBusy(null)
-    if (error) { setErr(t('prpFu.contactFailed') + ' — ' + error.message); return false }
+    if (error) { setErr(t('prpFu.contactFailed') + ' — ' + dbErr(error.message)); return false }
     return true
   }
 
@@ -141,7 +142,7 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
     setBusy(r.package_id); setErr('')
     const { error } = await supabase.rpc('prp_book_next_session', { p_package_id: r.package_id, p_date: date })
     setBusy(null)
-    if (error) { setErr(t('appts.bookFailed') + ' — ' + error.message); return }
+    if (error) { setErr(t('appts.bookFailed') + ' — ' + dbErr(error.message)); return }
     close(); onChanged()
   }
 
@@ -150,7 +151,7 @@ export function FollowupList({ rows, canAct, onChanged, onOpen }) {
     const { error } = await supabase.from('prp_packages')
       .update({ status: 'dropped', dropped_reason: dropReason }).eq('id', r.package_id)
     setBusy(null)
-    if (error) { setErr(t('prpFu.recordFailed') + ' — ' + error.message); return }
+    if (error) { setErr(t('prpFu.recordFailed') + ' — ' + dbErr(error.message)); return }
     close(); onChanged()
   }
 

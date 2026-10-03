@@ -8,6 +8,7 @@ import { useAuth } from '../auth/AuthContext'
 import { fmtNum } from '../lib/format'
 import { uploadReceipt, discardReceipt } from './receipts'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 // طرق الدفع للتسجيل الجديد ("شبكة" القديمة اتقسمت لمدى/فيزا/ماستركارد)
 // الأسماء في الترجمة: payMethod.*
@@ -78,7 +79,7 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
     try {
       path = await uploadReceipt(file, profile?.id)
     } catch (e) {
-      setBusy(false); setErr(e.message); return
+      setBusy(false); setErr(dbErr(e.message)); return
     }
 
     // 2) دالة واحدة: تسجّل الدفعة (بمسار الإيصال) وتحدّث القسط معًا — أو لا يحدث شيء
@@ -96,8 +97,8 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
     if (error) {
       discardReceipt(path)   // التسجيل فشل — نمسح الصورة اللي اترفعت
       setErr(error.message?.includes('القسط')
-        ? error.message
-        : t('payment.err.saveFailed') + ' — ' + (error.message || t('payment.err.checkPerm')))
+        ? dbErr(error.message)
+        : t('payment.err.saveFailed') + ' — ' + (error.message ? dbErr(error.message) : t('payment.err.checkPerm')))
       return
     }
     onSaved()

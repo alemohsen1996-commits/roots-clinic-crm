@@ -9,6 +9,7 @@ import { STAGE } from '../lib/stageCodes'
 import { kindOf, dateLabel } from './useDealRefs'
 import ProcedureOptions from './ProcedureOptions'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) {
   const { profile, roleCode } = useAuth()
@@ -145,7 +146,7 @@ export default function NewDealModal({ refs, preloadLeadId, onClose, onSaved }) 
     if (String(selected?.branch_id ?? '') !== form.branch_id) {
       const { error: bErr } = await supabase.from('leads')
         .update({ branch_id: Number(form.branch_id) }).eq('id', Number(form.lead_id))
-      if (bErr) { setBusy(false); setErr(t('newDeal.err.branchSetFailed') + ' — ' + bErr.message); return }
+      if (bErr) { setBusy(false); setErr(t('newDeal.err.branchSetFailed') + ' — ' + dbErr(bErr.message)); return }
     }
 
     const { error } = await supabase.from('deals').insert({

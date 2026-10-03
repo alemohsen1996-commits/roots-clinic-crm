@@ -11,6 +11,8 @@ import TaskSection from './TaskSection'
 import LeadCalls from '../calls/LeadCalls'
 import useT from '../i18n/useT'
 import i18n from '../i18n'
+import { dbErr } from '../lib/dbErrors'
+import { activityText } from '../lib/activityText'
 
 // أسماء أنواع السجل في الترجمة: activity.*
 const ACTIVITY_TYPES = ['call', 'note', 'whatsapp', 'sms', 'email', 'stage_change', 'assignment', 'system', 'offer']
@@ -454,7 +456,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     setSavingOffer(false)
 
     if (error) {
-      setOfferMsg({ ok: false, text: t('addLead.saveFailed') + ' — ' + (error.message || '') })
+      setOfferMsg({ ok: false, text: t('addLead.saveFailed') + ' — ' + (dbErr(error.message || '')) })
       return
     }
 
@@ -1326,7 +1328,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                 <div className="timeline-body">
                   {a.type === 'stage_change'
                     ? <>{t('drawer.from')} <b>{dn(a.f) || '—'}</b> {t('drawer.to')} <b>{dn(a.t) || '—'}</b></>
-                    : <span style={{ whiteSpace: 'pre-wrap' }}>{a.content ?? ''}</span>}
+                    : <span style={{ whiteSpace: 'pre-wrap' }}>{activityText(a.content)}</span>}
                 </div>
               </div>
             ))}

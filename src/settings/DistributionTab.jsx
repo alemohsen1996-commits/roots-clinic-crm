@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { SALES_ROLES, salesLabel, sortSales } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 // الأسماء والشرح من الترجمة: distTab.modes.*
 const MODES = ['round_robin', 'weighted', 'skill', 'cherry_pick']
@@ -41,7 +42,7 @@ export default function DistributionTab() {
     ])
     setBusy(false)
     const error = r1.error || r2.error
-    if (error) { setMsg({ ok: false, t: tr('addLead.saveFailed') + ' — ' + error.message }); return }
+    if (error) { setMsg({ ok: false, t: tr('addLead.saveFailed') + ' — ' + dbErr(error.message) }); return }
     setMsg({ ok: true, t: tr('distTab.saved') })
     setTimeout(() => setMsg(null), 3500)
     load()

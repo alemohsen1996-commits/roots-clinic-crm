@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import { fmtNum } from '../lib/format'
 import i18n from '../i18n'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 const CHUNK = 500
 const REQUIRED = ['cdr_id', 'date_time', 'from', 'to', 'calltype', 'duration']
@@ -67,7 +68,7 @@ export default function CallsPage() {
   const loadReport = useCallback(async () => {
     setLoading(true)
     const { data, error } = await supabase.rpc('calls_report', { p_from: from, p_to: to })
-    if (error) setErr(error.message)
+    if (error) setErr(dbErr(error.message))
     setRows(data || [])
     setLoading(false)
   }, [from, to])
@@ -256,7 +257,7 @@ function EmployeeCalls({ who, from, to, label, onBack }) {
     q = who.startsWith('u:') ? q.eq('user_id', who.slice(2)) : q.eq('extension', who.slice(2)).is('user_id', null)
     q.then(({ data, error }) => {
       if (!alive) return
-      if (error) setErr(error.message)
+      if (error) setErr(dbErr(error.message))
       setCalls(data || [])
     })
     return () => { alive = false }

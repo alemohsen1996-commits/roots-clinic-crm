@@ -5,6 +5,7 @@ import { SALES_ROLES, salesLabel, sortSales } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('en-US')
 
@@ -76,7 +77,7 @@ export default function ManualDistributeTab() {
     setBusy(true)
     const { count, error } = await buildQuery('id', { count: 'exact', head: true })
     setBusy(false)
-    if (error) { setMsg({ t: 'err', m: tr('manual.searchFailed') + ' — ' + error.message }); return }
+    if (error) { setMsg({ t: 'err', m: tr('manual.searchFailed') + ' — ' + dbErr(error.message) }); return }
     setMatched(count ?? 0)
   }
 
@@ -123,7 +124,7 @@ export default function ManualDistributeTab() {
       .order('created_at', { ascending: true })
       .limit(totalPicked)
     setBusy(false)
-    if (error) { setMsg({ t: 'err', m: tr('settings.loadFailed') + ' — ' + error.message }); return }
+    if (error) { setMsg({ t: 'err', m: tr('settings.loadFailed') + ' — ' + dbErr(error.message) }); return }
 
     const cands = data ?? []
     // توزيع دوري: واحد لكل موظف بالتناوب حتى ينفد نصيبه
@@ -155,7 +156,7 @@ export default function ManualDistributeTab() {
       p_new_stage_id: toStage ? Number(toStage) : null,
     })
     setBusy(false)
-    if (error) { setMsg({ t: 'err', m: tr('manual.distFailed') + ' — ' + error.message }); return }
+    if (error) { setMsg({ t: 'err', m: tr('manual.distFailed') + ' — ' + dbErr(error.message) }); return }
     setMsg({ t: 'ok', m: tr('manual.distributed', { n: fmt(preview.items.length) }) })
     setPreview(null); setPicked({}); setMatched(null)
     loadRefs()
@@ -166,7 +167,7 @@ export default function ManualDistributeTab() {
     setBusy(true)
     const { error } = await supabase.rpc('undo_manual_distribution', { p_batch_id: id })
     setBusy(false)
-    if (error) { setMsg({ t: 'err', m: tr('manual.undoFailed') + ' — ' + error.message }); return }
+    if (error) { setMsg({ t: 'err', m: tr('manual.undoFailed') + ' — ' + dbErr(error.message) }); return }
     setMsg({ t: 'ok', m: tr('manual.undone') })
     loadRefs()
   }

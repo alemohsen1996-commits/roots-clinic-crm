@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtNum } from '../lib/format'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 export default function ScheduleModal({ onClose, onSaved }) {
   const { t } = useT()
@@ -69,7 +70,7 @@ export default function ScheduleModal({ onClose, onSaved }) {
       plan.map(p => ({ deal_id: selected.id, ...p }))
     )
     setBusy(false)
-    if (error) { setErr(t('schedule.err.saveFailed') + ' — ' + error.message); return }
+    if (error) { setErr(t('schedule.err.saveFailed') + ' — ' + dbErr(error.message)); return }
     onSaved()
   }
 

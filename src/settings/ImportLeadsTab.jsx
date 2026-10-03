@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import i18n from '../i18n'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 const BATCH = 500
 
@@ -188,7 +189,7 @@ export default function ImportLeadsTab() {
       }
       setResult({ inserted, skipped, bad: analysis.bad.length, dup: analysis.dup.length })
     } catch (e) {
-      setErr(t('importTab.importFailed') + ' — ' + (e.message || ''))
+      setErr(t('importTab.importFailed') + ' — ' + (dbErr(e.message || '')))
     }
     setBusy(false)
   }

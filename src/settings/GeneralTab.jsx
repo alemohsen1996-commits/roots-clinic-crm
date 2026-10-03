@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtNum } from '../lib/format'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 export default function GeneralTab() {
   const { t: tr } = useT()
@@ -37,7 +38,7 @@ export default function GeneralTab() {
       value: { amount: Number(amount), percent: Number(percent) },
     }, { onConflict: 'key' })
     setBusy(false)
-    if (error) { say(false, tr('addLead.saveFailed') + ' — ' + error.message); return }
+    if (error) { say(false, tr('addLead.saveFailed') + ' — ' + dbErr(error.message)); return }
     say(true, tr('general.saved'))
     load()
   }
@@ -100,7 +101,7 @@ export default function GeneralTab() {
       pct: Number(newTier.pct),
     })
     setBusy(false)
-    if (error) { say(false, tr('general.addFailed') + ' — ' + error.message); return }
+    if (error) { say(false, tr('general.addFailed') + ' — ' + dbErr(error.message)); return }
     setNewTier({ role_code: 'agent', min_amount: '', max_amount: '', pct: '' })
     say(true, tr('general.tierAdded'))
     load()
@@ -112,7 +113,7 @@ export default function GeneralTab() {
     setBusy(true)
     const { error } = await supabase.from('commission_tiers').delete().eq('id', t.id)
     setBusy(false)
-    if (error) { say(false, tr('general.deleteFailed') + ' — ' + error.message); return }
+    if (error) { say(false, tr('general.deleteFailed') + ' — ' + dbErr(error.message)); return }
     say(true, tr('general.tierDeleted'))
     load()
   }

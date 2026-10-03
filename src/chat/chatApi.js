@@ -1,6 +1,7 @@
 // طبقة البيانات للشات الداخلي — كل الكتابة عبر دوال القاعدة (RPC)
 // عدا إرسال الرسالة: insert مباشر محمي بـ RLS (الطرف في المحادثة فقط)
 import i18n from '../i18n'
+import { dbErr } from '../lib/dbErrors'
 import { supabase } from '../lib/supabase'
 
 const MSG_COLS = 'id, conversation_id, sender_id, body, lead_id, lead_label, reply_to, created_at, edited_at, deleted_at'
@@ -105,4 +106,4 @@ export function convName(conv, meId) {
 export const initials = (name = '') =>
   name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('')
 
-export const errText = (e) => e?.message || i18n.t('chat.genericErr')
+export const errText = (e) => (e?.message ? dbErr(e.message) : i18n.t('chat.genericErr'))

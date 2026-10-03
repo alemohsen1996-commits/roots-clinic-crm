@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import i18n from '../i18n'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 // الأسماء من الترجمة: stagesTab.cat.* / leads.salesBoard|coordBoard / stagesTab.mode.*
 const CATEGORIES = ['open', 'won', 'lost', 'waiting']
@@ -97,7 +98,7 @@ export default function StagesTab() {
       ;({ error } = await supabase.from('stages').insert({ ...payload, code, sort_order: maxOrder + 1 }))
     }
     if (error) {
-      setErr(error.message?.includes('جوهرية') ? error.message : t('addLead.saveFailed') + ' — ' + error.message)
+      setErr(dbErr(error.message))
       return
     }
     say(editing ? t('dealDrawer.saved') : t('stagesTab.added'))
@@ -121,7 +122,7 @@ export default function StagesTab() {
     const results = await Promise.all(changed.map(x =>
       supabase.from('stages').update({ sort_order: next[x.id] }).eq('id', x.id)))
     const failed = results.find(r => r.error)
-    if (failed) setErr(t('stagesTab.orderFailed') + ' — ' + failed.error.message)
+    if (failed) setErr(t('stagesTab.orderFailed') + ' — ' + dbErr(failed.error.message))
     else say(t('stagesTab.orderSaved'))
     load()
   }
@@ -156,7 +157,7 @@ export default function StagesTab() {
     }
     const { error } = await supabase.from('stages')
       .update({ is_active: !s.is_active }).eq('id', s.id)
-    if (error) { setErr(error.message || t('settings.changeFailed')); return }
+    if (error) { setErr(dbErr(error.message) || t('settings.changeFailed')); return }
     load()
   }
 

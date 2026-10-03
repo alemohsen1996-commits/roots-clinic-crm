@@ -8,6 +8,7 @@ import { exportCsv } from '../lib/exportCsv'
 import { uploadReceipt, discardReceipt, openReceipt } from './receipts'
 import AddPaymentModal from './AddPaymentModal'
 import useT from '../i18n/useT'
+import { dbErr } from '../lib/dbErrors'
 
 // تاريخ مختصر يمنع تكسّر الخلية في جدول متعدد الأعمدة
 const shortDT = (d) => {
@@ -153,7 +154,7 @@ export default function PaymentsPage() {
     const { error } = await supabase.from('payments').update({
       confirmed_by: profile.id, confirmed_at: new Date().toISOString(),
     }).eq('id', id)
-    if (error) { flash(t('payments.err.confirm') + ' — ' + error.message); return }
+    if (error) { flash(t('payments.err.confirm') + ' — ' + dbErr(error.message)); return }
     flash(t('payments.confirmed'))
     load(); loadStats(); loadPendingVoids()
   }
@@ -167,7 +168,7 @@ export default function PaymentsPage() {
       confirmed_by: profile.id, confirmed_at: new Date().toISOString(),
     }).in('id', ids)
     setBusy(false)
-    if (error) { flash(t('payments.err.confirm') + ' — ' + error.message); return }
+    if (error) { flash(t('payments.err.confirm') + ' — ' + dbErr(error.message)); return }
     flash(t('payments.confirmedN', { n: ids.length }))
     setSelected(new Set())
     load(); loadStats(); loadPendingVoids()
@@ -204,11 +205,11 @@ export default function PaymentsPage() {
     try {
       path = await uploadReceipt(file, profile?.id)
     } catch (e) {
-      setAttachingId(null); flash(e.message); return
+      setAttachingId(null); flash(dbErr(e.message)); return
     }
     const { error } = await supabase.from('payments').update({ receipt_path: path }).eq('id', p.id)
     setAttachingId(null)
-    if (error) { discardReceipt(path); flash(t('payments.err.attach') + ' — ' + error.message); return }
+    if (error) { discardReceipt(path); flash(t('payments.err.attach') + ' — ' + dbErr(error.message)); return }
     flash(t('payments.attached', { no: p.receipt_no })); load({ silent: true })
   }
 

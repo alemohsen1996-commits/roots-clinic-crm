@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import i18n from '../i18n'
 import useT from '../i18n/useT'
 import { dbName } from '../lib/lang'
+import { dbErr } from '../lib/dbErrors'
 
 const BATCH = 1000
 
@@ -133,7 +134,7 @@ export default function ExportLeadsModal({ boardStageIds, board, filters, onClos
       setBusy(false)
       onClose()
     } catch (e) {
-      setErr(t('exportLeads.failed') + ' — ' + (e.message || ''))
+      setErr(t('exportLeads.failed') + ' — ' + (dbErr(e.message || '')))
       setBusy(false)
     }
   }
