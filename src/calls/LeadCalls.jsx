@@ -4,12 +4,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtDateTime } from '../lib/format'
+import useT from '../i18n/useT'
 
 const REC_BASE = 'https://voice.mottasl.com/monitor/259921bba7e3cb16/'
 const AZEER_KEEP_DAYS = 30
 const fmtDur = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 function Recording({ call, signedUrl }) {
+  const { t } = useT()
   const azeerWav = REC_BASE + call.recording_path
   const [src, setSrc] = useState(signedUrl || azeerWav)
   const [broken, setBroken] = useState(false)
@@ -22,7 +24,7 @@ function Recording({ call, signedUrl }) {
     else setBroken(true)
   }
 
-  if (broken) return <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>التسجيل مش متاح</div>
+  if (broken) return <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>{t('calls.recordingUnavailable')}</div>
   return (
     <audio controls preload="none" src={src} onError={onError}
       style={{ width: '100%', height: 34, marginTop: 6 }} />
@@ -30,6 +32,7 @@ function Recording({ call, signedUrl }) {
 }
 
 export default function LeadCalls({ leadId, onCount }) {
+  const { t } = useT()
   const [calls, setCalls] = useState(null)
   const [urls, setUrls] = useState({})
 
@@ -66,7 +69,7 @@ export default function LeadCalls({ leadId, onCount }) {
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 10 }}>
-        {calls.length} مكالمة — اتردّ على {answered}{calls.length >= 50 ? ' (آخر 50)' : ''}
+        {t('calls.summary', { n: calls.length, answered })}{calls.length >= 50 ? ` (${t('calls.last50')})` : ''}
       </div>
       <div className="timeline">
         {calls.map(c => {
@@ -76,13 +79,13 @@ export default function LeadCalls({ leadId, onCount }) {
           return (
             <div className="timeline-item" key={c.id}>
               <div className="timeline-meta">
-                <b>{c.direction === 'in' ? 'مكالمة واردة' : 'مكالمة صادرة'}</b>
+                <b>{c.direction === 'in' ? t('calls.inbound') : t('calls.outbound')}</b>
                 <span>{c.agent?.full_name ?? `Ext ${c.extension}`}</span>
                 <span>{fmtDateTime(c.called_at)}</span>
               </div>
               <div className="timeline-body"
                 style={{ color: c.answered ? 'var(--ok)' : 'var(--danger)', fontWeight: 600 }}>
-                {c.answered ? `اتردّ — ${fmtDur(c.duration_seconds)}` : 'مردّش'}
+                {c.answered ? `${t('calls.answered')} — ${fmtDur(c.duration_seconds)}` : t('calls.noAnswer')}
               </div>
               {playable && (!c.recording_stored_path || signed) && <Recording call={c} signedUrl={signed} />}
             </div>

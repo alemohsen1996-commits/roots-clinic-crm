@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { isSalesPerson, salesLabel, sortSales } from '../lib/people'
+import useT from '../i18n/useT'
+import { fmtDate } from '../lib/format'
 import { useLeadRefs, fetchLeadsPage } from './useLeadRefs'
 import Kanban from './Kanban'
 import LeadsTable from './LeadsTable'
@@ -27,6 +29,7 @@ const EMPTY_FILTERS = {
 
 export default function LeadsPage() {
   const { isManager, roleCode, profile } = useAuth()
+  const { t, dn } = useT()
   const refs = useLeadRefs()
   const [branches, setBranches] = useState([])
   // اختيار العرض يُحفظ محليًا فلا يضيع عند إعادة تحميل الصفحة
@@ -75,7 +78,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     import('../lib/supabase').then(({ supabase }) =>
-      supabase.from('branches').select('id, name').eq('is_active', true).order('name')
+      supabase.from('branches').select('id, name, name_en').eq('is_active', true).order('name')
         .then(({ data }) => setBranches(data ?? [])))
   }, [])
 
@@ -248,22 +251,22 @@ export default function LeadsPage() {
   // الشرائح السريعة (تختلف قليلاً حسب الدور)
   const CHIPS = [
     ...(roleCode === 'coordinator'
-      ? [{ key: 'transferredToday', label: 'اتحوّلولي اليوم' }]
+      ? [{ key: 'transferredToday', label: t('leads.chips.transferredToday') }]
       : []),
-    { key: 'alertOnly',   label: '🔴 علامة حمراء' },
-    { key: 'taskToday',   label: 'تاسك اليوم' },
-    { key: 'taskOverdue', label: 'تاسك متأخر' },
-    { key: 'paused',      label: 'موقوفة المتابعة' },
-    ...(isManager ? [{ key: 'noOwner', label: 'بدون مسؤول' }] : []),
-    { key: 'stale',       label: 'راكدة (٧ أيام)' },
-    { key: 'noTask',      label: 'بدون تاسك' },
+    { key: 'alertOnly',   label: t('leads.chips.alertOnly') },
+    { key: 'taskToday',   label: t('leads.chips.taskToday') },
+    { key: 'taskOverdue', label: t('leads.chips.taskOverdue') },
+    { key: 'paused',      label: t('leads.chips.paused') },
+    ...(isManager ? [{ key: 'noOwner', label: t('leads.chips.noOwner') }] : []),
+    { key: 'stale',       label: t('leads.chips.stale') },
+    { key: 'noTask',      label: t('leads.chips.noTask') },
   ]
 
   const loadArchive = useCallback(async () => {
     setLoadingArch(true)
     const { data } = await supabase
       .from('leads')
-      .select('id, file_no, full_name, phone, archived_at, stages(name_ar), owner:profiles!leads_owner_id_fkey(full_name)')
+      .select('id, file_no, full_name, phone, archived_at, stages(name_ar, name_en), owner:profiles!leads_owner_id_fkey(full_name)')
       .not('archived_at', 'is', null)
       .order('archived_at', { ascending: false })
       .limit(200)
@@ -290,14 +293,14 @@ export default function LeadsPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>الليدات</h1>
+          <h1>{t('leads.title')}</h1>
           <div className="hint">
             {board === 'sales'
-              ? 'بورد المبيعات'
-              : (roleCode === 'agent' ? 'مرضاك المحوّلون — للمتابعة فقط' : 'بورد المنسقات')}
+              ? t('leads.salesBoard')
+              : (roleCode === 'agent' ? t('leads.myTransferredHint') : t('leads.coordBoard'))}
             {view === 'table' && (
-              <> — <b style={{ color: 'var(--gold)' }}>{total.toLocaleString('en-US')}</b> ليد
-                {activeFilterCount > 0 && ' (بعد الفلترة)'}
+              <> — <b style={{ color: 'var(--gold)' }}>{total.toLocaleString('en-US')}</b> {t('leads.leadUnit')}
+                {activeFilterCount > 0 && ` (${t('leads.afterFilter')})`}
               </>
             )}
           </div>
@@ -305,25 +308,25 @@ export default function LeadsPage() {
         <div style={{ display: 'flex', gap: 8 }}>
           {isManager && (
             <button className="btn btn-ghost" onClick={() => setShowExport(true)}>
-              ⬇ تصدير إكسيل
+              ⬇ {t('leads.exportExcel')}
             </button>
           )}
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ ليد جديد</button>
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ {t('leads.newLead')}</button>
         </div>
       </div>
 
       <div className="board-tabs">
         <button className={board === 'sales' ? 'on' : ''}
           onClick={() => { setBoard('sales'); setShowArchive(false); set('coordinator', '') }}>
-          بورد المبيعات
+          {t('leads.salesBoard')}
         </button>
         <button className={board === 'coordinator' ? 'on' : ''}
           onClick={() => { setBoard('coordinator'); setShowArchive(false) }}>
-          {roleCode === 'agent' ? 'مرضاي عند المنسقات' : 'بورد المنسقات'}
+          {roleCode === 'agent' ? t('leads.myPatientsAtCoords') : t('leads.coordBoard')}
         </button>
         {isManager && (
           <button className={showArchive ? 'on' : ''} onClick={() => setShowArchive(true)}>
-            📦 الأرشيف
+            📦 {t('leads.archive')}
           </button>
         )}
       </div>
@@ -345,25 +348,25 @@ export default function LeadsPage() {
       <div className="card filters-bar">
         <input
           className="filter-search"
-          placeholder="بحث بالاسم أو الهاتف أو رقم الملف…"
+          placeholder={t('leads.searchPh')}
           value={filters.search}
           onChange={e => set('search', e.target.value)}
         />
         <select value={filters.stage} onChange={e => set('stage', e.target.value)}>
-          <option value="">كل مراحل البورد</option>
-          {boardStages.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+          <option value="">{t('leads.allBoardStages')}</option>
+          {boardStages.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
         </select>
         <select value={filters.source} onChange={e => set('source', e.target.value)}>
-          <option value="">كل المصادر</option>
-          {refs.sources.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+          <option value="">{t('leads.allSources')}</option>
+          {refs.sources.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
         </select>
         {/* فلاتر الأشخاص — متاحة للجميع، وRLS يحدّ ما يراه كل دور
             السيلز يحتاج معرفة مرضاه عند أي منسقة،
             والمنسقة تحتاج معرفة مصدر مرضاها من المبيعات */}
         {board === 'sales' && isManager && (
           <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
-            <option value="">كل موظفي المبيعات</option>
-            {iAmSales && <option value={profile.id}>ليداتي</option>}
+            <option value="">{t('leads.allSales')}</option>
+            {iAmSales && <option value={profile.id}>{t('leads.myLeads')}</option>}
             {otherSales.map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
           </select>
         )}
@@ -371,11 +374,9 @@ export default function LeadsPage() {
         {board === 'coordinator' && (
           <>
             <select value={filters.coordinator} onChange={e => set('coordinator', e.target.value)}
-              title={roleCode === 'agent'
-                ? 'شاهد مرضاك عند منسقة بعينها'
-                : 'فلترة حسب المنسقة المسؤولة'}>
+              title={roleCode === 'agent' ? t('leads.coordFilterTitleAgent') : t('leads.coordFilterTitle')}>
               <option value="">
-                {roleCode === 'agent' ? 'مرضاي عند كل المنسقات' : 'كل المنسقات'}
+                {roleCode === 'agent' ? t('leads.myPatientsAllCoords') : t('leads.allCoords')}
               </option>
               {(refs.coordinators ?? []).map(c => (
                 <option key={c.id} value={c.id}>{c.full_name}</option>
@@ -384,7 +385,7 @@ export default function LeadsPage() {
 
             {(isManager || roleCode === 'coordinator') && (
               <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
-                <option value="">كل موظفي المبيعات</option>
+                <option value="">{t('leads.allSales')}</option>
                 {salesAgents.map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
               </select>
             )}
@@ -393,18 +394,18 @@ export default function LeadsPage() {
 
         <button className={'btn btn-ghost' + (advancedCount ? ' on' : '')}
           onClick={() => setShowMore(s => !s)}>
-          فلاتر أكثر{advancedCount ? ` (${advancedCount})` : ''}
+          {t('leads.moreFilters')}{advancedCount ? ` (${advancedCount})` : ''}
         </button>
         {view === 'kanban' && (
           <select value={sort} onChange={e => setSort(e.target.value)}
-            title="ترتيب الليدات داخل كل عمود">
-            <option value="recent">الأحدث نشاطًا</option>
-            <option value="oldest">الأقدم — المهملون أولًا</option>
+            title={t('leads.sortTitle')}>
+            <option value="recent">{t('leads.sortRecent')}</option>
+            <option value="oldest">{t('leads.sortOldest')}</option>
           </select>
         )}
         <div className="view-toggle">
-          <button className={view === 'kanban' ? 'on' : ''} onClick={() => setView('kanban')}>كانبان</button>
-          <button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>جدول</button>
+          <button className={view === 'kanban' ? 'on' : ''} onClick={() => setView('kanban')}>{t('leads.kanban')}</button>
+          <button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>{t('leads.table')}</button>
         </div>
       </div>
 
@@ -413,44 +414,44 @@ export default function LeadsPage() {
         <div className="card advanced-filters">
           <div className="af-grid">
             <div className="field">
-              <label>تاريخ الإنشاء من</label>
+              <label>{t('leads.f.createdFrom')}</label>
               <input type="date" value={filters.createdFrom} onChange={e => set('createdFrom', e.target.value)} />
             </div>
             <div className="field">
-              <label>إلى</label>
+              <label>{t('leads.f.to')}</label>
               <input type="date" value={filters.createdTo} onChange={e => set('createdTo', e.target.value)} />
             </div>
             <div className="field">
-              <label>الفرع</label>
+              <label>{t('leads.f.branch')}</label>
               <select value={filters.branch} onChange={e => set('branch', e.target.value)}>
-                <option value="">كل الفروع</option>
-                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                <option value="">{t('leads.f.allBranches')}</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{dn(b)}</option>)}
               </select>
             </div>
             <div className="field">
-              <label>الاهتمام</label>
+              <label>{t('leads.f.interest')}</label>
               <select value={filters.interest} onChange={e => set('interest', e.target.value)}>
-                <option value="">الكل</option>
-                <option value="hair">زراعة شعر</option>
-                <option value="beard">لحية</option>
-                <option value="eyebrows">حواجب</option>
-                <option value="prp">بلازما</option>
+                <option value="">{t('common.all')}</option>
+                <option value="hair">{t('interest.hair')}</option>
+                <option value="beard">{t('interest.beard')}</option>
+                <option value="eyebrows">{t('interest.eyebrows')}</option>
+                <option value="prp">{t('interest.prp')}</option>
               </select>
             </div>
             <div className="field">
-              <label>السعر من</label>
+              <label>{t('leads.f.priceFrom')}</label>
               <input type="number" value={filters.priceFrom} onChange={e => set('priceFrom', e.target.value)} />
             </div>
             <div className="field">
-              <label>السعر إلى</label>
+              <label>{t('leads.f.priceTo')}</label>
               <input type="number" value={filters.priceTo} onChange={e => set('priceTo', e.target.value)} />
             </div>
             <div className="field">
-              <label>العمر من</label>
+              <label>{t('leads.f.ageFrom')}</label>
               <input type="number" value={filters.ageFrom} onChange={e => set('ageFrom', e.target.value)} />
             </div>
             <div className="field">
-              <label>العمر إلى</label>
+              <label>{t('leads.f.ageTo')}</label>
               <input type="number" value={filters.ageTo} onChange={e => set('ageTo', e.target.value)} />
             </div>
           </div>
@@ -458,81 +459,79 @@ export default function LeadsPage() {
           <div className="af-grid" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line-soft)' }}>
             {isManager && (
               <div className="field">
-                <label>الموظف اللي حرّك</label>
+                <label>{t('leads.f.movedBy')}</label>
                 <select value={filters.movedBy} onChange={e => set('movedBy', e.target.value)}>
-                  <option value="">أي موظف</option>
+                  <option value="">{t('leads.f.anyEmployee')}</option>
                   {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
                 </select>
               </div>
             )}
             <div className="field">
-              <label>اتحرّك من</label>
+              <label>{t('leads.f.movedFrom')}</label>
               <input type="date" value={filters.movedFrom} onChange={e => set('movedFrom', e.target.value)} />
             </div>
             <div className="field">
-              <label>اتحرّك إلى</label>
+              <label>{t('leads.f.movedTo')}</label>
               <input type="date" value={filters.movedTo} onChange={e => set('movedTo', e.target.value)} />
             </div>
           </div>
           {filters.movedBy && (
             <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
-              بيظهر كل ليد الموظف ده عمل عليه حركة أو مكالمة في الفترة، حتى لو مش صاحبه دلوقتي.
-              الليدات اللي حوّلها للمنسقات بتظهر في بورد المنسقات بنفس الفلتر.
+              {t('leads.f.movedByHint')}
             </div>
           )}
 
           {/* «متصل» — مكالمات السنترال (Azeer) */}
-          <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>📞 متصل</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>📞 {t('leads.f.called')}</div>
           <div className="af-grid" style={{ marginTop: 8 }}>
             {isManager && (
               <div className="field">
-                <label>الموظف اللي اتصل</label>
+                <label>{t('leads.f.calledBy')}</label>
                 <select value={filters.callsBy} onChange={e => set('callsBy', e.target.value)}>
-                  <option value="">أي موظف</option>
+                  <option value="">{t('leads.f.anyEmployee')}</option>
                   {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
                 </select>
               </div>
             )}
             <div className="field">
-              <label>متصل من</label>
+              <label>{t('leads.f.calledFrom')}</label>
               <input type="date" value={filters.callsFrom} onChange={e => set('callsFrom', e.target.value)} />
             </div>
             <div className="field">
-              <label>متصل إلى</label>
+              <label>{t('leads.f.calledTo')}</label>
               <input type="date" value={filters.callsTo} onChange={e => set('callsTo', e.target.value)} />
             </div>
             <div className="field">
-              <label>عدد مرات الاتصال من</label>
+              <label>{t('leads.f.callsMin')}</label>
               <input type="number" min="0" placeholder="1" value={filters.callsMin}
                 onChange={e => set('callsMin', e.target.value)} />
             </div>
             <div className="field">
-              <label>عدد مرات الاتصال إلى</label>
-              <input type="number" min="0" placeholder="بلا حد" value={filters.callsMax}
+              <label>{t('leads.f.callsMax')}</label>
+              <input type="number" min="0" placeholder={t('leads.f.noLimit')} value={filters.callsMax}
                 onChange={e => set('callsMax', e.target.value)} />
             </div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
-            «اتحرّك» = أي نشاط في السجل أو مكالمة سنترال في الفترة. «متصل» = الليدز اللي اتعملّها مكالمة سنترال
-            (من موظف معيّن و/أو في فترة) مرة على الأقل. اكتب عدد عشان تحدد أكتر، أو 0 في الاتنين للّي محدش كلّمها.
+            {t('leads.f.callsHint')}
           </div>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
               <input type="checkbox" checked={filters.callsAnswered}
                 onChange={e => set('callsAnswered', e.target.checked)} style={{ width: 16, height: 16 }} />
-              متصل واتردّ عليه بس
+              {t('leads.f.answeredOnly')}
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
               <input type="checkbox" checked={filters.movedToday}
                 onChange={e => set('movedToday', e.target.checked)} style={{ width: 16, height: 16 }} />
-              اتحرّك النهاردة
+              {t('leads.f.movedToday')}
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
               <input type="checkbox" checked={filters.snoozed}
                 onChange={e => set('snoozed', e.target.checked)} style={{ width: 16, height: 16 }} />
-              مؤجّلة لبكرة
+              {t('leads.f.snoozed')}
             </label>
-            <button className="btn btn-ghost" onClick={() => setFilters(EMPTY_FILTERS)}>مسح كل الفلاتر</button>
+            <button className="btn btn-ghost" onClick={() => setFilters(EMPTY_FILTERS)}>{t('leads.f.clearAll')}</button>
           </div>
         </div>
       )}
@@ -540,13 +539,13 @@ export default function LeadsPage() {
       {showArchive ? (
         <div className="card">
           {loadingArch ? (
-            <div className="empty">جارٍ التحميل…</div>
+            <div className="empty">{t('common.loading')}</div>
           ) : archived.length === 0 ? (
-            <div className="empty"><strong>الأرشيف فارغ</strong>لا ليدات مؤرشفة</div>
+            <div className="empty"><strong>{t('leads.archiveEmpty')}</strong>{t('leads.archiveEmptyBody')}</div>
           ) : (
             <table className="table">
               <thead>
-                <tr><th>الملف</th><th>العميل</th><th>الهاتف</th><th>آخر مرحلة</th><th>المسؤول</th><th>تاريخ الأرشفة</th><th></th></tr>
+                <tr><th>{t('lead.fileNo')}</th><th>{t('lead.client')}</th><th>{t('lead.phone')}</th><th>{t('leads.lastStage')}</th><th>{t('lead.owner')}</th><th>{t('leads.archivedAt')}</th><th></th></tr>
               </thead>
               <tbody>
                 {archived.map(l => (
@@ -557,18 +556,18 @@ export default function LeadsPage() {
                       <div className="phone-cell">
                         <span dir="ltr">{l.phone ?? '—'}</span>
                         {l.phone && (
-                          <button className="icon-btn" title="نسخ الرقم"
+                          <button className="icon-btn" title={t('lead.copyPhone')}
                             onClick={() => navigator.clipboard?.writeText(l.phone)}>⧉</button>
                         )}
                       </div>
                     </td>
-                    <td>{l.stages?.name_ar ?? '—'}</td>
+                    <td>{dn(l.stages) || '—'}</td>
                     <td>{l.owner?.full_name ?? '—'}</td>
                     <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-                      {new Date(l.archived_at).toLocaleDateString('ar-EG-u-nu-latn')}
+                      {fmtDate(l.archived_at)}
                     </td>
                     <td>
-                      <button className="btn btn-primary" onClick={() => restore(l.id)}>استرجاع</button>
+                      <button className="btn btn-primary" onClick={() => restore(l.id)}>{t('leads.restore')}</button>
                     </td>
                   </tr>
                 ))}
@@ -589,9 +588,9 @@ export default function LeadsPage() {
       ) : (
         <>
           {loading ? (
-            <div className="empty">جارٍ التحميل…</div>
+            <div className="empty">{t('common.loading')}</div>
           ) : tableRows.length === 0 ? (
-            <div className="card empty"><strong>لا نتائج مطابقة</strong>جرّب تعديل الفلاتر</div>
+            <div className="card empty"><strong>{t('leads.noResults')}</strong>{t('leads.noResultsBody')}</div>
           ) : (
             <>
               {isManager && selected.size > 0 && (
@@ -616,7 +615,7 @@ export default function LeadsPage() {
 
           <div className="pager">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>لكل صفحة:</span>
+              <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{t('common.perPage')}</span>
               <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} style={{ width: 80 }}>
                 <option value={30}>30</option>
                 <option value={50}>50</option>
@@ -626,12 +625,12 @@ export default function LeadsPage() {
             {total > pageSize && (
               <>
                 <button className="btn btn-ghost" disabled={page === 0}
-                  onClick={() => setPage(p => Math.max(0, p - 1))}>← السابق</button>
+                  onClick={() => setPage(p => Math.max(0, p - 1))}>{t('common.prev')}</button>
                 <span className="pager-info">
-                  صفحة {(page + 1).toLocaleString('en-US')} من {totalPages.toLocaleString('en-US')}
+                  {t('common.pageOf', { page: (page + 1).toLocaleString('en-US'), total: totalPages.toLocaleString('en-US') })}
                 </span>
                 <button className="btn btn-ghost" disabled={page + 1 >= totalPages}
-                  onClick={() => setPage(p => p + 1)}>التالي →</button>
+                  onClick={() => setPage(p => p + 1)}>{t('common.next')}</button>
               </>
             )}
           </div>

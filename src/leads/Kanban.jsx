@@ -10,6 +10,7 @@ import {
   hasTaskFilter, BOARD_SEARCH_LIMIT,
 } from './useLeadRefs'
 import { onBoardPatch } from './boardBus'
+import useT from '../i18n/useT'
 
 const COL_FIRST = 50   // الدفعة الأولى
 const COL_MORE  = 20   // كل ضغطة "عرض المزيد" 
@@ -23,6 +24,7 @@ const MAX_SPEED  = 22   // أقصى سرعة تمرير لكل إطار
 //  • externalTotal رقم → العدد جاي من board_counts، والعمود يجيب الصفوف بس (من غير count)
 //  • غير كده           → العمود يجيب الصفوف + العدد بنفسه (فلاتر التاسكات/الفترات/السعر…)
 function StageColumn({ stage, filters, onOpen, dragProps, tick, sort, refreshKey, searchRows, searchLoading, externalTotal, useExternalCount }) {
+  const { t, dn } = useT()
   const searchMode = Array.isArray(searchRows)
   const [ownRows, setRows] = useState([])
   const [ownTotal, setTotal] = useState(0)
@@ -108,42 +110,42 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick, sort, refreshKey
   return (
     <div {...dragProps}>
       <div className="kanban-head" style={{ '--stage': stage.color }}>
-        <span className="drag-handle" title="اسحب لإعادة الترتيب">⋮⋮</span>
+        <span className="drag-handle" title={t('kanban.dragToReorder')}>⋮⋮</span>
         <span className="dot" />
-        <span className="name">{stage.name_ar}</span>
+        <span className="name">{dn(stage)}</span>
         <span className="count">{total.toLocaleString('en-US')}</span>
       </div>
 
       <div className="kanban-body">
         {loading && <div className="kanban-empty">…</div>}
-        {!loading && rows.length === 0 && <div className="kanban-empty">لا شيء هنا</div>}
+        {!loading && rows.length === 0 && <div className="kanban-empty">{t('kanban.empty')}</div>}
         {rows.map(l => {
           const alert = computeAlert(l)
           return (
             <button className="lead-card" key={l.id}
               onClick={() => onOpen(l, rows)}>
               {alert > 0 && (
-                <span className="lead-alert" title={`متأخر ${alert} يوم`}>{alert}</span>
+                <span className="lead-alert" title={t('kanban.lateDays', { n: alert })}>{alert}</span>
               )}
               <div className="lead-name">{l.full_name}</div>
               <div className="lead-meta"><span dir="ltr">{l.phone}</span></div>
               <div className="lead-foot">
-                <span>{l.lead_sources?.name_ar ?? '—'}</span>
+                <span>{dn(l.lead_sources) || '—'}</span>
                 <span>{timeAgo(l.last_activity)}</span>
               </div>
-              {l.attempts > 0 && <div className="lead-attempts">محاولات: {l.attempts}</div>}
+              {l.attempts > 0 && <div className="lead-attempts">{t('kanban.attempts', { n: l.attempts })}</div>}
             </button>
           )
         })}
         {hidden > 0 && (
           <button className="kanban-more" onClick={loadMore} disabled={more}>
             {more
-              ? 'جارٍ التحميل…'
-              : `عرض ${Math.min(COL_MORE, hidden).toLocaleString('en-US')} أخرى · باقي ${hidden.toLocaleString('en-US')}`}
+              ? t('common.loading')
+              : t('kanban.showMore', { n: Math.min(COL_MORE, hidden).toLocaleString('en-US'), left: hidden.toLocaleString('en-US') })}
           </button>
         )}
         {hidden === 0 && rows.length > COL_FIRST && (
-          <div className="kanban-end">اكتمل عرض {rows.length.toLocaleString('en-US')} ليد</div>
+          <div className="kanban-end">{t('kanban.allShown', { n: rows.length.toLocaleString('en-US') })}</div>
         )}
       </div>
     </div>
@@ -151,6 +153,7 @@ function StageColumn({ stage, filters, onOpen, dragProps, tick, sort, refreshKey
 }
 
 export default function Kanban({ board, stages, filters, onOpen, sort = 'recent', refreshKey }) {
+  const { t } = useT()
   const storageKey = `kanban-order-${board}`
   const [order, setOrder] = useState([])
   const [dragId, setDragId] = useState(null)
@@ -335,7 +338,7 @@ export default function Kanban({ board, stages, filters, onOpen, sort = 'recent'
     <div className="kanban-scroll-wrap">
       {searchMode && !search.loading && search.capped && (
         <div className="kanban-search-note">
-          بيظهر أحدث {BOARD_SEARCH_LIMIT.toLocaleString('en-US')} نتيجة بس — حدّد البحث أكتر (اسم كامل أو رقم أطول)
+          {t('kanban.searchCapped', { n: BOARD_SEARCH_LIMIT.toLocaleString('en-US') })}
         </div>
       )}
       <div className="kanban-edge start" data-on={edge === -1} />

@@ -2,6 +2,9 @@
 // يجلب على دفعات (1000 صف) ليتحمّل عشرات الآلاف بدون تعليق المتصفح
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import i18n from '../i18n'
+import useT from '../i18n/useT'
+import { dbName } from '../lib/lang'
 
 const BATCH = 1000
 
@@ -9,38 +12,31 @@ const COLUMNS = `
   id, file_no, full_name, phone, country, city, age, occupation,
   procedure_interest, offered_price, offered_price_max, offer_details, attempts,
   created_at, last_activity, snooze_until, follow_paused,
-  stages(name_ar, board),
-  lead_sources(name_ar),
-  branches(name),
+  stages(name_ar, name_en, board),
+  lead_sources(name_ar, name_en),
+  branches(name, name_en),
   owner:profiles!leads_owner_id_fkey(full_name),
   coordinator:profiles!leads_coordinator_id_fkey(full_name)
 `
 
-const HEADERS = [
-  'رقم الملف', 'الاسم', 'الهاتف', 'الدولة', 'المدينة',
-  'المرحلة', 'البورد', 'المصدر', 'الفرع',
-  'المسؤول (مبيعات)', 'المنسقة',
-  'الاهتمام', 'السعر المعروض', 'تفاصيل العرض',
-  'العمر', 'المهنة', 'المحاولات',
-  'المتابعة موقوفة', 'تاريخ الإنشاء', 'آخر نشاط',
-]
-
-const BOARD_AR = { sales: 'مبيعات', coordinator: 'منسقات' }
-const INTEREST_AR = { hair: 'زراعة شعر', beard: 'لحية', eyebrows: 'حواجب', prp: 'بلازما' }
+// رؤوس الأعمدة بلغة الواجهة وقت التصدير
+const HEADERS = () => i18n.t('exportLeads.headers', { returnObjects: true })
+const BOARD = (b) => (b ? i18n.t(`exportLeads.board.${b}`, { defaultValue: '' }) : '')
+const INTEREST = (k) => (k ? i18n.t(`interest.${k}`, { defaultValue: k }) : k)
 
 const d = (v) => (v ? new Date(v).toLocaleString('en-US') : '')
 
 function toRow(l) {
   return [
     l.file_no, l.full_name, l.phone, l.country, l.city,
-    l.stages?.name_ar, BOARD_AR[l.stages?.board] ?? '',
-    l.lead_sources?.name_ar, l.branches?.name,
+    dbName(l.stages), BOARD(l.stages?.board),
+    dbName(l.lead_sources), dbName(l.branches),
     l.owner?.full_name, l.coordinator?.full_name,
-    INTEREST_AR[l.procedure_interest] ?? l.procedure_interest,
+    INTEREST(l.procedure_interest),
     l.offered_price_max > l.offered_price ? `${l.offered_price} - ${l.offered_price_max}` : l.offered_price,
     l.offer_details,
     l.age, l.occupation, l.attempts,
-    l.follow_paused ? 'نعم' : 'لا',
+    l.follow_paused ? i18n.t('common.yes') : i18n.t('common.no'),
     d(l.created_at), d(l.last_activity),
   ]
 }
@@ -54,6 +50,7 @@ function cell(v) {
 }
 
 export default function ExportLeadsModal({ boardStageIds, board, filters, onClose }) {
+  const { t } = useT()
   const [scope, setScope] = useState('board')      // board | all
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -108,13 +105,13 @@ export default function ExportLeadsModal({ boardStageIds, board, filters, onClos
       }
 
       if (all.length === 0) {
-        setErr('لا توجد ليدات مطابقة للتصدير')
+        setErr(t('exportLeads.noMatch'))
         setBusy(false)
         return
       }
 
       const lines = [
-        HEADERS.map(cell).join(','),
+        HEADERS().map(cell).join(','),
         ...all.map(l => toRow(l).map(cell).join(',')),
       ]
       // BOM ضروري ليقرأ إكسيل العربية بشكل صحيح
@@ -136,7 +133,7 @@ export default function ExportLeadsModal({ boardStageIds, board, filters, onClos
       setBusy(false)
       onClose()
     } catch (e) {
-      setErr('تعذر التصدير — ' + (e.message || ''))
+      setErr(t('exportLeads.failed') + ' — ' + (e.message || ''))
       setBusy(false)
     }
   }
@@ -147,59 +144,58 @@ export default function ExportLeadsModal({ boardStageIds, board, filters, onClos
         maxWidth: 520, width: '92%', margin: '80px auto', padding: 22,
         position: 'relative', zIndex: 2,
       }}>
-        <h2 style={{ fontSize: 17, marginBottom: 4 }}>تصدير الليدات</h2>
+        <h2 style={{ fontSize: 17, marginBottom: 4 }}>{t('exportLeads.title')}</h2>
         <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 16 }}>
-          ملف CSV يفتح مباشرة في إكسيل — يدعم العربية
+          {t('exportLeads.sub')}
         </p>
 
         {err && <div className="alert alert-error">{err}</div>}
 
         <div className="field">
-          <label>النطاق</label>
+          <label>{t('exportLeads.scope')}</label>
           <select value={scope} onChange={e => setScope(e.target.value)} disabled={busy}>
             <option value="board">
-              البورد الحالي ({board === 'sales' ? 'المبيعات' : 'المنسقات'})
+              {t('exportLeads.currentBoard', { board: board === 'sales' ? t('leads.salesBoard') : t('leads.coordBoard') })}
             </option>
-            <option value="all">كل الليدات في النظام</option>
+            <option value="all">{t('exportLeads.allLeads')}</option>
           </select>
         </div>
 
         <div className="grid-2">
           <div className="field">
-            <label>من تاريخ</label>
+            <label>{t('exportLeads.fromDate')}</label>
             <input type="date" value={from} onChange={e => setFrom(e.target.value)} disabled={busy} />
           </div>
           <div className="field">
-            <label>إلى تاريخ</label>
+            <label>{t('exportLeads.toDate')}</label>
             <input type="date" value={to} onChange={e => setTo(e.target.value)} disabled={busy} />
           </div>
         </div>
         <p style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: -6, marginBottom: 14 }}>
-          اتركهما فارغين لتصدير كل الفترات
+          {t('exportLeads.leaveEmpty')}
         </p>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600, marginBottom: 16 }}>
           <input type="checkbox" checked={useFilters} disabled={busy}
             onChange={e => setUseFilters(e.target.checked)} style={{ width: 16, height: 16 }} />
-          طبّق الفلاتر الظاهرة على الشاشة
+          {t('exportLeads.applyFilters')}
         </label>
 
         {busy && (
           <div className="alert alert-ok">
-            جارٍ التحضير… تم جلب {done.toLocaleString('en-US')} ليد
+            {t('exportLeads.preparing', { n: done.toLocaleString('en-US') })}
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-primary" onClick={run} disabled={busy}>
-            {busy ? 'جارٍ التصدير…' : 'تصدير الآن'}
+            {busy ? t('exportLeads.exporting') : t('exportLeads.exportNow')}
           </button>
-          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>إلغاء</button>
+          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>{t('common.cancel')}</button>
         </div>
 
         <p style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 14, lineHeight: 1.7 }}>
-          ملاحظة: الشرائح السريعة المعتمدة على التاسكات (علامة حمراء، تاسك اليوم،
-          تاسك متأخر، بدون تاسك) لا تُطبَّق على التصدير — استخدم فلاتر التاريخ والمرحلة بدلًا منها.
+          {t('exportLeads.note')}
         </p>
       </div>
     </div>

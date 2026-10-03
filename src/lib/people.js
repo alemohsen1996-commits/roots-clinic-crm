@@ -2,13 +2,15 @@
 // مدير المبيعات عنده ليدات وديلات زي السيلز، فبيظهر معاهم في القوائم والفلاتر
 // مع تمييز «(مدير مبيعات)» جنب اسمه
 
+import i18n from '../i18n'
+
 export const SALES_ROLES = ['agent', 'sales_manager']
 
 export const isSalesPerson = (p) => SALES_ROLES.includes(p?.roles?.code)
 
 export function salesLabel(p) {
   if (!p) return ''
-  return p.roles?.code === 'sales_manager' ? `${p.full_name} (مدير مبيعات)` : p.full_name
+  return p.roles?.code === 'sales_manager' ? `${p.full_name} (${i18n.t('roles.sales_manager')})` : p.full_name
 }
 
 // السيلز أولًا ثم المديرين، وكل مجموعة بالترتيب الأبجدي

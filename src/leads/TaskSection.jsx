@@ -6,13 +6,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtDateTime } from '../lib/format'
+import useT from '../i18n/useT'
 
 // مواعيد جاهزة — تغني عن فتح منتقي التاريخ في أغلب الحالات
+// label = مفتاح ترجمة (task.quick.*)
 const QUICK = [
-  { label: 'اليوم',     icon: '🕐', hours: 3 },
-  { label: 'بكرة',      icon: '🌅', hours: 24 },
-  { label: 'بعد يومين', icon: '📅', hours: 48 },
-  { label: 'بعد أسبوع', icon: '🗓', hours: 168 },
+  { label: 'today',    icon: '🕐', hours: 3 },
+  { label: 'tomorrow', icon: '🌅', hours: 24 },
+  { label: 'twoDays',  icon: '📅', hours: 48 },
+  { label: 'week',     icon: '🗓', hours: 168 },
 ]
 
 // الموعد الفعلي الذي سيُجدول — يُعرض على الزر ليعرف الموظف ما يختاره
@@ -35,6 +37,7 @@ const toLocalInput = (d) => {
 
 export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
   const { profile } = useAuth()
+  const { t } = useT()
   const [task, setTask] = useState(null)
   const [lead, setLead] = useState(null)   // snooze_until, follow_paused
   const [due, setDue] = useState('')
@@ -136,9 +139,9 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
   if (paused) {
     return (
       <div className="follow-card paused">
-        <div className="follow-title">⏹ المتابعة موقوفة على هذا الملف</div>
-        <p className="follow-sub">لن تظهر أي تنبيهات حتى تستأنفها</p>
-        <button className="btn btn-primary btn-sm" onClick={resumeFollow}>▶ استئناف المتابعة</button>
+        <div className="follow-title">⏹ {t('task.pausedTitle')}</div>
+        <p className="follow-sub">{t('task.pausedSub')}</p>
+        <button className="btn btn-primary btn-sm" onClick={resumeFollow}>▶ {t('task.resume')}</button>
       </div>
     )
   }
@@ -149,7 +152,7 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
       <div className={'follow-card ' + (overdue ? 'late' : 'active')}>
         <div className="follow-head">
           <span className="follow-title">
-            {overdue ? '⚠ متابعة متأخرة' : '⏰ متابعة مجدولة'}
+            {overdue ? `⚠ ${t('task.overdue')}` : `⏰ ${t('task.scheduled')}`}
           </span>
           <span className="follow-when">{fmtDateTime(task.due_at)}</span>
         </div>
@@ -157,14 +160,14 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
         {task.note && <div className="follow-note">{task.note}</div>}
 
         <div className="follow-actions">
-          <button className="btn btn-primary" onClick={completeTask}>✓ تم التنفيذ</button>
+          <button className="btn btn-primary" onClick={completeTask}>✓ {t('task.done')}</button>
           {!snoozed && (
-            <button className="btn btn-ghost btn-sm" onClick={snoozeToTomorrow}>🌙 أجّل لبكرة</button>
+            <button className="btn btn-ghost btn-sm" onClick={snoozeToTomorrow}>🌙 {t('task.snooze')}</button>
           )}
-          <button className="btn btn-ghost btn-sm" onClick={cancelTask}>إلغاء المهمة</button>
+          <button className="btn btn-ghost btn-sm" onClick={cancelTask}>{t('task.cancelTask')}</button>
         </div>
 
-        {snoozed && <div className="follow-sub">🌙 التنبيه مؤجّل حتى الغد</div>}
+        {snoozed && <div className="follow-sub">🌙 {t('task.snoozedNote')}</div>}
       </div>
     )
   }
@@ -172,7 +175,7 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
   // ---------- لا توجد مهمة: جدولة ----------
   return (
     <div className="follow-card empty-state">
-      <div className="follow-title">متى تتابع هذا العميل؟</div>
+      <div className="follow-title">{t('task.whenFollow')}</div>
 
       <div className="quick-times">
         {QUICK.map(q => {
@@ -180,9 +183,9 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
           return (
             <button key={q.label} className="time-chip" disabled={busy}
               onClick={() => quickSchedule(q.hours)}
-              title={`سيُجدول: ${previewOf(d)}`}>
+              title={`${t('task.willSchedule')}: ${previewOf(d)}`}>
               <b>{q.icon}</b>
-              {q.label}
+              {t(`task.quick.${q.label}`)}
               <em>{previewOf(d)}</em>
             </button>
           )
@@ -190,25 +193,25 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
         <button className={'time-chip alt' + (custom ? ' on' : '')}
           onClick={() => setCustom(v => !v)}>
           <b>⚙</b>
-          موعد آخر
-          <em>اختر بنفسك</em>
+          {t('task.otherTime')}
+          <em>{t('task.pickYourself')}</em>
         </button>
       </div>
 
       {custom && (
         <div className="custom-time">
           <div className="field" style={{ marginBottom: 8 }}>
-            <label>الموعد</label>
+            <label>{t('task.dueAt')}</label>
             <input type="datetime-local" value={due} min={toLocalInput(new Date())}
               onChange={e => setDue(e.target.value)} />
           </div>
           <div className="field" style={{ marginBottom: 10 }}>
-            <label>ملاحظة (اختياري)</label>
+            <label>{t('task.noteOptional')}</label>
             <input value={note} onChange={e => setNote(e.target.value)}
-              placeholder="مثال: يتصل بعد استشارة زوجته" />
+              placeholder={t('task.notePh')} />
           </div>
           <button className="btn btn-primary" onClick={() => addTask()} disabled={busy || !due}>
-            {busy ? 'جارٍ الحفظ…' : 'جدولة المتابعة'}
+            {busy ? t('common.saving') : t('task.schedule')}
           </button>
         </div>
       )}
@@ -217,15 +220,15 @@ export default function TaskSection({ leadId, leadOwnerId, onChanged }) {
       <div className="danger-row">
         {!confirmStop ? (
           <button className="link-danger" onClick={() => setConfirmStop(true)}>
-            ⏹ إيقاف المتابعة على هذا الملف
+            ⏹ {t('task.pauseFollow')}
           </button>
         ) : (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-              ستتوقف كل التنبيهات — متأكد؟
+              {t('task.pauseConfirm')}
             </span>
-            <button className="btn btn-danger btn-sm" onClick={pauseFollow}>نعم، أوقف</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setConfirmStop(false)}>تراجع</button>
+            <button className="btn btn-danger btn-sm" onClick={pauseFollow}>{t('task.yesPause')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setConfirmStop(false)}>{t('common.undo')}</button>
           </div>
         )}
       </div>

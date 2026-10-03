@@ -38,8 +38,8 @@ const LEAD_COLUMNS = `
   id, file_no, full_name, phone, country, city, source_id, stage_id,
   owner_id, coordinator_id, attempts, last_activity, created_at, procedure_interest,
   snooze_until, follow_paused, archived_at,
-  stages(code, name_ar, color, category, board, sla_hours, no_alert),
-  lead_sources(name_ar),
+  stages(code, name_ar, name_en, color, category, board, sla_hours, no_alert),
+  lead_sources(name_ar, name_en),
   owner:profiles!leads_owner_id_fkey(full_name),
   tasks(id, due_at, status)
 `

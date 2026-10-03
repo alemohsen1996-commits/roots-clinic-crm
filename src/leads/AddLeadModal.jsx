@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { STAGE } from '../lib/stageCodes'
+import useT from '../i18n/useT'
 
 // توحيد الأرقام السعودية للصيغة الدولية (+9665XXXXXXXX)
 // فيتساوى «05…» و«5…» و«9665…» مع «+9665…» ويتمنع تكرار نفس الرقم بصيغتين.
@@ -19,6 +20,7 @@ export function canonSaudiPhone(raw) {
 
 export default function AddLeadModal({ refs, onClose, onSaved }) {
   const { profile } = useAuth()
+  const { t, dn } = useT()
   const [form, setForm] = useState({
     full_name: '', phone: '', country: '', city: '',
     age: '', occupation: '', branch_id: '', stage_id: '',
@@ -31,7 +33,7 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
 
   // جلب الفروع النشطة
   useEffect(() => {
-    supabase.from('branches').select('id, name').eq('is_active', true).order('name')
+    supabase.from('branches').select('id, name, name_en').eq('is_active', true).order('name')
       .then(({ data }) => setBranches(data ?? []))
   }, [])
 
@@ -57,9 +59,9 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
   async function save() {
     const phone = canonSaudiPhone(form.phone)
     if (!form.full_name.trim() || !phone.trim()) {
-      setErr('الاسم والهاتف مطلوبان'); return
+      setErr(t('addLead.required')); return
     }
-    if (dup) { setErr('هذا الرقم مسجل بالفعل — افتح الملف الموجود بدلًا من التكرار'); return }
+    if (dup) { setErr(t('addLead.dupErr')); return }
     setErr(''); setBusy(true)
 
     const newStage = refs.stages.find(s => s.code === STAGE.NEW)
@@ -84,8 +86,8 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
     setBusy(false)
     if (error) {
       setErr(error.message.includes('uq_leads_phone')
-        ? 'هذا الرقم مسجل بالفعل في النظام'
-        : 'تعذر الحفظ — تأكد من البيانات')
+        ? t('addLead.dupDb')
+        : t('addLead.saveFailed'))
       return
     }
     onSaved()
@@ -94,18 +96,18 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true">
-        <h2>ليد جديد</h2>
-        <p className="sub">إضافة يدوية — سيُسند إليك تلقائيًا</p>
+        <h2>{t('leads.newLead')}</h2>
+        <p className="sub">{t('addLead.sub')}</p>
 
         {err && <div className="alert alert-error">{err}</div>}
 
         <div className="grid-2">
           <div className="field">
-            <label>الاسم الكامل *</label>
+            <label>{t('lead.fullName')} *</label>
             <input value={form.full_name} onChange={e => set('full_name', e.target.value)} />
           </div>
           <div className="field">
-            <label>الهاتف *</label>
+            <label>{t('lead.phone')} *</label>
             <input dir="ltr" value={form.phone}
               onChange={e => set('phone', e.target.value)}
               onBlur={checkDup}
@@ -115,81 +117,81 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
 
         {dup && (
           <div className="alert alert-error">
-            الرقم مسجل باسم <b>{dup.full_name}</b> (ملف {dup.file_no}) —
-            المرحلة: {dup.stage} · المسؤول: {dup.owner ?? 'غير مسند'}
+            {t('addLead.dupRegisteredAs')} <b>{dup.full_name}</b> ({t('lead.fileNo')} {dup.file_no}) —
+            {t('lead.stage')}: {dup.stage} · {t('lead.owner')}: {dup.owner ?? t('lead.unassigned')}
           </div>
         )}
 
         <div className="field">
-          <label>المرحلة</label>
+          <label>{t('lead.stage')}</label>
           <select value={form.stage_id} onChange={e => set('stage_id', e.target.value)}>
-            {salesStages.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+            {salesStages.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
           </select>
         </div>
 
         <div className="grid-2">
           <div className="field">
-            <label>العمر</label>
+            <label>{t('lead.age')}</label>
             <input type="number" min={0} max={120} value={form.age}
-              onChange={e => set('age', e.target.value)} placeholder="مثال: 32" />
+              onChange={e => set('age', e.target.value)} placeholder={t('addLead.agePh')} />
           </div>
           <div className="field">
-            <label>المهنة</label>
+            <label>{t('lead.job')}</label>
             <input value={form.occupation} onChange={e => set('occupation', e.target.value)}
-              placeholder="مثال: مهندس" />
+              placeholder={t('addLead.jobPh')} />
           </div>
         </div>
 
         <div className="grid-2">
           <div className="field">
-            <label>الفرع</label>
+            <label>{t('lead.branch')}</label>
             <select value={form.branch_id} onChange={e => set('branch_id', e.target.value)}>
-              <option value="">— اختر الفرع —</option>
-              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              <option value="">{t('addLead.pickBranch')}</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{dn(b)}</option>)}
             </select>
           </div>
           <div className="field">
-            <label>المصدر</label>
+            <label>{t('lead.source')}</label>
             <select value={form.source_id} onChange={e => set('source_id', e.target.value)}>
-              <option value="">إضافة يدوية</option>
-              {refs.sources.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+              <option value="">{t('addLead.manualEntry')}</option>
+              {refs.sources.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
             </select>
           </div>
         </div>
 
         <div className="grid-2">
           <div className="field">
-            <label>الدولة</label>
+            <label>{t('lead.country')}</label>
             <input value={form.country} onChange={e => set('country', e.target.value)} />
           </div>
           <div className="field">
-            <label>المدينة</label>
+            <label>{t('lead.city')}</label>
             <input value={form.city} onChange={e => set('city', e.target.value)} />
           </div>
         </div>
 
         <div className="grid-2">
           <div className="field">
-            <label>الاهتمام</label>
+            <label>{t('lead.interest')}</label>
             <select value={form.procedure_interest} onChange={e => set('procedure_interest', e.target.value)}>
               <option value="">—</option>
-              <option value="hair">زراعة شعر</option>
-              <option value="beard">لحية</option>
-              <option value="eyebrows">حواجب</option>
-              <option value="prp">بلازما</option>
+              <option value="hair">{t('interest.hair')}</option>
+              <option value="beard">{t('interest.beard')}</option>
+              <option value="eyebrows">{t('interest.eyebrows')}</option>
+              <option value="prp">{t('interest.prp')}</option>
             </select>
           </div>
           <div className="field">
-            <label>ملاحظات</label>
+            <label>{t('lead.notes')}</label>
             <input value={form.notes} onChange={e => set('notes', e.target.value)} />
           </div>
         </div>
 
         <div className="modal-actions">
           <button className="btn btn-primary" onClick={save} disabled={busy || !!dup}>
-            {busy ? 'جارٍ الحفظ…' : 'حفظ الليد'}
+            {busy ? t('common.saving') : t('addLead.save')}
           </button>
-          <button className="btn btn-ghost" onClick={onClose}>إلغاء</button>
+          <button className="btn btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
         </div>
       </div>
     </div>

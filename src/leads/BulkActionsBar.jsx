@@ -4,8 +4,10 @@ import { useState } from 'react'
 import { isSalesPerson, salesLabel, sortSales } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import { STAGE } from '../lib/stageCodes'
+import useT from '../i18n/useT'
 
 export default function BulkActionsBar({ ids, stages, agents, onDone, onClear }) {
+  const { t, dn } = useT()
   const [action, setAction] = useState('')      // stage | owner | archive
   const [stageId, setStageId] = useState('')
   const [ownerId, setOwnerId] = useState('')
@@ -40,25 +42,25 @@ export default function BulkActionsBar({ ids, stages, agents, onDone, onClear })
     setMsg(null)
 
     if (action === 'stage') {
-      if (!stageId) { setMsg({ ok: false, t: 'اختر المرحلة' }); return }
+      if (!stageId) { setMsg({ ok: false, t: t('bulk.pickStage') }); return }
       if (needsLostReason) {
-        setMsg({ ok: false, t: 'النقل الجماعي لمرحلة الخسارة غير متاح — يحتاج سبب لكل عميل' })
+        setMsg({ ok: false, t: t('bulk.noBulkLost') })
         return
       }
       if (needsCoordinator && !coordinatorId) {
-        setMsg({ ok: false, t: 'اختر المنسقة المسؤولة قبل التحويل' })
+        setMsg({ ok: false, t: t('bulk.pickCoordinator') })
         return
       }
     }
-    if (action === 'owner' && !ownerId) { setMsg({ ok: false, t: 'اختر الموظف' }); return }
+    if (action === 'owner' && !ownerId) { setMsg({ ok: false, t: t('bulk.pickEmployee') }); return }
 
     const label = action === 'stage'
-      ? `نقل ${count} ليد إلى "${targetStage?.name_ar}"`
+      ? t('bulk.moveLabel', { n: count, stage: dn(targetStage) })
       : action === 'owner'
-        ? `إسناد ${count} ليد إلى ${agents.find(a => a.id === ownerId)?.full_name ?? ''}`
-        : `أرشفة ${count} ليد`
+        ? t('bulk.assignLabel', { n: count, name: agents.find(a => a.id === ownerId)?.full_name ?? '' })
+        : t('bulk.archiveLabel', { n: count })
 
-    if (!window.confirm(`${label}\n\nهل تريد المتابعة؟`)) return
+    if (!window.confirm(`${label}\n\n${t('common.proceedQ')}`)) return
 
     setBusy(true)
     try {
@@ -83,15 +85,15 @@ export default function BulkActionsBar({ ids, stages, agents, onDone, onClear })
       }
 
       setBusy(false)
-      setMsg({ ok: true, t: `تم — ${label}` })
+      setMsg({ ok: true, t: `${t('common.ok')} — ${label}` })
       setTimeout(() => { setMsg(null); onDone() }, 1200)
     } catch (e) {
       setBusy(false)
       setMsg({
         ok: false,
         t: e.message?.includes('غير مصرح')
-          ? 'غير مصرح — إرجاع مرضى من بورد المنسقات يتم عبر المدير فقط'
-          : 'تعذر التنفيذ — ' + (e.message || ''),
+          ? t('bulk.notAllowedBack')
+          : t('common.failed') + ' — ' + (e.message || ''),
       })
     }
   }
@@ -99,24 +101,24 @@ export default function BulkActionsBar({ ids, stages, agents, onDone, onClear })
   return (
     <div className="card bulk-bar">
       <div className="bulk-count">
-        <b>{count.toLocaleString('en-US')}</b> ليد محدد
+        <b>{count.toLocaleString('en-US')}</b> {t('bulk.selected')}
       </div>
 
       <select value={action} onChange={e => { setAction(e.target.value); setMsg(null) }}
         disabled={busy} style={{ minWidth: 150 }}>
-        <option value="">— اختر إجراء —</option>
-        <option value="stage">نقل لمرحلة</option>
-        <option value="owner">إسناد لموظف</option>
-        <option value="archive">أرشفة</option>
+        <option value="">{t('bulk.pickAction')}</option>
+        <option value="stage">{t('bulk.moveToStage')}</option>
+        <option value="owner">{t('bulk.assignTo')}</option>
+        <option value="archive">{t('bulk.archive')}</option>
       </select>
 
       {action === 'stage' && (
         <select value={stageId} onChange={e => pickStage(e.target.value)}
           disabled={busy} style={{ minWidth: 160 }}>
-          <option value="">— المرحلة —</option>
+          <option value="">— {t('lead.stage')} —</option>
           {stages.map(s => (
             <option key={s.id} value={s.id}>
-              {s.name_ar} {(s.board ?? 'sales') === 'coordinator' ? '· منسقات' : ''}
+              {dn(s)} {(s.board ?? 'sales') === 'coordinator' ? `· ${t('bulk.coordsTag')}` : ''}
             </option>
           ))}
         </select>
@@ -125,7 +127,7 @@ export default function BulkActionsBar({ ids, stages, agents, onDone, onClear })
       {action === 'stage' && needsCoordinator && (
         <select value={coordinatorId} onChange={e => setCoordinatorId(e.target.value)}
           disabled={busy} style={{ minWidth: 160 }}>
-          <option value="">— المنسقة المسؤولة * —</option>
+          <option value="">— {t('lead.coordinator')} * —</option>
           {coordinators.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
         </select>
       )}
@@ -133,16 +135,16 @@ export default function BulkActionsBar({ ids, stages, agents, onDone, onClear })
       {action === 'owner' && (
         <select value={ownerId} onChange={e => setOwnerId(e.target.value)}
           disabled={busy} style={{ minWidth: 160 }}>
-          <option value="">— الموظف —</option>
+          <option value="">— {t('common.employee')} —</option>
           {sortSales(agents.filter(isSalesPerson)).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
         </select>
       )}
 
       <button className="btn btn-primary" onClick={run} disabled={busy || !action}>
-        {busy ? 'جارٍ التنفيذ…' : 'تنفيذ'}
+        {busy ? t('common.working') : t('common.run')}
       </button>
       <button className="btn btn-ghost" onClick={onClear} disabled={busy}>
-        إلغاء التحديد
+        {t('bulk.clearSelection')}
       </button>
 
       {msg && (
