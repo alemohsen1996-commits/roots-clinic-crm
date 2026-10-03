@@ -1,10 +1,14 @@
 // جدول إدارة بسيط (إضافة/تعديل/تعطيل) — يُستخدم للأطباء والفرق والفروع
+// nameEnField: عمود الاسم الإنجليزي (اختياري) — الواجهة الإنجليزية بتعرضه لو موجود
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import useT from '../i18n/useT'
 
-export default function SimpleCrud({ table, nameField, title, placeholder, extraField }) {
+export default function SimpleCrud({ table, nameField, nameEnField, title, placeholder, extraField }) {
+  const { t } = useT()
   const [rows, setRows] = useState([])
   const [name, setName] = useState('')
+  const [nameEn, setNameEn] = useState('')
   const [extra, setExtra] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [msg, setMsg] = useState(null)     // { ok, t }
@@ -12,21 +16,22 @@ export default function SimpleCrud({ table, nameField, title, placeholder, extra
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from(table).select('*').order('id')
-    if (error) { setMsg({ ok: false, t: 'تعذر التحميل — ' + error.message }); return }
+    if (error) { setMsg({ ok: false, t: t('settings.loadFailed') + ' — ' + error.message }); return }
     setRows(data ?? [])
   }, [table])
   useEffect(() => { load() }, [load])
 
-  const say = (ok, t) => { setMsg({ ok, t }); setTimeout(() => setMsg(null), 3500) }
+  const say = (ok, text) => { setMsg({ ok, t: text }); setTimeout(() => setMsg(null), 3500) }
 
   function reset() {
-    setEditingId(null); setName(''); setExtra('')
+    setEditingId(null); setName(''); setNameEn(''); setExtra('')
   }
 
   async function save() {
-    if (!name.trim()) { say(false, 'اكتب الاسم أولًا'); return }
+    if (!name.trim()) { say(false, t('settings.nameRequired')); return }
 
     const payload = { [nameField]: name.trim() }
+    if (nameEnField) payload[nameEnField] = nameEn.trim() || null
     // نرسل الخانة الإضافية دائمًا — حتى الفارغة، وإلا تعذّر مسح قيمة قديمة
     if (extraField) payload[extraField.key] = extra.trim() || null
 
@@ -38,11 +43,11 @@ export default function SimpleCrud({ table, nameField, title, placeholder, extra
 
     if (error) {
       say(false, error.message?.includes('duplicate')
-        ? 'هذا الاسم مسجّل بالفعل'
-        : 'تعذر الحفظ — ' + error.message)
+        ? t('settings.nameTaken')
+        : t('addLead.saveFailed') + ' — ' + error.message)
       return
     }
-    say(true, editingId ? 'تم حفظ التعديل' : 'تمت الإضافة')
+    say(true, editingId ? t('dealDrawer.saved') : t('settings.added'))
     reset(); load()
   }
 
@@ -51,7 +56,7 @@ export default function SimpleCrud({ table, nameField, title, placeholder, extra
     const { error } = await supabase.from(table)
       .update({ is_active: !r.is_active }).eq('id', r.id)
     setBusy(false)
-    if (error) { say(false, 'تعذر التغيير — ' + error.message); return }
+    if (error) { say(false, t('settings.changeFailed') + ' — ' + error.message); return }
     load()
   }
 
@@ -64,26 +69,28 @@ export default function SimpleCrud({ table, nameField, title, placeholder, extra
             {msg.t}
           </div>
         )}
-        {rows.length === 0 ? <div className="empty"><strong>القائمة فارغة</strong></div> : (
+        {rows.length === 0 ? <div className="empty"><strong>{t('settings.emptyList')}</strong></div> : (
           <table className="table" style={{ marginTop: 10 }}>
             <thead>
-              <tr><th>الاسم</th>{extraField && <th>{extraField.label}</th>}<th>الحالة</th><th></th></tr>
+              <tr><th>{t('lead.name')}</th>{nameEnField && <th>{t('settings.nameEn')}</th>}{extraField && <th>{extraField.label}</th>}<th>{t('deals.status')}</th><th></th></tr>
             </thead>
             <tbody>
               {rows.map(r => (
                 <tr key={r.id} style={{ opacity: r.is_active ? 1 : .45 }}>
                   <td style={{ fontWeight: 600 }}>{r[nameField]}</td>
+                  {nameEnField && <td dir="ltr" style={{ textAlign: 'start' }}>{r[nameEnField] ?? '—'}</td>}
                   {extraField && <td>{r[extraField.key] ?? '—'}</td>}
-                  <td>{r.is_active ? 'فعال' : 'معطل'}</td>
+                  <td>{r.is_active ? t('settings.enabled') : t('settings.disabled')}</td>
                   <td style={{ display: 'flex', gap: 6 }}>
                     <button className="btn btn-ghost" disabled={busy} onClick={() => {
                       setEditingId(r.id)
                       setName(r[nameField] ?? '')
+                      setNameEn(nameEnField ? (r[nameEnField] ?? '') : '')
                       setExtra(r[extraField?.key] ?? '')
                       setMsg(null)
-                    }}>تعديل</button>
+                    }}>{t('common.edit')}</button>
                     <button className="btn btn-ghost" disabled={busy} onClick={() => toggle(r)}>
-                      {r.is_active ? 'تعطيل' : 'تفعيل'}
+                      {r.is_active ? t('settings.disable') : t('settings.enable')}
                     </button>
                   </td>
                 </tr>
@@ -94,12 +101,20 @@ export default function SimpleCrud({ table, nameField, title, placeholder, extra
       </div>
 
       <div className="card" style={{ padding: 18 }}>
-        <h2 style={{ fontSize: 15, marginBottom: 12 }}>{editingId ? 'تعديل' : 'إضافة'}</h2>
+        <h2 style={{ fontSize: 15, marginBottom: 12 }}>{editingId ? t('common.edit') : t('common.add')}</h2>
         <div className="field">
-          <label>الاسم</label>
+          <label>{nameEnField ? t('settings.nameAr') : t('lead.name')}</label>
           <input value={name} onChange={e => setName(e.target.value)} placeholder={placeholder}
             onKeyDown={e => e.key === 'Enter' && save()} />
         </div>
+        {nameEnField && (
+          <div className="field">
+            <label>{t('settings.nameEn')}</label>
+            <input dir="ltr" value={nameEn} onChange={e => setNameEn(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && save()} />
+            <small style={{ color: 'var(--ink-soft)' }}>{t('settings.nameEnHint')}</small>
+          </div>
+        )}
         {extraField && (
           <div className="field">
             <label>{extraField.label}</label>
@@ -109,10 +124,10 @@ export default function SimpleCrud({ table, nameField, title, placeholder, extra
         )}
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-primary" onClick={save} disabled={busy}>
-            {busy ? '…' : editingId ? 'حفظ' : 'إضافة'}
+            {busy ? '…' : editingId ? t('common.save') : t('common.add')}
           </button>
           {editingId && (
-            <button className="btn btn-ghost" onClick={reset} disabled={busy}>إلغاء</button>
+            <button className="btn btn-ghost" onClick={reset} disabled={busy}>{t('common.cancel')}</button>
           )}
         </div>
       </div>

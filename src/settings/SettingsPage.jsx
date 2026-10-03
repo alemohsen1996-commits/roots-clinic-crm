@@ -15,6 +15,7 @@ import TeamsTab from './TeamsTab'
 import BranchesTab from './BranchesTab'
 import BranchHoursTab from './BranchHoursTab'
 import GeneralTab from './GeneralTab'
+import useT from '../i18n/useT'
 
 // الفروع وساعات عملها في تبويب واحد
 function BranchesAndHours() {
@@ -26,26 +27,28 @@ function BranchesAndHours() {
   )
 }
 
+// label = مفتاح ترجمة (settings.groups.* / settings.tabs.*)
 const GROUPS = [
-  { key: 'leads', label: 'الليدات', tabs: [
-    { key: 'stages',       label: 'المراحل',          el: StagesTab },
-    { key: 'sources',      label: 'المصادر',          el: SourcesTab },
-    { key: 'distribution', label: 'التوزيع التلقائي', el: DistributionTab },
-    { key: 'import',       label: 'استيراد ليدات',    el: ImportLeadsTab },
+  { key: 'leads', tabs: [
+    { key: 'stages',       el: StagesTab },
+    { key: 'sources',      el: SourcesTab },
+    { key: 'distribution', el: DistributionTab },
+    { key: 'import',       el: ImportLeadsTab },
   ]},
-  { key: 'clinic', label: 'العيادة', tabs: [
-    { key: 'branches',     label: 'الفروع وساعات العمل', el: BranchesAndHours, manager: true },
-    { key: 'doctors',      label: 'الأطباء',             el: DoctorsTab },
-    { key: 'techniques',   label: 'التقنيات',            el: TechniquesTab, manager: true },
-    { key: 'sale_types',   label: 'أنواع البيع',         el: SaleTypesTab },
+  { key: 'clinic', tabs: [
+    { key: 'branches',     el: BranchesAndHours, manager: true },
+    { key: 'doctors',      el: DoctorsTab },
+    { key: 'techniques',   el: TechniquesTab, manager: true },
+    { key: 'sale_types',   el: SaleTypesTab },
   ]},
-  { key: 'team', label: 'الفريق والمالية', tabs: [
-    { key: 'general',      label: 'الحدود والعمولات', el: GeneralTab },
-    { key: 'teams',        label: 'الفرق',            el: TeamsTab },
+  { key: 'team', tabs: [
+    { key: 'general',      el: GeneralTab },
+    { key: 'teams',        el: TeamsTab },
   ]},
 ]
 export default function SettingsPage() {
   const { isSuperAdmin } = useAuth()
+  const { t } = useT()
   const [params, setParams] = useSearchParams()
 
   // المجموعات والتبويبات المسموحة للمستخدم الحالي (المجموعة الفاضية بتختفي)
@@ -65,27 +68,27 @@ export default function SettingsPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>إعدادات النظام</h1>
-          <div className="hint">كل تغيير هنا يسري فورًا على النظام كله — ويُسجل في سجل التدقيق</div>
+          <h1>{t('nav.settings')}</h1>
+          <div className="hint">{t('settings.hint')}</div>
         </div>
       </div>
 
-      <div className="board-tabs" role="tablist" aria-label="مجموعات الإعدادات">
+      <div className="board-tabs" role="tablist" aria-label={t('settings.groupsLabel')}>
         {groups.length > 1 && groups.map(g => (
           <button key={g.key} type="button" role="tab" aria-selected={g.key === group.key}
             className={g.key === group.key ? 'on' : ''}
             onClick={() => go(g.tabs[0].key)}>
-            {g.label}
+            {t(`settings.groups.${g.key}`)}
           </button>
         ))}
       </div>
 
       <div className="tabs">
-        {group.tabs.map(t => (
-          <button key={t.key} type="button"
-            className={'tab' + (t.key === current.key ? ' on' : '')}
-            onClick={() => go(t.key)}>
-            {t.label}
+        {group.tabs.map(tb => (
+          <button key={tb.key} type="button"
+            className={'tab' + (tb.key === current.key ? ' on' : '')}
+            onClick={() => go(tb.key)}>
+            {t(`settings.tabs.${tb.key}`)}
           </button>
         ))}
       </div>

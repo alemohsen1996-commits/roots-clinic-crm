@@ -2,26 +2,17 @@
 // المراحل الجوهرية محمية: لا تُعطَّل ولا يتغيّر كودها (النظام يعتمد عليها نصًّا)
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import i18n from '../i18n'
+import useT from '../i18n/useT'
 
-const CATEGORIES = [
-  { v: 'open',    label: 'مفتوحة (ضمن الدورة)' },
-  { v: 'won',     label: 'نجاح (Done)' },
-  { v: 'lost',    label: 'خسارة' },
-  { v: 'waiting', label: 'انتظار' },
-]
-
-const BOARDS = [
-  { v: 'sales',       label: 'بورد المبيعات' },
-  { v: 'coordinator', label: 'بورد المنسقات' },
-]
+// الأسماء من الترجمة: stagesTab.cat.* / leads.salesBoard|coordBoard / stagesTab.mode.*
+const CATEGORIES = ['open', 'won', 'lost', 'waiting']
+const BOARDS = ['sales', 'coordinator']
+const boardLabel = (b) => i18n.t(b === 'coordinator' ? 'leads.coordBoard' : 'leads.salesBoard')
 
 // عداد الإهمال (العلامة الحمراء) — متحكم فيه بالكامل من هنا
 //   daily → يعد كل يوم من آخر نشاط · sla → يبدأ بعد مهلة بالساعات · none → من غير عداد
-const ALERT_MODES = [
-  { v: 'sla',   label: 'يبدأ بعد مهلة' },
-  { v: 'daily', label: 'يعد كل يوم من آخر نشاط' },
-  { v: 'none',  label: 'من غير عداد' },
-]
+const ALERT_MODES = ['sla', 'daily', 'none']
 const FINISHED = ['won', 'lost']   // المراحل المنتهية مفيهاش عداد أصلًا
 
 const alertModeOf = (s) => s.no_alert ? 'none' : (s.sla_hours ? 'sla' : 'daily')
@@ -29,17 +20,18 @@ const alertModeOf = (s) => s.no_alert ? 'none' : (s.sla_hours ? 'sla' : 'daily')
 // ملخص العداد في جدول المراحل
 function alertSummary(s) {
   if (FINISHED.includes(s.category)) return '—'
-  if (s.no_alert) return 'من غير عداد'
-  if (s.sla_hours) return `بعد ${s.sla_hours} ساعة`
-  return 'يومي'
+  if (s.no_alert) return i18n.t('stagesTab.mode.none')
+  if (s.sla_hours) return i18n.t('stagesTab.afterHours', { n: s.sla_hours })
+  return i18n.t('stagesTab.daily')
 }
 
 const empty = {
-  code: '', name_ar: '', color: '#1a3a5c', category: 'open', board: 'sales',
+  code: '', name_ar: '', name_en: '', color: '#1a3a5c', category: 'open', board: 'sales',
   alert_mode: 'daily', sla_hours: '', requires_note: false,
 }
 
 export default function StagesTab() {
+  const { t, dn } = useT()
   const [stages, setStages] = useState([])
   const [counts, setCounts] = useState({})
   const [form, setForm] = useState(empty)
@@ -65,15 +57,16 @@ export default function StagesTab() {
   const say = (m) => { setOk(m); setTimeout(() => setOk(''), 3000) }
 
   async function save() {
-    if (!form.name_ar.trim()) { setErr('اكتب اسم المرحلة'); return }
+    if (!form.name_ar.trim()) { setErr(t('stagesTab.nameRequired')); return }
     const finished = FINISHED.includes(form.category)
     const sla = Number(form.sla_hours)
     if (!finished && form.alert_mode === 'sla' && !(sla > 0)) {
-      setErr('اكتب مهلة العداد بالساعات (رقم أكبر من صفر)'); return
+      setErr(t('stagesTab.slaRequired')); return
     }
     setErr('')
     const payload = {
       name_ar: form.name_ar.trim(),
+      name_en: form.name_en.trim() || null,
       color: form.color,
       category: form.category,
       board: form.board,
@@ -97,17 +90,17 @@ export default function StagesTab() {
         .replace(/[^a-z0-9_]/g, '')
       ) || 'stage_' + Date.now()
       if (stages.some(s => s.code === code)) {
-        setErr('هذا الكود مستخدم بالفعل — اختر كودًا آخر')
+        setErr(t('stagesTab.codeTaken'))
         return
       }
       const maxOrder = Math.max(0, ...stages.map(s => s.sort_order))
       ;({ error } = await supabase.from('stages').insert({ ...payload, code, sort_order: maxOrder + 1 }))
     }
     if (error) {
-      setErr(error.message?.includes('جوهرية') ? error.message : 'تعذر الحفظ — ' + error.message)
+      setErr(error.message?.includes('جوهرية') ? error.message : t('addLead.saveFailed') + ' — ' + error.message)
       return
     }
-    say(editing ? 'تم حفظ التعديل' : 'تمت إضافة المرحلة')
+    say(editing ? t('dealDrawer.saved') : t('stagesTab.added'))
     setForm({ ...empty, board: boardTab }); setEditing(null); load()
   }
 
@@ -128,8 +121,8 @@ export default function StagesTab() {
     const results = await Promise.all(changed.map(x =>
       supabase.from('stages').update({ sort_order: next[x.id] }).eq('id', x.id)))
     const failed = results.find(r => r.error)
-    if (failed) setErr('تعذر حفظ الترتيب — ' + failed.error.message)
-    else say('تم حفظ الترتيب')
+    if (failed) setErr(t('stagesTab.orderFailed') + ' — ' + failed.error.message)
+    else say(t('stagesTab.orderSaved'))
     load()
   }
 
@@ -158,16 +151,12 @@ export default function StagesTab() {
     const n = counts[s.id] ?? 0
     // التعطيل يُخفي ليدات المرحلة من كل الشاشات — تحذير صريح
     if (s.is_active && n > 0) {
-      const go = window.confirm(
-        `هذه المرحلة تحتوي ${n.toLocaleString('en-US')} ليد.\n\n` +
-        `تعطيلها سيُخفيهم من البورد والجدول تمامًا (لن يُحذفوا، لكن لن يراهم أحد).\n\n` +
-        `الأفضل نقلهم لمرحلة أخرى أولًا. هل تريد المتابعة رغم ذلك؟`
-      )
+      const go = window.confirm(t('stagesTab.disableWarn', { n: n.toLocaleString('en-US') }))
       if (!go) return
     }
     const { error } = await supabase.from('stages')
       .update({ is_active: !s.is_active }).eq('id', s.id)
-    if (error) { setErr(error.message || 'تعذر التغيير'); return }
+    if (error) { setErr(error.message || t('settings.changeFailed')); return }
     load()
   }
 
@@ -175,7 +164,7 @@ export default function StagesTab() {
     setErr('')
     setEditing(s.id)
     setForm({
-      code: s.code, name_ar: s.name_ar, color: s.color,
+      code: s.code, name_ar: s.name_ar, name_en: s.name_en ?? '', color: s.color,
       category: s.category, board: s.board ?? 'sales',
       alert_mode: alertModeOf(s), sla_hours: s.sla_hours ?? '',
       requires_note: s.requires_note,
@@ -190,22 +179,22 @@ export default function StagesTab() {
         {ok && <div className="alert alert-ok" style={{ margin: 12 }}>{ok}</div>}
         <div className="tabs" style={{ margin: '12px 16px 0' }}>
           {BOARDS.map(b => (
-            <button key={b.v} type="button"
-              className={'tab' + (boardTab === b.v ? ' on' : '')}
-              onClick={() => { setBoardTab(b.v); if (!editing) set('board', b.v) }}>
-              {b.label} ({byBoard(b.v).length.toLocaleString('en-US')})
+            <button key={b} type="button"
+              className={'tab' + (boardTab === b ? ' on' : '')}
+              onClick={() => { setBoardTab(b); if (!editing) set('board', b) }}>
+              {boardLabel(b)} ({byBoard(b).length.toLocaleString('en-US')})
             </button>
           ))}
         </div>
         <p style={{ fontSize: 12, color: 'var(--ink-soft)', padding: '0 16px', margin: '0 0 6px' }}>
-          اسحب المرحلة من ⋮⋮ وحطها في المكان اللي عاوزه — الترتيب هنا هو ترتيب أعمدة البورد
+          {t('stagesTab.dragHint')}
         </p>
         <div style={{ overflowX: 'auto' }}>
         <table className="table">
           <thead>
             <tr>
-              <th>الترتيب</th><th>المرحلة</th>
-              <th>التصنيف</th><th>عداد الإهمال</th><th>الليدات</th><th>الحالة</th><th></th>
+              <th>{t('stagesTab.order')}</th><th>{t('lead.stage')}</th>
+              <th>{t('stagesTab.category')}</th><th>{t('stagesTab.neglectCounter')}</th><th>{t('common.leads')}</th><th>{t('deals.status')}</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -221,34 +210,34 @@ export default function StagesTab() {
                   + (overId === s.id && dragId !== s.id ? ' over' : '')}
                 style={{ opacity: dragId === s.id ? .4 : (s.is_active ? 1 : .45) }}>
                 <td style={{ whiteSpace: 'nowrap' }}>
-                  <span className="drag-handle" title="اسحب لإعادة الترتيب" style={{ cursor: 'grab', marginInlineEnd: 6 }}>⋮⋮</span>
+                  <span className="drag-handle" title={t('kanban.dragToReorder')} style={{ cursor: 'grab', marginInlineEnd: 6 }}>⋮⋮</span>
                   {/* الأسهم للموبايل — السحب مش شغال باللمس */}
                   <button className="btn btn-ghost" style={{ padding: '2px 8px' }} disabled={idx === 0}
-                    onClick={() => move(s, -1)} aria-label="لفوق">↑</button>
+                    onClick={() => move(s, -1)} aria-label={t('stagesTab.up')}>↑</button>
                   <button className="btn btn-ghost" style={{ padding: '2px 8px' }} disabled={idx === list.length - 1}
-                    onClick={() => move(s, 1)} aria-label="لتحت">↓</button>
+                    onClick={() => move(s, 1)} aria-label={t('stagesTab.down')}>↓</button>
                 </td>
                 <td>
                   <span className="badge stage-pill" style={{ '--stage': s.color }}>
-                    ● {s.name_ar}
+                    ● {dn(s)}
                   </span>
                   {s.is_core && (
-                    <span title="مرحلة جوهرية — النظام يعتمد على كودها"
+                    <span title={t('stagesTab.coreTitle')}
                       style={{ marginInlineStart: 6, fontSize: 12 }}>🔒</span>
                   )}
                 </td>
-                <td style={{ fontSize: 12.5 }}>{CATEGORIES.find(c => c.v === s.category)?.label}</td>
+                <td style={{ fontSize: 12.5 }}>{t(`stagesTab.cat.${s.category}`, { defaultValue: s.category })}</td>
                 <td style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{alertSummary(s)}</td>
                 <td style={{ fontWeight: 600 }}>{(counts[s.id] ?? 0).toLocaleString('en-US')}</td>
-                <td>{s.is_active ? 'فعالة' : 'معطلة'}</td>
+                <td>{s.is_active ? t('settings.enabled') : t('settings.disabled')}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <button className="btn btn-ghost" onClick={() => startEdit(s)}>تعديل</button>
+                  <button className="btn btn-ghost" onClick={() => startEdit(s)}>{t('common.edit')}</button>
                   {s.is_core ? (
-                    <span style={{ fontSize: 12, color: 'var(--ink-soft)', alignSelf: 'center' }}>محمية</span>
+                    <span style={{ fontSize: 12, color: 'var(--ink-soft)', alignSelf: 'center' }}>{t('stagesTab.protected')}</span>
                   ) : (
                     <button className="btn btn-ghost" onClick={() => toggleActive(s)}>
-                      {s.is_active ? 'تعطيل' : 'تفعيل'}
+                      {s.is_active ? t('settings.disable') : t('settings.enable')}
                     </button>
                   )}
                   </div>
@@ -259,79 +248,82 @@ export default function StagesTab() {
         </table>
         </div>
         <p style={{ fontSize: 12, color: 'var(--ink-soft)', padding: '0 16px 16px', lineHeight: 1.7 }}>
-          🔒 المراحل المحمية يعتمد عليها النظام بالاسم البرمجي (سلسلة لا يرد، التحويل
-          للمنسقة، فتح ملف التعاقد…) — يمكن تعديل اسمها ولونها فقط.
+          🔒 {t('stagesTab.protectedNote')}
         </p>
       </div>
 
       <div className="card" style={{ padding: 18 }}>
-        <h2 style={{ fontSize: 15, marginBottom: 12 }}>{editing ? 'تعديل مرحلة' : 'مرحلة جديدة'}</h2>
+        <h2 style={{ fontSize: 15, marginBottom: 12 }}>{editing ? t('stagesTab.editStage') : t('stagesTab.newStage')}</h2>
         {err && <div className="alert alert-error">{err}</div>}
         {editingStage?.is_core && (
           <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
-            🔒 مرحلة جوهرية — يمكن تغيير الاسم واللون والتصنيف وعداد الإهمال فقط
+            🔒 {t('stagesTab.coreEditNote')}
           </div>
         )}
 
         <div className="field">
-          <label>الاسم</label>
-          <input value={form.name_ar} onChange={e => set('name_ar', e.target.value)} placeholder="مثال: لا يرد 4" />
+          <label>{t('settings.nameAr')}</label>
+          <input value={form.name_ar} onChange={e => set('name_ar', e.target.value)} placeholder={t('stagesTab.namePh')} />
+        </div>
+        <div className="field">
+          <label>{t('settings.nameEn')}</label>
+          <input dir="ltr" value={form.name_en} onChange={e => set('name_en', e.target.value)} placeholder="No Answer 4" />
+          <small style={{ color: 'var(--ink-soft)' }}>{t('settings.nameEnHint')}</small>
         </div>
         {!editing && (
           <div className="field">
-            <label>الكود (إنجليزي، اختياري)</label>
+            <label>{t('stagesTab.code')}</label>
             <input dir="ltr" value={form.code} onChange={e => set('code', e.target.value)}
               placeholder="no_response_5" />
             <small style={{ color: 'var(--ink-soft)' }}>
-              يُحوَّل تلقائيًا لأحرف صغيرة وشُرَط سفلية.
-              لإضافة مرحلة لسلسلة «لا يرد» استخدم <b>no_response_5</b> وهكذا
+              {t('stagesTab.codeHint')} <b>no_response_5</b> …
             </small>
           </div>
         )}
         <div className="field">
-          <label>البورد</label>
+          <label>{t('stagesTab.board')}</label>
           <select value={form.board} onChange={e => set('board', e.target.value)}
             disabled={!!editingStage?.is_core}>
-            {BOARDS.map(b => <option key={b.v} value={b.v}>{b.label}</option>)}
+            {BOARDS.map(b => <option key={b} value={b}>{boardLabel(b)}</option>)}
           </select>
         </div>
         <div className="field">
-          <label>اللون</label>
+          <label>{t('stagesTab.color')}</label>
           <input type="color" value={form.color} onChange={e => set('color', e.target.value)} style={{ height: 42, padding: 4 }} />
         </div>
         <div className="field">
-          <label>التصنيف</label>
+          <label>{t('stagesTab.category')}</label>
           <select value={form.category} onChange={e => set('category', e.target.value)}>
-            {CATEGORIES.map(c => <option key={c.v} value={c.v}>{c.label}</option>)}
+            {CATEGORIES.map(c => <option key={c} value={c}>{t(`stagesTab.cat.${c}`)}</option>)}
           </select>
         </div>
 
         {/* عداد الإهمال — العلامة الحمراء على الكارت */}
         <div className="field">
-          <label>عداد الإهمال (العلامة الحمراء)</label>
+          <label>{t('stagesTab.neglectCounterFull')}</label>
           {FINISHED.includes(form.category) ? (
             <small style={{ color: 'var(--ink-soft)', lineHeight: 1.7 }}>
-              مرحلة منتهية (نجاح أو خسارة) — مفيش عداد إهمال فيها
+              {t('stagesTab.finishedNoCounter')}
             </small>
           ) : (
             <>
               <select value={form.alert_mode} onChange={e => set('alert_mode', e.target.value)}>
-                {ALERT_MODES.map(m => <option key={m.v} value={m.v}>{m.label}</option>)}
+                {ALERT_MODES.map(m => <option key={m} value={m}>{t(`stagesTab.mode.${m}`)}</option>)}
               </select>
               {form.alert_mode === 'sla' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                   <input type="number" min={1} value={form.sla_hours}
                     onChange={e => set('sla_hours', e.target.value)} placeholder="48" style={{ width: 100 }} />
-                  <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>ساعة من آخر نشاط</span>
+                  <span style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{t('stagesTab.hoursSinceActivity')}</span>
                 </div>
               )}
               <small style={{ color: 'var(--ink-soft)', lineHeight: 1.7, marginTop: 6 }}>
                 {form.alert_mode === 'sla' && (form.sla_hours
-                  ? `مفيش علامة أول ${form.sla_hours} ساعة، وبعدها بتظهر 1 وتزيد 1 كل 24 ساعة`
-                  : 'اكتب المهلة بالساعات')}
-                {form.alert_mode === 'daily' && 'العلامة بتظهر بعد يوم من آخر نشاط، وتزيد 1 كل يوم'}
-                {form.alert_mode === 'none' && 'الليدات في المرحلة دي مش هيظهر عليها عداد إهمال خالص'}
-                {' — '}ولو الليد عليه مهمة، العداد بيمشي على ميعاد المهمة
+                  ? t('stagesTab.slaExplain', { n: form.sla_hours })
+                  : t('stagesTab.enterHours'))}
+                {form.alert_mode === 'daily' && t('stagesTab.dailyExplain')}
+                {form.alert_mode === 'none' && t('stagesTab.noneExplain')}
+                {' — '}{t('stagesTab.taskNote')}
               </small>
             </>
           )}
@@ -339,15 +331,15 @@ export default function StagesTab() {
         <div className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <input type="checkbox" id="rn" checked={form.requires_note}
             onChange={e => set('requires_note', e.target.checked)} style={{ width: 17, height: 17 }} />
-          <label htmlFor="rn" style={{ marginBottom: 0 }}>إجبار كتابة ملاحظة عند الدخول لها</label>
+          <label htmlFor="rn" style={{ marginBottom: 0 }}>{t('stagesTab.requireNote')}</label>
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-primary" onClick={save}>
-            {editing ? 'حفظ التعديل' : 'إضافة المرحلة'}
+            {editing ? t('dealDrawer.saveEdit') : t('stagesTab.addStage')}
           </button>
           {editing && (
-            <button className="btn btn-ghost" onClick={() => { setEditing(null); setForm({ ...empty, board: boardTab }); setErr('') }}>إلغاء</button>
+            <button className="btn btn-ghost" onClick={() => { setEditing(null); setForm({ ...empty, board: boardTab }); setErr('') }}>{t('common.cancel')}</button>
           )}
         </div>
       </div>

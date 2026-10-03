@@ -1,6 +1,7 @@
 // نداء Edge Function لإدارة حسابات الموظفين
 // المفتاح السري لا يصل هنا إطلاقًا — كل شيء يتم على سيرفر Supabase
 import { supabase } from '../lib/supabase'
+import i18n from '../i18n'
 
 async function callManage(payload) {
   const { data, error } = await supabase.functions.invoke('manage-employee', {
@@ -8,7 +9,7 @@ async function callManage(payload) {
   })
   if (error) {
     // محاولة قراءة رسالة الخطأ من جسم الرد
-    let msg = 'تعذر تنفيذ العملية'
+    let msg = i18n.t('common.failed')
     try {
       const ctx = await error.context?.json?.()
       if (ctx?.error) msg = ctx.error

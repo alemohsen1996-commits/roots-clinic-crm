@@ -24,3 +24,5 @@ alter table public.branches        add column if not exists name_en text;
 -- (مطبّقة) v_deals_list: أعمدة branch_name_en و procedure_name_en مضافة في آخر الـ view
 
 -- (مطبّقة) report_summary: by_source / by_lost فيهم label_en بجانب label
+
+-- الإعدادات: خانة «الاسم بالإنجليزي» بتكتب في name_en للمراحل وأنواع البيع والمصادر والفروع (نفس الأعمدة فوق)

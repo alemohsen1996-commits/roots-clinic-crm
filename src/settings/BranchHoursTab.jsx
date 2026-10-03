@@ -3,17 +3,16 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
+import i18n from '../i18n'
+import useT from '../i18n/useT'
+import { dbName } from '../lib/lang'
 
 // ترتيب الأسبوع سعوديًا (السبت أولًا). n = رقم اليوم بنظام JS: 0=الأحد .. 6=السبت
-const DAYS = [
-  { n: 6, ar: 'السبت' },
-  { n: 0, ar: 'الأحد' },
-  { n: 1, ar: 'الاثنين' },
-  { n: 2, ar: 'الثلاثاء' },
-  { n: 3, ar: 'الأربعاء' },
-  { n: 4, ar: 'الخميس' },
-  { n: 5, ar: 'الجمعة' },
-]
+const DAY_ORDER = [6, 0, 1, 2, 3, 4, 5]
+// اسم اليوم بلغة الواجهة (2023-01-01 كان أحد)
+const dayName = (n) => new Date(Date.UTC(2023, 0, 1 + n)).toLocaleDateString(
+  i18n.language === 'en' ? 'en-GB' : 'ar', { weekday: 'long', timeZone: 'UTC' })
+const DAYS = DAY_ORDER.map(n => ({ n, get ar() { return dayName(n) } }))
 
 const SLOT_OPTIONS = [10, 15, 20, 30, 45, 60]
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '')  // '16:00:00' → '16:00'
@@ -28,6 +27,7 @@ function slotsPerDay(start, end, mins) {
 }
 
 export default function BranchHoursTab() {
+  const { t } = useT()
   const { profile } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -35,7 +35,7 @@ export default function BranchHoursTab() {
   const load = useCallback(async () => {
     setLoading(true)
     const [{ data: branches }, { data: scheds }] = await Promise.all([
-      supabase.from('branches').select('id, name').eq('is_active', true).order('name'),
+      supabase.from('branches').select('id, name, name_en').eq('is_active', true).order('name'),
       supabase.from('branch_schedules').select('*'),
     ])
     const byBranch = Object.fromEntries((scheds ?? []).map(s => [s.branch_id, s]))
@@ -43,7 +43,7 @@ export default function BranchHoursTab() {
       const s = byBranch[b.id]
       return {
         branch_id: b.id,
-        name: b.name,
+        name: dbName(b),
         work_days: s?.work_days ?? [6, 0, 1, 2, 3, 4],   // افتراضي: السبت–الخميس
         start_time: hhmm(s?.start_time) || '16:00',
         end_time: hhmm(s?.end_time) || '20:00',
@@ -90,7 +90,7 @@ export default function BranchHoursTab() {
     const r = rows.find(x => x.branch_id === id)
     if (!r) return
     const fail = (t) => setRows(rs => rs.map(x => x.branch_id === id ? { ...x, msg: { ok: false, t } } : x))
-    if (r.end_time <= r.start_time) return fail('وقت النهاية لازم يكون بعد البداية')
+    if (r.end_time <= r.start_time) return fail(t('hours.endAfterStart'))
 
     // ساعات الأيام: نحفظ بس أيام العمل، وكل يوم لازم نهايته بعد بدايته
     const day_hours = {}
@@ -98,7 +98,7 @@ export default function BranchHoursTab() {
       for (const n of r.work_days) {
         const h = hoursOf(r, n)
         if (!h.start || !h.end || h.end <= h.start) {
-          return fail(`${DAYS.find(d => d.n === n)?.ar}: وقت النهاية لازم يكون بعد البداية`)
+          return fail(`${dayName(n)}: ${t('hours.endAfterStart')}`)
         }
         day_hours[n] = { start: h.start, end: h.end }
       }
@@ -116,19 +116,19 @@ export default function BranchHoursTab() {
     }, { onConflict: 'branch_id' })
     setRows(rs => rs.map(x => x.branch_id === id
       ? { ...x, saving: false, dirty: error ? x.dirty : false, configured: !error || x.configured,
-          msg: error ? { ok: false, t: 'تعذّر الحفظ' } : { ok: true, t: '✓ تم الحفظ' } }
+          msg: error ? { ok: false, t: t('addLead.saveFailed') } : { ok: true, t: '✓ ' + t('general.saved') } }
       : x))
     if (!error) setTimeout(() =>
       setRows(rs => rs.map(x => x.branch_id === id ? { ...x, msg: null } : x)), 3000)
   }
 
-  if (loading) return <div className="empty" style={{ padding: 24 }}>جارٍ التحميل…</div>
-  if (!rows.length) return <div className="empty" style={{ padding: 24 }}>لا توجد فروع نشطة — أضِف فرعًا من تبويب «الفروع» أولًا.</div>
+  if (loading) return <div className="empty" style={{ padding: 24 }}>{t('common.loading')}</div>
+  if (!rows.length) return <div className="empty" style={{ padding: 24 }}>{t('hours.noBranches')}</div>
 
   return (
     <div>
       <p className="hint" style={{ marginBottom: 14 }}>
-        اختر أيام العمل وساعاته لكل فرع، ومدة الخانة — ومنها تتولّد خانات مواعيد المعاينات تلقائيًا.
+        {t('hours.intro')}
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -141,12 +141,12 @@ export default function BranchHoursTab() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <h3 style={{ margin: 0 }}>{r.name}</h3>
                 {!r.configured && (
-                  <span className="badge badge-pending" style={{ fontSize: 11 }}>غير مُعدّ بعد</span>
+                  <span className="badge badge-pending" style={{ fontSize: 11 }}>{t('hours.notConfigured')}</span>
                 )}
               </div>
 
               {/* أيام العمل */}
-              <div className="row-label" style={{ marginBottom: 8 }}>أيام العمل</div>
+              <div className="row-label" style={{ marginBottom: 8 }}>{t('hours.workDays')}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
                 {DAYS.map(d => {
                   const on = r.work_days.includes(d.n)
@@ -169,7 +169,7 @@ export default function BranchHoursTab() {
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, marginBottom: 10, cursor: 'pointer' }}>
                 <input type="checkbox" checked={r.per_day}
                   onChange={e => patch(r.branch_id, { per_day: e.target.checked })} />
-                ساعات مختلفة لكل يوم
+                {t('hours.perDay')}
               </label>
 
               {r.per_day ? (
@@ -180,25 +180,25 @@ export default function BranchHoursTab() {
                     return (
                       <div key={d.n} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 70px', gap: 8, alignItems: 'center' }}>
                         <strong style={{ fontSize: 13.5 }}>{d.ar}</strong>
-                        <input type="time" value={h.start} aria-label={`${d.ar} من`}
+                        <input type="time" value={h.start} aria-label={`${d.ar} ${t('drawer.from')}`}
                           onChange={e => patchDay(r.branch_id, d.n, { start: e.target.value })} />
-                        <input type="time" value={h.end} aria-label={`${d.ar} إلى`}
+                        <input type="time" value={h.end} aria-label={`${d.ar} ${t('drawer.to')}`}
                           onChange={e => patchDay(r.branch_id, d.n, { end: e.target.value })} />
-                        <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{n} خانة</span>
+                        <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{t('hours.nSlots', { n })}</span>
                       </div>
                     )
                   })}
-                  {!r.work_days.length && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>اختر أيام العمل أولًا</div>}
+                  {!r.work_days.length && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t('hours.pickDaysFirst')}</div>}
                 </div>
               ) : (
               <div className="grid-2">
                 <div className="field">
-                  <label>من</label>
+                  <label>{t('drawer.from')}</label>
                   <input type="time" value={r.start_time}
                     onChange={e => patch(r.branch_id, { start_time: e.target.value })} />
                 </div>
                 <div className="field">
-                  <label>إلى</label>
+                  <label>{t('leads.f.to')}</label>
                   <input type="time" value={r.end_time}
                     onChange={e => patch(r.branch_id, { end_time: e.target.value })} />
                 </div>
@@ -207,26 +207,26 @@ export default function BranchHoursTab() {
 
               <div className="grid-2">
                 <div className="field">
-                  <label>مدة الخانة (دقيقة)</label>
+                  <label>{t('hours.slotMinutes')}</label>
                   <select value={r.slot_minutes}
                     onChange={e => patch(r.branch_id, { slot_minutes: e.target.value })}>
-                    {SLOT_OPTIONS.map(m => <option key={m} value={m}>{m} دقيقة</option>)}
+                    {SLOT_OPTIONS.map(m => <option key={m} value={m}>{t('hours.nMinutes', { n: m })}</option>)}
                   </select>
                 </div>
                 <div className="field" style={{ justifyContent: 'flex-end' }}>
                   <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
                     {!r.work_days.length
-                      ? 'لم تُختَر أيام عمل'
+                      ? t('hours.noDaysPicked')
                       : r.per_day
-                        ? `${r.work_days.reduce((t, n) => { const h = hoursOf(r, n); return t + slotsPerDay(h.start, h.end, Number(r.slot_minutes)) }, 0)} خانة في الأسبوع · ${r.work_days.length} أيام عمل`
-                        : `${perDay} خانة في اليوم · ${r.work_days.length} أيام عمل`}
+                        ? t('hours.weekSummary', { n: r.work_days.reduce((acc, n) => { const h = hoursOf(r, n); return acc + slotsPerDay(h.start, h.end, Number(r.slot_minutes)) }, 0), days: r.work_days.length })
+                        : t('hours.daySummary', { n: perDay, days: r.work_days.length })}
                   </div>
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
                 <button className="btn btn-primary" disabled={r.saving || !r.dirty} onClick={() => save(r.branch_id)}>
-                  {r.saving ? 'جارٍ الحفظ…' : 'حفظ'}
+                  {r.saving ? t('common.saving') : t('common.save')}
                 </button>
                 {r.msg && (
                   <span style={{ fontSize: 13, fontWeight: 700, color: r.msg.ok ? 'var(--ok)' : 'var(--danger)' }}>

@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SALES_ROLES, salesLabel, sortSales } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
+import useT from '../i18n/useT'
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('en-US')
 
 export default function ManualDistributeTab() {
   const { profile } = useAuth()
+  const { t: tr, dn } = useT()
 
   // مراجع
   const [stages, setStages] = useState([])
@@ -34,8 +36,8 @@ export default function ManualDistributeTab() {
   // ---------- تحميل المراجع ----------
   const loadRefs = useCallback(async () => {
     const [{ data: st }, { data: br }, { data: ag }, { data: ld }, { data: bt }] = await Promise.all([
-      supabase.from('stages').select('id, name_ar, code, board, category').order('sort_order'),
-      supabase.from('branches').select('id, name').eq('is_active', true).order('id'),
+      supabase.from('stages').select('id, name_ar, name_en, code, board, category').order('sort_order'),
+      supabase.from('branches').select('id, name, name_en').eq('is_active', true).order('id'),
       supabase.from('profiles')
         .select('id, full_name, weight, daily_cap, in_rotation, roles!inner(code)')
         .eq('status', 'active').in('roles.code', SALES_ROLES),
@@ -70,11 +72,11 @@ export default function ManualDistributeTab() {
   // ---------- عدّ الليدات المطابقة ----------
   async function countMatches() {
     setMsg(null); setPreview(null)
-    if (!fromStages.length) { setMsg({ t: 'err', m: 'اختر مرحلة واحدة على الأقل' }); return }
+    if (!fromStages.length) { setMsg({ t: 'err', m: tr('manual.pickStage') }); return }
     setBusy(true)
     const { count, error } = await buildQuery('id', { count: 'exact', head: true })
     setBusy(false)
-    if (error) { setMsg({ t: 'err', m: 'تعذر البحث — ' + error.message }); return }
+    if (error) { setMsg({ t: 'err', m: tr('manual.searchFailed') + ' — ' + error.message }); return }
     setMatched(count ?? 0)
   }
 
@@ -89,7 +91,7 @@ export default function ManualDistributeTab() {
   }
 
   function splitEqually() {
-    if (!matched) { setMsg({ t: 'err', m: 'اضغط "ابحث عن الليدات" الأول' }); return }
+    if (!matched) { setMsg({ t: 'err', m: tr('manual.searchFirst') }); return }
     const ids = agents.filter(a => picked[a.id] !== undefined && picked[a.id] !== null).map(a => a.id)
     const targets = ids.length ? ids : agents.map(a => a.id)
     const base = Math.floor(matched / targets.length)
@@ -101,7 +103,7 @@ export default function ManualDistributeTab() {
   }
 
   function fillByWeight() {
-    if (!matched) { setMsg({ t: 'err', m: 'اضغط "ابحث عن الليدات" الأول' }); return }
+    if (!matched) { setMsg({ t: 'err', m: tr('manual.searchFirst') }); return }
     const pool = agents.filter(a => a.in_rotation)
     const totalW = pool.reduce((s, a) => s + (a.weight || 1), 0)
     if (!totalW) return
@@ -114,14 +116,14 @@ export default function ManualDistributeTab() {
   // ---------- المعاينة ----------
   async function buildPreview() {
     setMsg(null)
-    if (!selected.length) { setMsg({ t: 'err', m: 'اختر موظفًا واحدًا على الأقل وحدّد عدده' }); return }
+    if (!selected.length) { setMsg({ t: 'err', m: tr('manual.pickEmployee') }); return }
     setBusy(true)
     // الأقدم أولًا — نجلب فقط العدد المطلوب
     const { data, error } = await buildQuery('id, full_name, created_at')
       .order('created_at', { ascending: true })
       .limit(totalPicked)
     setBusy(false)
-    if (error) { setMsg({ t: 'err', m: 'تعذر الجلب — ' + error.message }); return }
+    if (error) { setMsg({ t: 'err', m: tr('settings.loadFailed') + ' — ' + error.message }); return }
 
     const cands = data ?? []
     // توزيع دوري: واحد لكل موظف بالتناوب حتى ينفد نصيبه
@@ -153,19 +155,19 @@ export default function ManualDistributeTab() {
       p_new_stage_id: toStage ? Number(toStage) : null,
     })
     setBusy(false)
-    if (error) { setMsg({ t: 'err', m: 'فشل التوزيع — ' + error.message }); return }
-    setMsg({ t: 'ok', m: `تم توزيع ${fmt(preview.items.length)} ليد بنجاح` })
+    if (error) { setMsg({ t: 'err', m: tr('manual.distFailed') + ' — ' + error.message }); return }
+    setMsg({ t: 'ok', m: tr('manual.distributed', { n: fmt(preview.items.length) }) })
     setPreview(null); setPicked({}); setMatched(null)
     loadRefs()
   }
 
   async function undo(id) {
-    if (!window.confirm('سيتم إرجاع كل ليدات هذه الدفعة لأصحابها السابقين. متأكد؟')) return
+    if (!window.confirm(tr('manual.undoQ'))) return
     setBusy(true)
     const { error } = await supabase.rpc('undo_manual_distribution', { p_batch_id: id })
     setBusy(false)
-    if (error) { setMsg({ t: 'err', m: 'تعذر التراجع — ' + error.message }); return }
-    setMsg({ t: 'ok', m: 'تم التراجع عن الدفعة' })
+    if (error) { setMsg({ t: 'err', m: tr('manual.undoFailed') + ' — ' + error.message }); return }
+    setMsg({ t: 'ok', m: tr('manual.undone') })
     loadRefs()
   }
 
@@ -178,13 +180,13 @@ export default function ManualDistributeTab() {
 
         {/* ١ — الفلاتر */}
         <div className="card" style={{ padding: 18 }}>
-          <h2 style={{ fontSize: 15, marginBottom: 4 }}>١ — اختر الليدات</h2>
+          <h2 style={{ fontSize: 15, marginBottom: 4 }}>{tr('manual.step1')}</h2>
           <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 14 }}>
-            تظهر فقط ليداتك والليدات بدون مسؤول — لا تُسحب ليدات موظف آخر
+            {tr('manual.step1Hint')}
           </p>
 
           <div className="field">
-            <label>من المراحل (اختيار متعدد)</label>
+            <label>{tr('manual.fromStages')}</label>
             <div style={{
               maxHeight: 190, overflowY: 'auto', border: '1px solid var(--line)',
               borderRadius: 'var(--radius-sm)', padding: 8,
@@ -200,9 +202,9 @@ export default function ManualDistributeTab() {
                       setFromStages(v => e.target.checked ? [...v, s.id] : v.filter(x => x !== s.id))
                       setMatched(null); setPreview(null)
                     }} />
-                  <span>{s.name_ar}</span>
-                  <small style={{ color: 'var(--ink-soft)', marginRight: 'auto' }}>
-                    {s.board === 'coordinator' ? 'منسقات' : 'مبيعات'}
+                  <span>{dn(s)}</span>
+                  <small style={{ color: 'var(--ink-soft)', marginInlineStart: 'auto' }}>
+                    {s.board === 'coordinator' ? tr('bulk.coordsTag') : tr('exportLeads.board.sales')}
                   </small>
                 </label>
               ))}
@@ -210,41 +212,41 @@ export default function ManualDistributeTab() {
           </div>
 
           <div className="field">
-            <label>الفرع</label>
+            <label>{tr('lead.branch')}</label>
             <select value={branchId} onChange={e => { setBranchId(e.target.value); setMatched(null); setPreview(null) }}>
-              <option value="">كل الفروع</option>
-              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              <option value="">{tr('leads.f.allBranches')}</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{dn(b)}</option>)}
             </select>
           </div>
 
           <div className="grid-2">
             <div className="field">
-              <label>من تاريخ</label>
+              <label>{tr('exportLeads.fromDate')}</label>
               <input type="date" value={dateFrom}
                 onChange={e => { setDateFrom(e.target.value); setMatched(null); setPreview(null) }} />
             </div>
             <div className="field">
-              <label>إلى تاريخ</label>
+              <label>{tr('exportLeads.toDate')}</label>
               <input type="date" value={dateTo}
                 onChange={e => { setDateTo(e.target.value); setMatched(null); setPreview(null) }} />
             </div>
           </div>
 
           <div className="field">
-            <label>المرحلة بعد التوزيع</label>
+            <label>{tr('manual.stageAfter')}</label>
             <select value={toStage} onChange={e => setToStage(e.target.value)}>
-              <option value="">بدون تغيير (تبقى كما هي)</option>
-              {openStages.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+              <option value="">{tr('manual.noChange')}</option>
+              {openStages.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
             </select>
           </div>
 
           <button className="btn btn-primary" onClick={countMatches} disabled={busy}>
-            {busy ? 'جارٍ البحث…' : 'ابحث عن الليدات'}
+            {busy ? tr('chat.searching') : tr('manual.findLeads')}
           </button>
 
           {matched !== null && (
             <div className="alert alert-ok" style={{ marginTop: 12 }}>
-              لقينا <b>{fmt(matched)}</b> ليد مطابق — الأقدم يُوزَّع أولًا
+              {tr('manual.foundBefore')} <b>{fmt(matched)}</b> {tr('manual.foundAfter')}
             </div>
           )}
         </div>
@@ -252,21 +254,21 @@ export default function ManualDistributeTab() {
         {/* ٢ — الموظفون */}
         <div className="card">
           <div style={{ padding: '16px 16px 0' }}>
-            <h2 style={{ fontSize: 15 }}>٢ — اختر الموظفين وعدد كل واحد</h2>
+            <h2 style={{ fontSize: 15 }}>{tr('manual.step2')}</h2>
             <p style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-              اترك العدد صفرًا لاستبعاد الموظف — التوزيع يتم بالتناوب لا بالكتل
+              {tr('manual.step2Hint')}
             </p>
           </div>
 
           <div style={{ display: 'flex', gap: 8, padding: '12px 16px 0' }}>
-            <button className="btn btn-ghost btn-sm" onClick={splitEqually}>قسّم بالتساوي</button>
-            <button className="btn btn-ghost btn-sm" onClick={fillByWeight}>وزّع حسب الوزن</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => { setPicked({}); setPreview(null) }}>تصفير</button>
+            <button className="btn btn-ghost btn-sm" onClick={splitEqually}>{tr('manual.splitEqually')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={fillByWeight}>{tr('manual.byWeight')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setPicked({}); setPreview(null) }}>{tr('manual.reset')}</button>
           </div>
 
           <table className="table" style={{ marginTop: 10 }}>
             <thead>
-              <tr><th>الموظف</th><th>الوزن</th><th>الحد اليومي</th><th>ليداته المفتوحة</th><th>العدد</th></tr>
+              <tr><th>{tr('common.employee')}</th><th>{tr('distTab.weight')}</th><th>{tr('team.dailyCap')}</th><th>{tr('manual.openLeads')}</th><th>{tr('manual.count')}</th></tr>
             </thead>
             <tbody>
               {agents.map(a => {
@@ -276,11 +278,11 @@ export default function ManualDistributeTab() {
                     <td style={{ fontWeight: 600 }}>
                       {salesLabel(a)}
                       {!a.in_rotation && (
-                        <small style={{ color: 'var(--ink-soft)', marginRight: 6 }}>(خارج الدورة)</small>
+                        <small style={{ color: 'var(--ink-soft)', marginInlineStart: 6 }}>({tr('manual.outOfRotation')})</small>
                       )}
                     </td>
                     <td>{a.weight}</td>
-                    <td>{a.daily_cap}/يوم</td>
+                    <td>{a.daily_cap}/{tr('installments.dayUnit')}</td>
                     <td>
                       <span className="badge" style={{
                         background: heavy ? 'var(--warn-soft)' : 'var(--line-soft)',
@@ -305,16 +307,16 @@ export default function ManualDistributeTab() {
             padding: 16, borderTop: '1px solid var(--line)',
           }}>
             <div style={{ fontSize: 13 }}>
-              الإجمالي المطلوب: <b style={{ color: 'var(--gold)' }}>{fmt(totalPicked)}</b> ليد
+              {tr('manual.totalRequested')}: <b style={{ color: 'var(--gold)' }}>{fmt(totalPicked)}</b> {tr('leads.leadUnit')}
               {matched !== null && totalPicked > matched && (
-                <span style={{ color: 'var(--warn)', marginRight: 8 }}>
-                  (أكبر من المتاح {fmt(matched)})
+                <span style={{ color: 'var(--warn)', marginInlineStart: 8 }}>
+                  ({tr('manual.moreThanAvailable', { n: fmt(matched) })})
                 </span>
               )}
             </div>
-            <button className="btn btn-primary" style={{ marginRight: 'auto' }}
+            <button className="btn btn-primary" style={{ marginInlineStart: 'auto' }}
               onClick={buildPreview} disabled={busy || !totalPicked}>
-              معاينة التوزيع
+              {tr('manual.preview')}
             </button>
           </div>
         </div>
@@ -323,19 +325,19 @@ export default function ManualDistributeTab() {
       {/* ٣ — المعاينة والتأكيد */}
       {preview && (
         <div className="card" style={{ padding: 18, borderColor: 'var(--gold)' }}>
-          <h2 style={{ fontSize: 15, marginBottom: 10 }}>٣ — راجع قبل التنفيذ</h2>
+          <h2 style={{ fontSize: 15, marginBottom: 10 }}>{tr('manual.step3')}</h2>
 
           {preview.items.length === 0 ? (
-            <div className="empty"><strong>لا توجد ليدات مطابقة للتوزيع</strong></div>
+            <div className="empty"><strong>{tr('manual.noMatch')}</strong></div>
           ) : (
             <>
               <table className="table">
-                <thead><tr><th>الموظف</th><th>سيستلم</th></tr></thead>
+                <thead><tr><th>{tr('common.employee')}</th><th>{tr('manual.willReceive')}</th></tr></thead>
                 <tbody>
                   {preview.perUser.filter(u => u.got > 0).map(u => (
                     <tr key={u.name}>
                       <td style={{ fontWeight: 600 }}>{u.name}</td>
-                      <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmt(u.got)} ليد</td>
+                      <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmt(u.got)} {tr('leads.leadUnit')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -345,15 +347,15 @@ export default function ManualDistributeTab() {
                 <div className="alert" style={{
                   background: 'var(--warn-soft)', color: 'var(--warn)', marginTop: 12,
                 }}>
-                  العدد المطلوب أكبر من المتاح بـ {fmt(preview.shortfall)} ليد — سيُوزَّع المتاح فقط
+                  {tr('manual.shortfall', { n: fmt(preview.shortfall) })}
                 </div>
               )}
 
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                 <button className="btn btn-primary" onClick={execute} disabled={busy}>
-                  {busy ? 'جارٍ التوزيع…' : `تأكيد توزيع ${fmt(preview.items.length)} ليد`}
+                  {busy ? tr('manual.distributing') : tr('manual.confirmDistribute', { n: fmt(preview.items.length) })}
                 </button>
-                <button className="btn btn-ghost" onClick={() => setPreview(null)}>إلغاء</button>
+                <button className="btn btn-ghost" onClick={() => setPreview(null)}>{tr('common.cancel')}</button>
               </div>
             </>
           )}
@@ -363,17 +365,17 @@ export default function ManualDistributeTab() {
       {/* ٤ — السجل */}
       <div className="card">
         <div style={{ padding: '16px 16px 0' }}>
-          <h2 style={{ fontSize: 15 }}>سجل التوزيعات</h2>
+          <h2 style={{ fontSize: 15 }}>{tr('manual.history')}</h2>
           <p style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-            آخر ١٠ دفعات — يمكن التراجع عن أي دفعة لم يُتراجع عنها
+            {tr('manual.historyHint')}
           </p>
         </div>
         {batches.length === 0 ? (
-          <div className="empty"><strong>لم يتم أي توزيع يدوي بعد</strong></div>
+          <div className="empty"><strong>{tr('manual.noneYet')}</strong></div>
         ) : (
           <table className="table" style={{ marginTop: 10 }}>
             <thead>
-              <tr><th>#</th><th>التاريخ</th><th>عدد الليدات</th><th>الحالة</th><th></th></tr>
+              <tr><th>#</th><th>{tr('payments.date')}</th><th>{tr('manual.leadsCount')}</th><th>{tr('deals.status')}</th><th></th></tr>
             </thead>
             <tbody>
               {batches.map(b => (
@@ -383,13 +385,13 @@ export default function ManualDistributeTab() {
                   <td style={{ fontWeight: 600 }}>{fmt(b.leads_count)}</td>
                   <td>
                     {b.undone_at
-                      ? <span className="badge badge-suspended">تم التراجع</span>
-                      : <span className="badge badge-active">سارية</span>}
+                      ? <span className="badge badge-suspended">{tr('manual.undoneBadge')}</span>
+                      : <span className="badge badge-active">{tr('payments.st.active')}</span>}
                   </td>
                   <td>
                     {!b.undone_at && (
                       <button className="btn btn-danger btn-sm" onClick={() => undo(b.id)} disabled={busy}>
-                        تراجع
+                        {tr('common.undo')}
                       </button>
                     )}
                   </td>

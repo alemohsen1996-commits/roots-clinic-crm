@@ -3,15 +3,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { SALES_ROLES, salesLabel, sortSales } from '../lib/people'
 import { supabase } from '../lib/supabase'
+import useT from '../i18n/useT'
 
-const MODES = [
-  { v: 'round_robin', label: 'Round Robin بسيط', desc: 'توزيع دوري بالتساوي على الجميع' },
-  { v: 'weighted',    label: 'موزون', desc: 'الأعلى وزنًا يأخذ نصيبًا أكبر — عدّل الوزن من صفحة الموظفين' },
-  { v: 'skill',       label: 'بالمهارة',        desc: 'حسب لغة الليد أولًا ثم الأقل تحميلًا' },
-  { v: 'cherry_pick', label: 'التقاط حر',       desc: 'الليد يدخل Pool مشترك وأول من يفتحه يأخذه' },
-]
+// الأسماء والشرح من الترجمة: distTab.modes.*
+const MODES = ['round_robin', 'weighted', 'skill', 'cherry_pick']
 
 export default function DistributionTab() {
+  const { t: tr } = useT()
   const [mode, setMode] = useState('')
   const [minutes, setMinutes] = useState('')
   const [team, setTeam] = useState([])
@@ -43,8 +41,8 @@ export default function DistributionTab() {
     ])
     setBusy(false)
     const error = r1.error || r2.error
-    if (error) { setMsg({ ok: false, t: 'تعذر الحفظ — ' + error.message }); return }
-    setMsg({ ok: true, t: 'تم حفظ الإعدادات' })
+    if (error) { setMsg({ ok: false, t: tr('addLead.saveFailed') + ' — ' + error.message }); return }
+    setMsg({ ok: true, t: tr('distTab.saved') })
     setTimeout(() => setMsg(null), 3500)
     load()
   }
@@ -55,12 +53,11 @@ export default function DistributionTab() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
       <div className="card" style={{ padding: 18 }}>
-        <h2 style={{ fontSize: 15, marginBottom: 8 }}>نمط التوزيع التلقائي</h2>
+        <h2 style={{ fontSize: 15, marginBottom: 8 }}>{tr('distTab.modeTitle')}</h2>
 
         <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--warn)', lineHeight: 1.8 }}>
-          <b>التوزيع التلقائي غير مفعّل حاليًا.</b><br />
-          الأنماط أدناه محفوظة كإعداد فقط ولا يُنفَّذ أي توزيع تلقائي على الليدات
-          الواردة. توزيع الليدات يتم من صفحة «توزيع الليدات» في القائمة الجانبية.
+          <b>{tr('distTab.notEnabled')}</b><br />
+          {tr('distTab.notEnabledBody')}
         </div>
 
         {msg && (
@@ -69,51 +66,51 @@ export default function DistributionTab() {
 
         <div style={{ opacity: .75 }}>
           {MODES.map(m => (
-            <label key={m.v} className="mode-option" data-on={mode === m.v}>
-              <input type="radio" name="mode" checked={mode === m.v} onChange={() => setMode(m.v)} />
-              <div><b>{m.label}</b><small>{m.desc}</small></div>
+            <label key={m} className="mode-option" data-on={mode === m}>
+              <input type="radio" name="mode" checked={mode === m} onChange={() => setMode(m)} />
+              <div><b>{tr(`distTab.modes.${m}.label`)}</b><small>{tr(`distTab.modes.${m}.desc`)}</small></div>
             </label>
           ))}
         </div>
 
         <div className="field" style={{ marginTop: 16, opacity: .75 }}>
-          <label>سحب الليد غير الملموس بعد (دقائق)</label>
+          <label>{tr('distTab.reclaimAfter')}</label>
           <input type="number" min={5} value={minutes} onChange={e => setMinutes(e.target.value)} />
           <small style={{ color: 'var(--ink-soft)' }}>
-            غير مفعّل أيضًا — يحتاج مهمة مجدولة (Cron) في قاعدة البيانات
+            {tr('distTab.reclaimNote')}
           </small>
         </div>
 
         <button className="btn btn-primary" onClick={save} disabled={busy}>
-          {busy ? 'جارٍ الحفظ…' : 'حفظ الإعدادات'}
+          {busy ? tr('common.saving') : tr('distTab.saveSettings')}
         </button>
       </div>
 
       <div className="card">
         <div style={{ padding: '16px 16px 0' }}>
-          <h2 style={{ fontSize: 15 }}>الفريق ({inRotation.length})</h2>
+          <h2 style={{ fontSize: 15 }}>{tr('deals.team')} ({inRotation.length})</h2>
           <p style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-            الوزن والحد اليومي يُستخدمان في زر «وزّع حسب الوزن» في صفحة توزيع الليدات
+            {tr('distTab.weightHint')}
           </p>
         </div>
         {inRotation.length === 0 ? (
           <div className="empty">
-            <strong>لا أحد مُفعّل في التوزيع</strong>
-            فعّل "يدخل في التوزيع التلقائي" لأي موظف من صفحة الموظفين
+            <strong>{tr('distTab.nobody')}</strong>
+            {tr('distTab.nobodyHint')}
           </div>
         ) : (
           <table className="table" style={{ marginTop: 10 }}>
             <thead>
-              <tr><th>الموظف</th><th>الوزن</th><th>نصيبه المتوقع</th><th>الحد اليومي</th><th>اللغات</th></tr>
+              <tr><th>{tr('common.employee')}</th><th>{tr('distTab.weight')}</th><th>{tr('distTab.expectedShare')}</th><th>{tr('team.dailyCap')}</th><th>{tr('distTab.languages')}</th></tr>
             </thead>
             <tbody>
               {inRotation.map(t => (
                 <tr key={t.full_name}>
                   <td style={{ fontWeight: 600 }}>{salesLabel(t)}</td>
                   <td>{t.weight}</td>
-                  <td>{totalWeight ? Math.round((t.weight / totalWeight) * 100) + '٪' : '—'}</td>
-                  <td>{t.daily_cap}/يوم</td>
-                  <td>{(t.languages ?? []).join('، ')}</td>
+                  <td>{totalWeight ? Math.round((t.weight / totalWeight) * 100) + '%' : '—'}</td>
+                  <td>{t.daily_cap}/{tr('installments.dayUnit')}</td>
+                  <td>{(t.languages ?? []).join(', ')}</td>
                 </tr>
               ))}
             </tbody>

@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
+import i18n from '../i18n'
+import useT from '../i18n/useT'
 
 const BATCH = 500
 
@@ -35,14 +37,16 @@ const digits = (v) => String(v ?? '').replace(/\D/g, '')
 // الرقم صالح فقط بكود الدولة: لا يبدأ بصفر، وطوله معقول
 function checkPhone(raw) {
   const p = digits(raw)
-  if (!p) return { ok: false, why: 'فارغ' }
-  if (p.startsWith('0')) return { ok: false, why: 'بدون كود دولة' }
-  if (p.length < 10) return { ok: false, why: 'قصير' }
-  if (p.length > 15) return { ok: false, why: 'طويل' }
+  // why = مفتاح ترجمة (importTab.why.*)
+  if (!p) return { ok: false, why: 'empty' }
+  if (p.startsWith('0')) return { ok: false, why: 'noCountryCode' }
+  if (p.length < 10) return { ok: false, why: 'short' }
+  if (p.length > 15) return { ok: false, why: 'long' }
   return { ok: true, phone: p }
 }
 
 export default function ImportLeadsTab() {
+  const { t, dn, isEn } = useT()
   const [fileName, setFileName] = useState('')
   const [rows, setRows] = useState([])
   const [headers, setHeaders] = useState([])
@@ -65,9 +69,9 @@ export default function ImportLeadsTab() {
 
   const loadRefs = useCallback(async () => {
     const [{ data: st }, { data: so }, { data: br }, { data: pp }] = await Promise.all([
-      supabase.from('stages').select('id, name_ar, board')
+      supabase.from('stages').select('id, name_ar, name_en, board')
         .eq('is_active', true).order('sort_order'),
-      supabase.from('lead_sources').select('id, name_ar').eq('is_active', true),
+      supabase.from('lead_sources').select('id, name_ar, name_en').eq('is_active', true),
       supabase.from('branches').select('id, name').eq('is_active', true),
       supabase.from('profiles').select('id, full_name, roles(code)').eq('status', 'active'),
     ])
@@ -77,15 +81,20 @@ export default function ImportLeadsTab() {
 
   // ---------- تحميل القالب ----------
   function downloadTemplate() {
-    const ws = XLSX.utils.aoa_to_sheet([
+    // القالب بلغة الواجهة — رؤوس الأعمدة بالاتنين مقبولة في الاستيراد
+    const ws = XLSX.utils.aoa_to_sheet(isEn ? [
+      ['Name', 'Phone', 'Branch', 'Notes'],
+      ['Ahmed Mohamed', '966555512583', '', ''],
+      ['Khaled Alotaibi', '966501234567', '', 'Asking about this month\'s offer'],
+    ] : [
       ['الاسم', 'الهاتف', 'الفرع', 'ملاحظة'],
       ['أحمد محمد', '966555512583', '', ''],
       ['خالد العتيبي', '966501234567', '', 'يسأل عن عرض الشهر'],
     ])
     ws['!cols'] = [{ wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 30 }]
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'الليدات')
-    XLSX.writeFile(wb, 'قالب-استيراد-الليدات.xlsx')
+    XLSX.utils.book_append_sheet(wb, ws, isEn ? 'Leads' : 'الليدات')
+    XLSX.writeFile(wb, isEn ? 'leads-import-template.xlsx' : 'قالب-استيراد-الليدات.xlsx')
   }
 
   // ---------- قراءة الملف ----------
@@ -100,15 +109,15 @@ export default function ImportLeadsTab() {
         const wb = XLSX.read(reader.result, { type: 'array' })
         const ws = wb.Sheets[wb.SheetNames[0]]
         const data = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false })
-        if (!data.length) { setErr('الملف فارغ'); setRows([]); return }
+        if (!data.length) { setErr(t('importTab.emptyFile')); setRows([]); return }
         setHeaders(Object.keys(data[0]))
         setRows(data)
       } catch {
-        setErr('تعذر قراءة الملف — تأكد أنه Excel أو CSV سليم')
+        setErr(t('importTab.readFailedHint'))
         setRows([])
       }
     }
-    reader.onerror = () => setErr('تعذر قراءة الملف')
+    reader.onerror = () => setErr(t('importTab.readFailed'))
     reader.readAsArrayBuffer(f)
   }
 
@@ -142,7 +151,7 @@ export default function ImportLeadsTab() {
       }
 
       valid.push({
-        full_name: String(r[cName] ?? '').trim() || 'بدون اسم',
+        full_name: String(r[cName] ?? '').trim() || t('importTab.noName'),
         phone: chk.phone,
         ...(bId ? { branch_id: bId } : {}),
         ...(cNotes && String(r[cNotes] ?? '').trim()
@@ -155,9 +164,9 @@ export default function ImportLeadsTab() {
   // ---------- التنفيذ ----------
   async function run() {
     setErr(''); setResult(null)
-    if (!analysis?.valid?.length) { setErr('لا توجد صفوف صالحة'); return }
-    if (!stageId) { setErr('اختر المرحلة'); return }
-    if (ownerMode === 'agent' && !ownerId) { setErr('اختر الموظف المسؤول'); return }
+    if (!analysis?.valid?.length) { setErr(t('importTab.noValidRows')); return }
+    if (!stageId) { setErr(t('bulk.pickStage')); return }
+    if (ownerMode === 'agent' && !ownerId) { setErr(t('importTab.pickOwner')); return }
 
     setBusy(true); setDone(0)
     let inserted = 0, skipped = 0
@@ -179,7 +188,7 @@ export default function ImportLeadsTab() {
       }
       setResult({ inserted, skipped, bad: analysis.bad.length, dup: analysis.dup.length })
     } catch (e) {
-      setErr('تعذر الاستيراد — ' + (e.message || ''))
+      setErr(t('importTab.importFailed') + ' — ' + (e.message || ''))
     }
     setBusy(false)
   }
@@ -197,31 +206,29 @@ export default function ImportLeadsTab() {
 
       {/* القالب */}
       <div className="card" style={{ padding: 18 }}>
-        <h2 style={{ fontSize: 15, marginBottom: 4 }}>القالب</h2>
+        <h2 style={{ fontSize: 15, marginBottom: 4 }}>{t('importTab.template')}</h2>
         <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12, lineHeight: 1.8 }}>
-          الملف يحتاج عمودين إجباريين فقط: <b>الاسم</b> و<b>الهاتف</b>.
-          <b> الفرع</b> و<b>ملاحظة</b> اختياريان — اتركهما فارغين إن لم تحتجهما.
+          {t('importTab.templateHint1')}
           <br />
-          الأرقام يجب أن تكون بكود الدولة (مثل <span dir="ltr">966555512583</span>) —
-          أي رقم يبدأ بصفر سيُرفض.
+          {t('importTab.templateHint2')} <span dir="ltr">966555512583</span> — {t('importTab.templateHint3')}
         </p>
-        <button className="btn btn-ghost" onClick={downloadTemplate}>⬇ تحميل القالب</button>
+        <button className="btn btn-ghost" onClick={downloadTemplate}>⬇ {t('importTab.downloadTemplate')}</button>
       </div>
 
       {/* الملف */}
       <div className="card" style={{ padding: 18 }}>
-        <h2 style={{ fontSize: 15, marginBottom: 12 }}>ارفع الملف</h2>
+        <h2 style={{ fontSize: 15, marginBottom: 12 }}>{t('importTab.upload')}</h2>
         <input type="file" accept=".xlsx,.xls,.csv" onChange={onFile} disabled={busy} />
         {fileName && (
           <div style={{ marginTop: 10, fontSize: 13 }}>
-            <b>{fileName}</b> — {rows.length.toLocaleString('en-US')} صف
+            <b>{fileName}</b> — {t('importTab.nRows', { n: rows.length.toLocaleString('en-US') })}
             <button className="btn btn-ghost btn-sm" style={{ marginInlineStart: 10 }}
-              onClick={reset} disabled={busy}>تغيير الملف</button>
+              onClick={reset} disabled={busy}>{t('importTab.changeFile')}</button>
           </div>
         )}
         {analysis?.missingPhoneCol && (
           <div className="alert alert-error" style={{ marginTop: 12 }}>
-            لم يُعثر على عمود الهاتف — تأكد أن رأس العمود مكتوب «الهاتف» أو «Phone»
+            {t('importTab.noPhoneCol')}
           </div>
         )}
       </div>
@@ -230,22 +237,22 @@ export default function ImportLeadsTab() {
         <>
           {/* الوجهة */}
           <div className="card" style={{ padding: 18 }}>
-            <h2 style={{ fontSize: 15, marginBottom: 12 }}>أين تذهب هذه الليدات؟</h2>
+            <h2 style={{ fontSize: 15, marginBottom: 12 }}>{t('importTab.whereTo')}</h2>
 
             <div className="grid-2">
               <div className="field">
-                <label>المسؤول</label>
+                <label>{t('lead.owner')}</label>
                 <select value={ownerMode} onChange={e => setOwnerMode(e.target.value)}>
-                  <option value="agent">موظف محدّد</option>
-                  <option value="me">حسابي — أوزّعهم لاحقًا</option>
-                  <option value="none">بدون مسؤول</option>
+                  <option value="agent">{t('importTab.specificEmployee')}</option>
+                  <option value="me">{t('importTab.myAccount')}</option>
+                  <option value="none">{t('leads.chips.noOwner')}</option>
                 </select>
               </div>
               {ownerMode === 'agent' && (
                 <div className="field">
-                  <label>الموظف *</label>
+                  <label>{t('common.employee')} *</label>
                   <select value={ownerId} onChange={e => setOwnerId(e.target.value)}>
-                    <option value="">— اختر —</option>
+                    <option value="">{t('common.pick')}</option>
                     {agents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
                   </select>
                 </div>
@@ -254,111 +261,109 @@ export default function ImportLeadsTab() {
 
             <div className="grid-2">
               <div className="field">
-                <label>المرحلة *</label>
+                <label>{t('lead.stage')} *</label>
                 <select value={stageId} onChange={e => setStageId(e.target.value)}>
-                  <option value="">— اختر —</option>
+                  <option value="">{t('common.pick')}</option>
                   {stages.map(s => (
                     <option key={s.id} value={s.id}>
-                      {s.name_ar}{s.board === 'coordinator' ? ' · منسقات' : ''}
+                      {dn(s)}{s.board === 'coordinator' ? ` · ${t('bulk.coordsTag')}` : ''}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="field">
-                <label>المصدر</label>
+                <label>{t('lead.source')}</label>
                 <select value={sourceId} onChange={e => setSourceId(e.target.value)}>
-                  <option value="">— بدون —</option>
-                  {sources.map(s => <option key={s.id} value={s.id}>{s.name_ar}</option>)}
+                  <option value="">{t('common.noneDash')}</option>
+                  {sources.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
                 </select>
                 <small style={{ color: 'var(--ink-soft)' }}>
-                  لأرقام الوكالات: أضف مصدرًا باسمها من تبويب «المصادر» لتقيس أداءها
+                  {t('importTab.sourceHint')}
                 </small>
               </div>
             </div>
 
             <div className="field">
-              <label>الفرع الافتراضي</label>
+              <label>{t('importTab.defaultBranch')}</label>
               <select value={branchId} onChange={e => setBranchId(e.target.value)}>
-                <option value="">— بدون —</option>
-                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                <option value="">{t('common.noneDash')}</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{dn(b)}</option>)}
               </select>
               <small style={{ color: 'var(--ink-soft)' }}>
-                يُستخدم للصفوف التي لم يُكتب لها فرع في الملف
+                {t('importTab.defaultBranchHint')}
               </small>
             </div>
           </div>
 
           {/* المعاينة */}
           <div className="card" style={{ padding: 18, borderColor: 'var(--gold)' }}>
-            <h2 style={{ fontSize: 15, marginBottom: 12 }}>راجع قبل الاستيراد</h2>
+            <h2 style={{ fontSize: 15, marginBottom: 12 }}>{t('importTab.review')}</h2>
 
             <div className="fin-grid" style={{ marginBottom: 14 }}>
               <div className="fin-gold">
-                <span>سيُستورد</span>{analysis.valid.length.toLocaleString('en-US')} ليد
+                <span>{t('importTab.willImport')}</span>{analysis.valid.length.toLocaleString('en-US')} {t('leads.leadUnit')}
               </div>
               <div className={analysis.bad.length ? 'fin-danger' : ''}>
-                <span>رقم مرفوض</span>{analysis.bad.length.toLocaleString('en-US')}
+                <span>{t('importTab.rejectedNumbers')}</span>{analysis.bad.length.toLocaleString('en-US')}
               </div>
-              <div><span>مكرر داخل الملف</span>{analysis.dup.length.toLocaleString('en-US')}</div>
+              <div><span>{t('importTab.dupInFile')}</span>{analysis.dup.length.toLocaleString('en-US')}</div>
             </div>
 
             {analysis.branchUnmatched > 0 && (
               <div className="alert" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
-                {analysis.branchUnmatched.toLocaleString('en-US')} صف فيه اسم فرع غير موجود عندك —
-                سيأخذون الفرع الافتراضي أعلاه
+                {t('importTab.branchUnmatched', { n: analysis.branchUnmatched.toLocaleString('en-US') })}
               </div>
             )}
 
             {analysis.bad.length > 0 && (
               <details style={{ marginBottom: 12 }}>
                 <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                  اعرض الأرقام المرفوضة ({analysis.bad.length})
+                  {t('importTab.showRejected')} ({analysis.bad.length})
                 </summary>
                 <table className="table" style={{ marginTop: 8 }}>
-                  <thead><tr><th>الرقم كما ورد</th><th>السبب</th></tr></thead>
+                  <thead><tr><th>{t('importTab.numberAsGiven')}</th><th>{t('prpFu.reason')}</th></tr></thead>
                   <tbody>
                     {analysis.bad.slice(0, 50).map((b, i) => (
                       <tr key={i}>
-                        <td dir="ltr" style={{ textAlign: 'right' }}>
+                        <td className="ltr-cell">
                           {String(b.row[analysis.cPhone] ?? '') || '—'}
                         </td>
-                        <td style={{ color: 'var(--danger)' }}>{b.why}</td>
+                        <td style={{ color: 'var(--danger)' }}>{t(`importTab.why.${b.why}`, { defaultValue: b.why })}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 {analysis.bad.length > 50 && (
                   <p style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                    …وأكثر. صحّحها في الملف وأعد الرفع
+                    {t('importTab.andMore')}
                   </p>
                 )}
               </details>
             )}
 
             <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.8, marginBottom: 14 }}>
-              أي رقم موجود في النظام بالفعل سيُتخطّى ولن يُضاف مرة ثانية،
-              لذلك قد يقلّ العدد النهائي عمّا هو أعلاه.
+              {t('importTab.existingSkipped')}
             </p>
 
             {busy && (
               <div className="alert alert-ok">
-                جارٍ الاستيراد… {done.toLocaleString('en-US')} من {analysis.valid.length.toLocaleString('en-US')}
+                {t('importTab.importing')} {done.toLocaleString('en-US')} / {analysis.valid.length.toLocaleString('en-US')}
               </div>
             )}
 
             {result && (
               <div className="alert alert-ok" style={{ lineHeight: 1.9 }}>
-                <b>اكتمل الاستيراد</b><br />
-                أُضيف: {result.inserted.toLocaleString('en-US')} ليد<br />
-                تُخطّي (رقم موجود مسبقًا): {result.skipped.toLocaleString('en-US')}<br />
-                مرفوض: {result.bad.toLocaleString('en-US')} ·
-                مكرر داخل الملف: {result.dup.toLocaleString('en-US')}
+                <b>{t('importTab.done')}</b><br />
+                {t('importTab.added')}: {result.inserted.toLocaleString('en-US')} {t('leads.leadUnit')}<br />
+                {t('importTab.skippedExisting')}: {result.skipped.toLocaleString('en-US')}<br />
+                {t('importTab.rejected')}: {result.bad.toLocaleString('en-US')} ·
+                {t('importTab.dupInFile')}: {result.dup.toLocaleString('en-US')}
               </div>
             )}
 
             <button className="btn btn-primary" onClick={run}
               disabled={busy || !analysis.valid.length || !stageId}>
-              {busy ? 'جارٍ الاستيراد…' : `استيراد ${analysis.valid.length.toLocaleString('en-US')} ليد`}
+              {busy ? t('importTab.importing') : t('importTab.importN', { n: analysis.valid.length.toLocaleString('en-US') })}
             </button>
           </div>
         </>
