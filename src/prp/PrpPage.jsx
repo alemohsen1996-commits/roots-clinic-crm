@@ -9,6 +9,8 @@ import PrpDrawer from './PrpDrawer'
 import PrpMonthStats, { usePrpMonthStats, lastMonths } from './PrpMonthStats'
 import { UnrecordedSessions, FollowupList } from './PrpWorkLists'
 import useT from '../i18n/useT'
+import { useIsMobile } from '../lib/useIsMobile'
+import ContactButtons from '../components/ContactButtons'
 
 // الأسماء في الترجمة: prpStatus.*
 const STATUS_CLS = { active: 'badge-active', completed: 'badge-active', dropped: 'badge-suspended' }
@@ -17,6 +19,7 @@ const STATUS_CLS = { active: 'badge-active', completed: 'badge-active', dropped:
 export default function PrpPage() {
   const { profile, isManager, roleCode } = useAuth()
   const { t } = useT()
+  const isMobile = useIsMobile()
   const [rows, setRows] = useState([])
   const [reminders, setReminders] = useState([])
   const [status, setStatus] = useState('active')
@@ -143,6 +146,26 @@ export default function PrpPage() {
           <div style={{ padding: '14px 16px 4px' }}>
             <h2 style={{ fontSize: 15, color: 'var(--primary)' }}>{t('prp.next48')}</h2>
           </div>
+          {isMobile ? (
+            <ul className="mcards" style={{ padding: '6px 12px 12px' }}>
+              {reminders.map(r => (
+                <li key={r.id} className="mcard">
+                  <div className="mcard-main">
+                    <div className="mcard-top">
+                      <span className="mcard-title">{r.full_name}</span>
+                      <span className="mcard-due">{fmtDate(r.planned_date)}</span>
+                    </div>
+                  </div>
+                  {r.phone && (
+                    <div className="mcard-actions">
+                      <ContactButtons phone={r.phone} />
+                      <span className="hint" dir="ltr">{r.phone}</span>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
           <table className="table">
             <thead><tr><th>{t('statements.patient')}</th><th>{t('lead.phone')}</th><th>{t('prp.sessionDate')}</th></tr></thead>
             <tbody>
@@ -172,6 +195,7 @@ export default function PrpPage() {
               ))}
             </tbody>
           </table>
+          )}
         </div>
       )}
 
@@ -199,6 +223,48 @@ export default function PrpPage() {
           {t('prp.noPackagesHint')}
         </div>
       ) : (
+        isMobile ? (
+        <ul className="mcards">
+          {visible.map(r => (
+            <li key={r.package_id} className={'mcard' + (canEditAll || isMine(r) ? '' : ' is-dim')}>
+              <button type="button" className="mcard-main" onClick={() => setOpenPkg(r)}>
+                <div className="mcard-top">
+                  <span className="mcard-title">{r.full_name}<small>{r.file_no}</small></span>
+                  <span className={'badge ' + (STATUS_CLS[r.status] ?? '')}>
+                    {t(`prpStatus.${r.status}`, { defaultValue: r.status })}
+                  </span>
+                </div>
+                <div className="mcard-row">
+                  <span><ProgressDots done={r.sessions_done} total={r.sessions_total} /></span>
+                  <b>{fmtNum(r.sessions_done)}/{fmtNum(r.sessions_total)}</b>
+                </div>
+                <div className="mcard-meta">
+                  <span>{t('prp.nextSession')}: {fmtDate(r.next_session)}</span>
+                  <span>
+                    {t('prp.lastSession')}: {r.last_session_date ? fmtDate(r.last_session_date) : '—'}
+                    {r.days_since_last > 45 && (
+                      <span className="badge badge-pending" style={{ marginInlineStart: 6 }}>
+                        {t('prp.daysAgo', { n: r.days_since_last })}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="mcard-meta">
+                  <span>{t('lead.coordShort')}: {r.coordinator_name ?? '—'}</span>
+                  <span>{t('rolesShort.agent')}: {r.agent_name ?? '—'}</span>
+                  {isMine(r) && !canEditAll && <span className="badge badge-active">{t('prp.myPatient')}</span>}
+                </div>
+              </button>
+              {r.phone && (
+                <div className="mcard-actions">
+                  <ContactButtons phone={r.phone} />
+                  <span className="hint" dir="ltr">{r.phone}</span>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+        ) : (
         <div className="card" style={{ overflowX: 'auto' }}>
           <table className="table">
             <thead>
@@ -274,6 +340,7 @@ export default function PrpPage() {
             </tbody>
           </table>
         </div>
+        )
       )}
 
       {!loading && total > 0 && (

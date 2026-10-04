@@ -2493,3 +2493,68 @@ html[dir="ltr"] .ltr-cell { text-align: left; }
     background: var(--card); color: var(--ink); font: inherit;
   }
 }
+
+/* ============================================================
+   الموبايل — المرحلة التانية: كروت بدل الجداول (المهام، الديلات، المدفوعات، البلازما)
+   الكروت بتترسم بس لما الشاشة موبايل (useIsMobile)، فالقواعد دي مش بتلمس الكمبيوتر
+   ============================================================ */
+.mcard-section { margin-bottom: 18px; }
+.mcard-section > h2 { font-size: 15px; margin: 0 2px 8px; }
+.mcards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.mcard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.mcard.tone-danger { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.mcard.is-dim { opacity: .55; }
+.mcard.is-void { opacity: .55; }
+.mcard.is-void .mcard-amount { text-decoration: line-through; }
+.mcard-main {
+  display: block; width: 100%;
+  padding: 12px 14px;
+  border: none; background: none; text-align: start;
+  font: inherit; color: var(--ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+div.mcard-main { cursor: default; }
+button.mcard-main:active { background: var(--surface); }
+.mcard-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.mcard-title { font-size: 15px; font-weight: 700; line-height: 1.45; min-width: 0; overflow-wrap: anywhere; }
+.mcard-title small { display: block; font-size: 11.5px; font-weight: 500; color: var(--ink-soft); }
+.mcard-end { flex-shrink: 0; text-align: end; }
+.mcard-amount { font-size: 16px; font-weight: 800; color: var(--gold); white-space: nowrap; }
+.mcard-due { font-size: 12.5px; font-weight: 700; color: var(--primary); white-space: nowrap; }
+.mcard-due.late { color: var(--danger); }
+.mcard-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; line-height: 1.6; }
+.mcard-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 8px; font-size: 13px; }
+.mcard-row b { white-space: nowrap; }
+.mcard-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+.mcard-meta .badge { font-size: 11.5px; }
+.mcard-note {
+  margin-top: 8px; padding: 8px 10px;
+  background: var(--surface); border-radius: 8px;
+  font-size: 12.5px; color: var(--ink); line-height: 1.6;
+}
+.mcard-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.mcard-actions .btn { min-height: 44px; }
+.mcard-actions .grow { flex: 1; }
+.mcard-actions .btn-sm { min-height: 44px; padding-inline: 12px; font-size: 13px; }
+.mcard-actions .hint { font-size: 12.5px; color: var(--ink-soft); }
+.mact {
+  flex: 0 0 44px; width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--card); color: var(--primary);
+  cursor: pointer; text-decoration: none;
+}
+.mact.wa { color: #1f9d55; }
+.mact:active { transform: scale(.94); background: var(--surface); }
+.mcard .deals-bar { margin-top: 8px; }
+.mcard .deals-flags { margin-top: 8px; }

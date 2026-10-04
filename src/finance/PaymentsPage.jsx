@@ -8,6 +8,8 @@ import { exportCsv } from '../lib/exportCsv'
 import { uploadReceipt, discardReceipt, openReceipt } from './receipts'
 import AddPaymentModal from './AddPaymentModal'
 import useT from '../i18n/useT'
+import { useIsMobile } from '../lib/useIsMobile'
+import ContactButtons from '../components/ContactButtons'
 import { dbErr } from '../lib/dbErrors'
 
 // تاريخ مختصر يمنع تكسّر الخلية في جدول متعدد الأعمدة
@@ -48,6 +50,7 @@ export default function PaymentsPage() {
   const methodLabel = (m) => t(`payMethod.${m}`, { defaultValue: m })
   const canConfirm = isManager || roleCode === 'accountant'
   const canApproveVoid = isManager || roleCode === 'accountant'
+  const isMobile = useIsMobile()
 
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
@@ -268,6 +271,64 @@ export default function PaymentsPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE))
   const hasFilters = search || from || to || method || status || onlyUnconfirmed
 
+  // كارت دفعة (موبايل)
+  const paymentCard = (p) => {
+    const isVoid = p.status === 'void'
+    const isVoidReq = p.status === 'void_requested'
+    const lead = p.deals?.leads
+    return (
+      <li key={p.id} className={'mcard' + (isVoid ? ' is-void' : '')}>
+        <div className="mcard-main">
+          <div className="mcard-top">
+            <span className="mcard-title">{lead?.full_name}<small>{lead?.file_no}</small></span>
+            <span className="mcard-amount">{fmtNum(p.amount)} {SAR}</span>
+          </div>
+          <div className="mcard-sub">
+            {shortDT(p.paid_at)} · {methodLabel(p.method)}{p.reference ? ` · ${p.reference}` : ''}
+          </div>
+          <div className="mcard-meta">
+            <span dir="ltr">{p.receipt_no}</span>
+            <span>{t('rolesShort.agent')}: {p.deals?.agent?.full_name ?? '—'}</span>
+            <span>{t('lead.coordShort')}: {p.deals?.coordinator?.full_name ?? '—'}</span>
+            <span>{t('payments.recordedBy')}: {p.received?.full_name ?? '—'}</span>
+          </div>
+          <div className="mcard-meta">
+            {isVoid
+              ? <span className="badge badge-suspended">{t('payments.st.void')}</span>
+              : isVoidReq
+                ? <span className="badge badge-pending">{t('payments.st.void_requested')}</span>
+                : p.confirmed_at
+                  ? <span className="badge badge-active">{t('payments.confirmedBadge')}</span>
+                  : <span className="badge badge-pending">{t('payments.awaitingAccountant')}</span>}
+          </div>
+        </div>
+        <div className="mcard-actions">
+          <ContactButtons phone={lead?.phone} />
+          {p.receipt_path ? (
+            <button type="button" className="mact" title={t('payments.viewReceipt')} aria-label={t('payments.viewReceipt')}
+              onClick={() => openReceipt(p.receipt_path)}>📎</button>
+          ) : canConfirm && !isVoid ? (
+            <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }} title={t('payments.attachHint')}>
+              {attachingId === p.id ? '…' : t('payments.attach')}
+              <input type="file" accept="image/*,application/pdf" hidden
+                disabled={attachingId === p.id}
+                onChange={e => { attachReceipt(p, e.target.files?.[0]); e.target.value = '' }} />
+            </label>
+          ) : null}
+          {canConfirm && p.status === 'active' && !p.confirmed_at && (
+            <button type="button" className="btn btn-primary grow" onClick={() => confirm(p.id)}>{t('common.confirm')}</button>
+          )}
+          {p.status === 'active' && (
+            <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
+              onClick={() => { setVoidingId(p.id); setVoidReason('') }}>
+              {t('payments.void')}
+            </button>
+          )}
+        </div>
+      </li>
+    )
+  }
+
   return (
     <>
       <div className="page-head">
@@ -333,6 +394,30 @@ export default function PaymentsPage() {
             <h2 style={{ fontSize: 15, color: 'var(--warn)' }}>{t('payments.pendingVoids')}</h2>
             <span className="badge badge-pending">{pendingVoids.length}</span>
           </div>
+          {isMobile ? (
+            <ul className="mcards" style={{ padding: 12 }}>
+              {pendingVoids.map(p => (
+                <li key={p.id} className="mcard">
+                  <div className="mcard-main">
+                    <div className="mcard-top">
+                      <span className="mcard-title">{p.deals?.leads?.full_name}<small dir="ltr">{p.receipt_no}</small></span>
+                      <span className="mcard-amount">{fmtNum(p.amount)} {SAR}</span>
+                    </div>
+                    {p.void_reason && <div className="mcard-note">{p.void_reason}</div>}
+                    <div className="mcard-meta"><span>{t('payments.requestedBy')}: {p.void_requester?.full_name ?? '—'}</span></div>
+                  </div>
+                  <div className="mcard-actions">
+                    {p.receipt_path && (
+                      <button type="button" className="mact" title={t('payments.viewReceipt')} aria-label={t('payments.viewReceipt')}
+                        onClick={() => openReceipt(p.receipt_path)}>📎</button>
+                    )}
+                    <button type="button" className="btn btn-danger grow" onClick={() => approveVoid(p.id)}>{t('payments.approve')}</button>
+                    <button type="button" className="btn btn-ghost grow" onClick={() => rejectVoid(p.id)}>{t('payments.reject')}</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
           <table className="table compact" style={{ marginTop: 10 }}>
             <thead>
               <tr><th>{t('payments.receipt')}</th><th>{t('lead.client')}</th><th>{t('payment.amount')}</th><th>{t('payments.voidReason')}</th><th>{t('payments.requestedBy')}</th><th>{t('payments.image')}</th><th></th></tr>
@@ -360,6 +445,7 @@ export default function PaymentsPage() {
               ))}
             </tbody>
           </table>
+          )}
         </div>
       )}
 
@@ -420,6 +506,9 @@ export default function PaymentsPage() {
         </div>
       ) : (
         <div className="card">
+          {isMobile ? (
+            <ul className="mcards" style={{ padding: 12 }}>{rows.map(paymentCard)}</ul>
+          ) : (
           <div className="table-scroll" style={{ maxHeight: 'calc(100vh - 420px)' }}>
           <table className="table sticky-head compact">
             <thead>
@@ -551,6 +640,7 @@ export default function PaymentsPage() {
             </tbody>
           </table>
           </div>
+          )}
 
           {total > PAGE && (
             <div className="pager">

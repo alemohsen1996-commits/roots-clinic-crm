@@ -7,6 +7,7 @@ import { fmtDate, fmtNum, openWhatsApp, timeAgo } from '../lib/format'
 import i18n from '../i18n'
 import useT from '../i18n/useT'
 import { dbErr } from '../lib/dbErrors'
+import { useIsMobile } from '../lib/useIsMobile'
 
 const todayRiyadh = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' })
 
@@ -38,6 +39,7 @@ function waMessage(r) {
 // ---------- جلسات متسجلتش ----------
 export function UnrecordedSessions({ rows, canAct, onChanged }) {
   const { t } = useT()
+  const isMobile = useIsMobile()
   const [busy, setBusy] = useState(null)
   const [err, setErr] = useState('')
   const { profile } = canAct
@@ -62,6 +64,41 @@ export function UnrecordedSessions({ rows, canAct, onChanged }) {
         <div className="hint">{t('prpFu.unrecordedHint')}</div>
       </div>
       {err && <div className="alert alert-error" style={{ margin: '0 16px 8px' }}>{err}</div>}
+      {isMobile ? (
+        <ul className="mcards" style={{ padding: '4px 12px 12px' }}>
+          {rows.map(r => {
+            const allowed = canAct.can(r)
+            return (
+              <li key={r.session_id} className={'mcard' + (r.days_late > 0 ? ' tone-danger' : '')}>
+                <div className="mcard-main">
+                  <div className="mcard-top">
+                    <span className="mcard-title">{r.full_name}
+                      <small>{t('prpFu.sessionOf', { n: fmtNum(r.session_no), total: fmtNum(r.sessions_total) })}</small>
+                    </span>
+                    <span className={'badge ' + (r.days_late > 0 ? 'badge-suspended' : 'badge-pending')}>
+                      {r.days_late > 0 ? t('deals.daysAgo', { n: fmtNum(r.days_late) }) : t('deals.today')}
+                    </span>
+                  </div>
+                  <div className="mcard-meta">
+                    <span>{fmtDate(r.planned_date)}</span>
+                    <span>{t('lead.coordShort')}: {r.coordinator_name ?? '—'}</span>
+                  </div>
+                </div>
+                <div className="mcard-actions">
+                  {allowed ? (
+                    <>
+                      <button type="button" className="btn btn-primary grow" disabled={busy === r.session_id}
+                        onClick={() => mark(r, 'done')}>✓ {t('apptStatus.attended')}</button>
+                      <button type="button" className="btn btn-ghost grow" disabled={busy === r.session_id}
+                        onClick={() => mark(r, 'missed')}>{t('sessionStatus.missed')}</button>
+                    </>
+                  ) : <span className="hint">{t('prpFu.otherCoord')}</span>}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      ) : (
       <div style={{ overflowX: 'auto' }}>
         <table className="table">
           <thead>
@@ -97,6 +134,7 @@ export function UnrecordedSessions({ rows, canAct, onChanged }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   )
 }

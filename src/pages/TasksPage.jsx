@@ -7,6 +7,8 @@ import { fmtDateTime, openWhatsApp } from '../lib/format'
 import LeadDrawer from '../leads/LeadDrawer'
 import { useLeadRefs } from '../leads/useLeadRefs'
 import useT from '../i18n/useT'
+import { useIsMobile } from '../lib/useIsMobile'
+import ContactButtons from '../components/ContactButtons'
 
 export default function TasksPage() {
   const { profile, isManager } = useAuth()
@@ -22,6 +24,7 @@ export default function TasksPage() {
   const [scope, setScope] = useState('mine')   // mine | all (للمدير)
   const [busyId, setBusyId] = useState(null)
   const [msg, setMsg] = useState('')
+  const isMobile = useIsMobile()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -193,8 +196,60 @@ export default function TasksPage() {
 
   const colSpan = isManager && scope === 'all' ? 6 : 5
 
+  // ---------- كارت (موبايل): الضغط على الكارت يفتح الملف ----------
+  function Card({ t, list, upcomingRow = false }) {
+    const isLate = !upcomingRow && new Date(t.due_at) < now
+    const snoozed = t.leads?.snooze_until && new Date(t.leads.snooze_until) > now
+    const busy = busyId === t.id
+    return (
+      <li className={'mcard' + (isLate ? ' tone-danger' : '')} style={{ opacity: busy ? .5 : 1 }}>
+        <button type="button" className="mcard-main"
+          onClick={() => { setNavList(list.map(x => x.leads)); setOpenLead(t.leads) }}>
+          <div className="mcard-top">
+            <span className="mcard-title">{t.leads?.full_name}<small>{t.leads?.file_no}</small></span>
+            <span className={'mcard-due' + (isLate ? ' late' : '')}>{isLate && '⚠ '}{fmtDateTime(t.due_at)}</span>
+          </div>
+          <div className="mcard-meta">
+            <span className="badge stage-pill" style={{ '--stage': t.leads?.stages?.color ?? '#888' }}>
+              {dn(t.leads?.stages)}
+            </span>
+            {snoozed && <span className="badge badge-pending">🌙 {tr('tasks.snoozed')}</span>}
+            {isManager && scope === 'all' && <span>{t.assignee?.full_name ?? '—'}</span>}
+          </div>
+          {t.note && <div className="mcard-note">{t.note}</div>}
+        </button>
+        <div className="mcard-actions">
+          <ContactButtons phone={t.leads?.phone} />
+          {upcomingRow ? (
+            <button type="button" className="btn btn-ghost grow" disabled={busy}
+              onClick={() => pullToToday(t)}>↑ {tr('tasks.pull')}</button>
+          ) : (
+            <>
+              <button type="button" className="btn btn-primary grow" disabled={busy}
+                onClick={() => completeTask(t)}>✓ {tr('common.ok')}</button>
+              <button type="button" className="btn btn-ghost btn-sm" disabled={busy}
+                onClick={() => postpone(t, 1)} title={tr('tasks.postpone1')}>{tr('tasks.plus1')}</button>
+              <button type="button" className="btn btn-ghost btn-sm" disabled={busy}
+                onClick={() => postpone(t, 3)} title={tr('tasks.postpone3')}>{tr('tasks.plus3')}</button>
+            </>
+          )}
+        </div>
+      </li>
+    )
+  }
+
   function Table({ list, title, tone }) {
     if (list.length === 0) return null
+    if (isMobile) {
+      return (
+        <section className="mcard-section">
+          <h2 style={{ color: tone }}>{title} ({list.length.toLocaleString('en-US')})</h2>
+          <ul className="mcards">
+            {list.map(t => <Card key={t.id} t={t} list={list} />)}
+          </ul>
+        </section>
+      )
+    }
     return (
       <div className="card" style={{ marginBottom: 18, borderColor: tone, borderWidth: 1.5 }}>
         <div style={{ padding: '14px 16px 0' }}>
@@ -277,7 +332,12 @@ export default function TasksPage() {
             </span>
           </button>
 
-          {showUpcoming && (
+          {showUpcoming && isMobile && (
+            <ul className="mcards" style={{ marginTop: 10 }}>
+              {upcoming.map(t => <Card key={t.id} t={t} list={upcoming} upcomingRow />)}
+            </ul>
+          )}
+          {showUpcoming && !isMobile && (
             <table className="table compact" style={{ marginTop: 8 }}>
               <thead>
                 <tr>

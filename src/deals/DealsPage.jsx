@@ -13,6 +13,8 @@ import i18n from '../i18n'
 import useT from '../i18n/useT'
 import NewDealModal from './NewDealModal'
 import DealDrawer from './DealDrawer'
+import { useIsMobile } from '../lib/useIsMobile'
+import ContactButtons from '../components/ContactButtons'
 
 // التبويبات والأنواع — العناوين من deals.tabs.* / kind.*
 const TABS = ['', 'active', 'waiting', 'done', 'lost']
@@ -46,10 +48,74 @@ function dealFlags(d, t) {
   return flags
 }
 
+// كارت ديل (موبايل) — نفس معلومات صف الجدول، مرتّبة للقراءة من فوق لتحت
+function DealCard({ d, onOpen }) {
+  const { t, dn } = useT()
+  const SAR = t('common.currency')
+  const st = DEAL_STATUS[d.status]
+  const closed = ['lost', 'cancelled'].includes(d.status)
+  const due = Number(d.total_amount) || 0
+  const collected = Number(d.collected) || 0
+  const rem = Number(d.open_remaining) || 0
+  const pct = due > 0 ? Math.min(100, Math.round((collected / due) * 100)) : 0
+  const days = daysFromToday(d.operation_date)
+  const rel = days == null ? t('deals.notSet')
+    : days === 0 ? t('deals.today')
+    : days > 0 ? t('deals.inDays', { n: fmtNum(days) }) : t('deals.daysAgo', { n: fmtNum(-days) })
+  const flags = dealFlags(d, t)
+  const sale = dn({ name_ar: d.procedure_name, name_en: d.procedure_name_en }) || '—'
+  const details = [d.technique_name, d.grafts ? `${fmtNum(d.grafts)} ${t('deals.graftUnit')}` : null,
+    dn({ name: d.branch_name, name_en: d.branch_name_en })].filter(Boolean).join(' · ')
+
+  return (
+    <li className={'mcard' + (flags.some(f => f.tone === 'danger') ? ' tone-danger' : '')}>
+      <button type="button" className="mcard-main" onClick={onOpen}>
+        <div className="mcard-top">
+          <span className="mcard-title">{d.full_name ?? '—'}<small>{sale}{details ? ` · ${details}` : ''}</small></span>
+          <span className={'badge ' + (st?.cls ?? '')}>{st ? t(st.label) : d.status}{d.is_locked && ' 🔒'}</span>
+        </div>
+        <div className="mcard-row">
+          <span>{d.operation_date ? fmtDate(d.operation_date) : '—'} <span className="deals-muted">· {rel}</span></span>
+          <b>{fmtNum(d.net_amount)} {SAR}</b>
+        </div>
+        {!closed && due > 0 && (
+          <>
+            <div className="deals-bar" role="img" aria-label={t('deals.collectedPct', { pct })}>
+              <span className={rem > 0 ? 'part' : 'full'} style={{ width: pct + '%' }} />
+            </div>
+            <div className="deals-bar-meta">
+              <span className="deals-muted">{fmtNum(collected)} {t('common.collected')}</span>
+              {rem > 0
+                ? <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{t('deals.sorts.remaining')} {fmtNum(rem)}</span>
+                : <span style={{ color: 'var(--ok)', fontWeight: 700 }}>{t('payStatus.paid')}</span>}
+            </div>
+          </>
+        )}
+        <div className="mcard-meta">
+          <span>{t('rolesShort.agent')}: {d.agent_name ?? '—'}</span>
+          <span>{t('lead.coordShort')}: {d.coordinator_name ?? t('deals.notSet')}</span>
+        </div>
+        {flags.length > 0 && (
+          <div className="deals-flags">
+            {flags.map(f => <span key={f.label} className={'deals-flag tone-' + f.tone}>{f.label}</span>)}
+          </div>
+        )}
+      </button>
+      {d.phone && (
+        <div className="mcard-actions">
+          <ContactButtons phone={d.phone} />
+          <span className="hint" dir="ltr">{d.phone}</span>
+        </div>
+      )}
+    </li>
+  )
+}
+
 export default function DealsPage() {
   const { profile, roleCode } = useAuth()
   const { t, dn } = useT()
   const SAR = t('common.currency')
+  const isMobile = useIsMobile()
   const isAgent = roleCode === 'agent'   // موظف المبيعات: مايشوفش فلتر موظفي المبيعات
   const refs = useDealRefs()
   const [params, setParams] = useSearchParams()
@@ -334,6 +400,10 @@ export default function DealsPage() {
             ? <button className="btn btn-ghost btn-sm" style={{ marginTop: 10 }} onClick={clearAll}>{t('deals.clearFilters')}</button>
             : t('deals.noDealsHint')}
         </div>
+      ) : isMobile ? (
+        <ul className="mcards">
+          {deals.map(d => <DealCard key={d.id} d={d} onOpen={() => setOpenDeal(d)} />)}
+        </ul>
       ) : (
         <div className="card" style={{ overflowX: 'auto', padding: 0 }}>
           <table className="table deals-table">
