@@ -2200,3 +2200,62 @@ html[dir="ltr"] .ltr-cell { text-align: left; }
 @media (prefers-reduced-motion: reduce) {
   .notif-panel { animation: none; }
 }
+
+/* ============================================================
+   شاشة الدخول — إضافات (إظهار كلمة المرور، Caps Lock، نسيت كلمة المرور، الموبايل)
+   ============================================================ */
+.auth-form-brand .lang-toggle { margin-inline-start: auto; }
+.auth-mini-emblem { display: none; width: 30px; height: auto; }
+
+.pass-wrap { position: relative; }
+/* الحقل دايمًا ltr، فالزرار على اليمين الفعلي عشان مايغطيش أول الكلام */
+.pass-wrap input { width: 100%; padding-right: 46px; }
+.pass-eye {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+  width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 8px; background: none;
+  color: var(--ink-soft); cursor: pointer;
+}
+.pass-eye:hover { background: var(--line-soft); color: var(--ink); }
+.pass-eye:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.pass-eye[aria-pressed="true"] { color: var(--primary); }
+
+.caps-warn { color: var(--warn); font-size: 12.5px; font-weight: 700; }
+
+.auth-submit {
+  width: 100%; margin-top: 4px; min-height: 46px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+}
+.btn-spin {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, #fff 35%, transparent);
+  border-top-color: #fff;
+  animation: btn-spin .7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+.auth-help { margin-top: 18px; text-align: center; }
+.auth-link {
+  border: none; background: none; padding: 4px;
+  color: var(--primary); font: inherit; font-size: 13.5px; font-weight: 700;
+  cursor: pointer;
+}
+.auth-link:hover { text-decoration: underline; }
+.auth-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.auth-help-note {
+  margin-top: 10px; padding: 12px 14px;
+  background: var(--gold-soft); border-radius: var(--radius-sm);
+  color: var(--ink); font-size: 13px; line-height: 1.8; text-align: start;
+}
+
+/* الموبايل: الجانب الكبير مخفي، فالرمز الصغير يظهر جنب الاسم */
+@media (max-width: 860px) {
+  .auth-mini-emblem { display: block; }
+  .auth-form-wrap { align-items: flex-start; padding: calc(40px + env(safe-area-inset-top, 0px)) 22px 32px; }
+  .auth-form-brand { margin-bottom: 34px; font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-spin { animation-duration: 1.6s; }
+}

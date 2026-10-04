@@ -115,7 +115,18 @@
     "profileFailedBody": "You may be offline, or your account may need review by management. Try again, and if the problem persists contact your manager.",
     "pendingTitle": "Your account is awaiting activation",
     "pendingBody": "Contact your manager to activate your account and set your permissions.",
-    "suspendedBody": "This account is suspended — contact management."
+    "suspendedBody": "This account is suspended — contact management.",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "capsLock": "Caps Lock is on",
+    "forgot": "Forgot your password?",
+    "forgotBody": "Passwords are managed by your manager. Ask them to set a new one for you from the Team page, then sign in with it.",
+    "err": {
+      "network": "Can’t reach the server — check your internet and try again",
+      "tooMany": "Too many attempts — wait a minute and try again",
+      "notConfirmed": "This account isn’t activated yet — contact your manager",
+      "offline": "You’re offline — signing in needs an internet connection"
+    }
   },
   "conn": {
     "back": "✓ Back online",

@@ -1,5 +1,5 @@
 // حارس المسارات: يمنع الدخول قبل التفعيل ويوجه حسب الحالة
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import useT from '../i18n/useT'
 
@@ -12,12 +12,16 @@ const Center = ({ children }) => (
 export function RequireAuth({ children }) {
   const { session, profile, loading, profileError, retryProfile, signOut } = useAuth()
   const { t } = useT()
+  const location = useLocation()
 
   if (loading) {
     return <Center><span style={{ color: 'var(--ink-soft)' }}>{t('common.loading')}</span></Center>
   }
 
-  if (!session) return <Navigate to="/login" replace />
+  // نحفظ الصفحة المطلوبة عشان نرجع لها بعد الدخول
+  if (!session) {
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+  }
 
   // فشل جلب الملف الشخصي — لا نسمح بالدخول بحالة ناقصة
   if (profileError || !profile) {
