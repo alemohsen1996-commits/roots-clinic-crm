@@ -35,3 +35,8 @@ Thumbs.db
 *.local
 '@ | Set-Content -Encoding UTF8 .gitignore
 supabase/.temp/
+
+# اختبار الموبايل: لقطات وتقارير ونتائج محلية
+screenshots/
+test-results/
+playwright-report/
