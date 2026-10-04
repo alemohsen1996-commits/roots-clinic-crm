@@ -1,7 +1,7 @@
 // اللوحة الجانبية لتفاصيل الليد — تبويبان: «الكل» (كل الأفعال) + «السجل»
 // الهيدر ثابت فوق التبويبين، وبه تعديل بيانات العميل الشامل inline
 import { useEffect, useState, useCallback } from 'react'
-import { isSalesPerson, salesLabel, sortSales } from '../lib/people'
+import { salesLabel, assignableGroups } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import { STAGE } from '../lib/stageCodes'
 import { useAuth } from '../auth/AuthContext'
@@ -1325,10 +1325,26 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         {isManager && (
           <div className="drawer-section">
             <h3>{t('drawer.reassign')}</h3>
-            <select value={lead.owner_id ?? ''} onChange={e => reassign(e.target.value || null)}>
-              <option value="">{t('lead.unassigned')} (Pool)</option>
-              {sortSales(refs.agents.filter(isSalesPerson)).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
-            </select>
+            {(() => {
+              const { sales, coordinators: coords } = assignableGroups(refs.agents)
+              // المالك الحالي لو مش سيلز ولا منسقة (مثلًا مدير عام) — نعرضه عشان القائمة متبانش «Pool» غلط
+              const known = lead.owner_id && [...sales, ...coords].some(a => a.id === lead.owner_id)
+              const cur = !known && lead.owner_id ? refs.agents.find(a => a.id === lead.owner_id) : null
+              return (
+                <select value={lead.owner_id ?? ''} onChange={e => reassign(e.target.value || null)}>
+                  <option value="">{t('lead.unassigned')} (Pool)</option>
+                  {cur && <option value={cur.id}>{cur.full_name}</option>}
+                  <optgroup label={t('roles.agent')}>
+                    {sales.map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
+                  </optgroup>
+                  {coords.length > 0 && (
+                    <optgroup label={t('roles.coordinator')}>
+                      {coords.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                    </optgroup>
+                  )}
+                </select>
+              )
+            })()}
           </div>
         )}
 

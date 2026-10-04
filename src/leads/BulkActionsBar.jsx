@@ -1,7 +1,7 @@
 // شريط الإجراءات الجماعية — يظهر عند تحديد ليد أو أكثر من الجدول
 // الإجراءات: نقل لمرحلة · إسناد لموظف · أرشفة
 import { useState } from 'react'
-import { isSalesPerson, salesLabel, sortSales } from '../lib/people'
+import { salesLabel, assignableGroups } from '../lib/people'
 import { supabase } from '../lib/supabase'
 import { STAGE } from '../lib/stageCodes'
 import useT from '../i18n/useT'
@@ -136,7 +136,14 @@ export default function BulkActionsBar({ ids, stages, agents, onDone, onClear })
         <select value={ownerId} onChange={e => setOwnerId(e.target.value)}
           disabled={busy} style={{ minWidth: 160 }}>
           <option value="">— {t('common.employee')} —</option>
-          {sortSales(agents.filter(isSalesPerson)).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
+          <optgroup label={t('roles.agent')}>
+            {assignableGroups(agents).sales.map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
+          </optgroup>
+          {assignableGroups(agents).coordinators.length > 0 && (
+            <optgroup label={t('roles.coordinator')}>
+              {assignableGroups(agents).coordinators.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+            </optgroup>
+          )}
         </select>
       )}
 

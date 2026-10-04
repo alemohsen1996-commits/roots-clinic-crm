@@ -19,3 +19,15 @@ export function sortSales(list = []) {
   return [...list].sort((a, b) =>
     rank(a) - rank(b) || (a.full_name ?? '').localeCompare(b.full_name ?? '', 'ar'))
 }
+
+// قائمة الإسناد (مالك الليد): السيلز ومدير المبيعات + المنسقات
+// المنسقة ممكن تكون صاحبة ليد (عميل جالها مباشرة) فلازم تظهر في الإسناد
+export const isCoordinator = (p) => p?.roles?.code === 'coordinator'
+
+export function assignableGroups(people = []) {
+  return {
+    sales: sortSales(people.filter(isSalesPerson)),
+    coordinators: people.filter(isCoordinator)
+      .sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '', 'ar')),
+  }
+}
