@@ -64,6 +64,7 @@ function LeadRow({ lead, stageName, onOpen }) {
         <span className="mlead-name">{lead.full_name || lead.phone}</span>
         <span className={'mlead-status tone-' + st.tone}>{st.text}</span>
         <span className="mlead-meta">
+          {lead.phone && <span className="mlead-phone" dir="ltr">{lead.phone}</span>}
           {stageName && <span className="mlead-stage" style={{ '--stage': lead.stages?.color ?? '#888' }}>{stageName}</span>}
           {dn(lead.lead_sources) && <span>{dn(lead.lead_sources)}</span>}
           {lead.attempts > 0 && <span>{t('kanban.attempts', { n: lead.attempts })}</span>}

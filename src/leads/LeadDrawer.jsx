@@ -15,6 +15,7 @@ import { dbErr } from '../lib/dbErrors'
 import { activityText } from '../lib/activityText'
 import { useNavigate } from 'react-router-dom'
 import LeadDiscussions from '../chat/LeadDiscussions'
+import { PhoneIcon } from '../components/ContactButtons'
 import WaTemplatesMenu from '../chat/WaTemplatesMenu'
 import { startDirect, errText as chatErr } from '../chat/chatApi'
 
@@ -702,7 +703,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             {/* الرقم وأزرار التواصل في سطر واحد */}
             <div className="phone-cell" style={{ marginBottom: 8 }}>
               <span dir="ltr" style={{ fontSize: 13.5, color: 'var(--ink-soft)' }}>{lead.phone}</span>
-              <a className="icon-btn" href={`tel:${lead.phone}`} title={t('lead.call')}>☎</a>
+              <a className="icon-btn" href={`tel:${lead.phone}`} title={t('lead.call')} aria-label={t('lead.call')}><PhoneIcon /></a>
               <button className="icon-btn" title="WhatsApp"
                             onClick={() => openWhatsApp(lead.phone)}>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">

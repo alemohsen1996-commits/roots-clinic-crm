@@ -27,6 +27,7 @@ import SettingsPage from './settings/SettingsPage'
 import DistributePage from './pages/DistributePage'
 import ChatPage from './chat/ChatPage'
 import { registerSW } from './lib/push'
+import './lib/iosViewportFix'
 
 registerSW()
 

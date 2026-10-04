@@ -2454,7 +2454,8 @@ html[dir="ltr"] .ltr-cell { text-align: left; }
   .lead-head .phone-cell { flex-wrap: wrap; row-gap: 8px; }
   .lead-head .phone-cell .icon-btn { width: 42px; height: 42px; border-radius: 12px; font-size: 16px; }
   .lead-head .phone-cell .icon-btn svg { width: 18px; height: 18px; }
-  .lead-head .phone-cell > span { flex-basis: 100%; font-size: 14px !important; }
+  .lead-head .phone-cell > span:first-child { flex-basis: 100%; font-size: 14px !important; }
+  [dir="rtl"] .lead-head .phone-cell > span:first-child { text-align: right; }
 
   .drawer:has(.m-action-bar) { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
   .m-action-bar {
@@ -2558,3 +2559,34 @@ button.mcard-main:active { background: var(--surface); }
 .mact:active { transform: scale(.94); background: var(--surface); }
 .mcard .deals-bar { margin-top: 8px; }
 .mcard .deals-flags { margin-top: 8px; }
+
+/* ---------- تصحيحات الموبايل بعد التجربة على آيفون ---------- */
+@media (max-width: 900px) {
+  /* باج آيفون (تطبيق على الشاشة الرئيسية): العناصر الثابتة تحت كانت عايمة فوق الحافة
+     --ios-gap بيتحسب في lib/iosViewportFix.js — صفر على أي جهاز تاني */
+  .bottom-nav, .m-action-bar { bottom: calc(0px - var(--ios-gap, 0px)); }
+  .drawer-backdrop, .sheet-backdrop, .modal-backdrop, .nav-overlay, .notif-scrim {
+    bottom: calc(0px - var(--ios-gap, 0px));
+  }
+  .shell .chat-page {
+    height: calc(100dvh - 68px - 14px - env(safe-area-inset-top, 0px) + var(--ios-gap, 0px));
+  }
+  .shell.has-bnav .chat-page {
+    height: calc(100dvh - 68px - 14px - env(safe-area-inset-top, 0px) - var(--bnav-h) - 14px + var(--ios-gap, 0px));
+  }
+
+  /* رأس ملف الليد: الإغلاق والتنقّل في سطر لوحده فوق، والاسم وأزرار التواصل بعرض الشاشة كله */
+  .drawer-head.lead-head { flex-wrap: wrap; gap: 0; }
+  .lead-head > div:first-child { flex: 1 1 100% !important; }
+  .lead-head .head-actions {
+    order: -1; width: 100%;
+    flex-direction: row; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .lead-head .phone-cell { gap: 8px; }
+  .lead-head .phone-cell .wa-tpl { display: inline-flex; }
+  .lead-facts { row-gap: 6px; }
+
+  /* رقم العميل على كارت اللستة */
+  .mlead-phone { color: var(--ink); font-weight: 600; letter-spacing: .2px; }
+}
