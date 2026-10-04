@@ -6,7 +6,7 @@ import { fetchUnreadTotal } from './chatApi'
 import { connectChat, disconnectChat, onChat, watchingConv } from './chatRealtime'
 
 let audioCtx = null
-function ding() {
+export function ding() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)()
     const t = audioCtx.currentTime

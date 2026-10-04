@@ -8,6 +8,8 @@ import { THEMES, getLocalTheme, applyTheme } from '../lib/theme'
 import { useChatUnread } from '../chat/useChatUnread'
 import useT from '../i18n/useT'
 import LangToggle from './LangToggle'
+import { useNotifications } from '../notifications/useNotifications'
+import { BellButton, NotificationPanel, EntityOpener, useNotifTarget } from '../notifications/NotificationBell'
 
 // أيقونات خطّية موحّدة — التعرّف عليها أسرع من قراءة النص
 const I = {
@@ -93,6 +95,20 @@ export default function Shell() {
   const location = useLocation()
   const navigate = useNavigate()
 
+  // جرس الإشعارات — هوك واحد للزرارين (السايدبار + الشريط العلوي)
+  const notif = useNotifications(profile?.id)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifTarget, setNotifTarget] = useState(null)   // ليد/ديل/باقة مفتوحة من إشعار
+  const resolveNotif = useNotifTarget()
+  const closeNotif = useCallback(() => setNotifOpen(false), [])
+  const pickNotif = useCallback((n) => {
+    notif.markRead(n.id)
+    setNotifOpen(false)
+    setNavOpen(false)
+    const tg = resolveNotif(n)
+    if (tg) setNotifTarget(tg)
+  }, [notif.markRead, resolveNotif])
+
   // ضغطة على إشعار والأبلكيشن مفتوح → نروح للمحادثة من غير إعادة تحميل
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
@@ -103,8 +119,8 @@ export default function Shell() {
 
   const canSee = (roles) => roles === 'all' || roles.includes(roleCode)
 
-  // إغلاق القائمة عند الانتقال لصفحة أخرى
-  useEffect(() => { setNavOpen(false) }, [location.pathname])
+  // إغلاق القائمة واللوحة عند الانتقال لصفحة أخرى
+  useEffect(() => { setNavOpen(false); setNotifOpen(false) }, [location.pathname])
 
   // منع تمرير الخلفية أثناء فتح القائمة
   useEffect(() => {
@@ -145,10 +161,14 @@ export default function Shell() {
           ☰
         </button>
         <div className="topbar-brand">{t('common.appName')}</div>
-        {chatUnread > 0 && (
-          <NavLink to="/chat" className="topbar-badge chat" title={t('common.unreadMessages')}>💬 {chatUnread}</NavLink>
-        )}
-        {dueTasks > 0 && <span className="topbar-badge">{dueTasks}</span>}
+        <div className="topbar-end">
+          {chatUnread > 0 && (
+            <NavLink to="/chat" className="topbar-badge chat" title={t('common.unreadMessages')}>💬 {chatUnread}</NavLink>
+          )}
+          {dueTasks > 0 && <span className="topbar-badge">{dueTasks}</span>}
+          <BellButton className="on-topbar" unread={notif.unread} open={notifOpen}
+            onToggle={() => setNotifOpen(o => !o)} />
+        </div>
       </header>
 
       {/* طبقة تعتيم خلف القائمة */}
@@ -156,7 +176,11 @@ export default function Shell() {
 
       <aside className={'sidebar' + (navOpen ? ' open' : '')}>
         <div className="sidebar-top">
-          <div className="brand">Roots Clinic <span>·</span> CRM</div>
+          <div className="brand">
+            <span className="brand-text">Roots Clinic <span>·</span> CRM</span>
+            <BellButton className="on-sidebar" unread={notif.unread} open={notifOpen}
+              onToggle={() => setNotifOpen(o => !o)} />
+          </div>
           <button className="sidebar-close" onClick={() => setNavOpen(false)} aria-label={t('common.closeMenu')}>
             ✕
           </button>
@@ -206,6 +230,12 @@ export default function Shell() {
       </aside>
 
       <main className="main"><Outlet /></main>
+
+      {notifOpen && (
+        <NotificationPanel items={notif.items} unread={notif.unread}
+          onClose={closeNotif} onPick={pickNotif} onMarkAll={notif.markAllRead} />
+      )}
+      <EntityOpener target={notifTarget} onClose={() => setNotifTarget(null)} />
     </div>
   )
 }

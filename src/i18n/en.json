@@ -1722,5 +1722,32 @@
     "bodyRequired": "Enter the message text",
     "deleteQ": "Delete template \"{{title}}\"?",
     "nameVar": "Write {{name}} anywhere and it's replaced with the patient's first name"
+  },
+  "notif": {
+    "bell": "Notifications",
+    "bellUnread": "Notifications — {{n}} unread",
+    "title": "Notifications",
+    "markAll": "Mark all as read",
+    "emptyTitle": "No notifications",
+    "emptyBody": "Anything that needs your action will show up here",
+    "t": {
+      "lead_assigned": "New lead assigned to you",
+      "lead_assigned_many": "{{count}} new leads assigned to you",
+      "lead_transferred": "Patient transferred to you",
+      "lead_returned": "Patient returned to you from coordinators",
+      "void_requested": "Payment void needs approval",
+      "void_approved": "Payment void approved",
+      "void_rejected": "Payment void rejected",
+      "tasks_digest": "Your follow-ups today",
+      "deal_outcome_due": "Set the operation outcome",
+      "prp_due": "PRP session today",
+      "appt_tomorrow": "Consultation tomorrow"
+    },
+    "b": {
+      "openLeads": "Open the leads board",
+      "tasks": "{{today}} today · {{overdue}} overdue",
+      "opDate": "Operation date {{date}}",
+      "session": "Session {{n}}"
+    }
   }
 }

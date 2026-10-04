@@ -1722,5 +1722,32 @@
     "bodyRequired": "اكتب نص الرسالة",
     "deleteQ": "حذف قالب «{{title}}»؟",
     "nameVar": "اكتب {{name}} في أي مكان وهتتبدل باسم المريض الأول"
+  },
+  "notif": {
+    "bell": "الإشعارات",
+    "bellUnread": "الإشعارات — {{n}} غير مقروء",
+    "title": "الإشعارات",
+    "markAll": "تعليم الكل كمقروء",
+    "emptyTitle": "مفيش إشعارات",
+    "emptyBody": "أي حاجة محتاجة منك تتصرف فيها هتظهر هنا",
+    "t": {
+      "lead_assigned": "ليد جديد اتسندلك",
+      "lead_assigned_many": "اتسندلك {{count}} ليد جديد",
+      "lead_transferred": "مريض اتحوّلك",
+      "lead_returned": "مريض رجعلك من المنسقات",
+      "void_requested": "طلب إلغاء دفعة محتاج موافقة",
+      "void_approved": "اتوافق على إلغاء الدفعة",
+      "void_rejected": "اترفض طلب إلغاء الدفعة",
+      "tasks_digest": "متابعاتك النهارده",
+      "deal_outcome_due": "حدّد نتيجة العملية",
+      "prp_due": "جلسة بلازما النهارده",
+      "appt_tomorrow": "معاينة بكرة"
+    },
+    "b": {
+      "openLeads": "افتح بورد الليدات",
+      "tasks": "{{today}} النهارده · {{overdue}} متأخرة",
+      "opDate": "تاريخ العملية {{date}}",
+      "session": "الجلسة {{n}}"
+    }
   }
 }
