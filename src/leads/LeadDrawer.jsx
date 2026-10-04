@@ -658,6 +658,18 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     onChanged(); onClose()
   }
 
+  // من الشريط الثابت: يرجّع لتبويب «الكل» وينزل للقسم ويلفت النظر له
+  function jumpTo(id, focusSel) {
+    setTab('all')
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = document.getElementById(id)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.remove('jump-flash'); void el.offsetWidth; el.classList.add('jump-flash')
+      if (focusSel) el.querySelector(focusSel)?.focus({ preventScroll: true })
+    }))
+  }
+
   if (!lead) return null
 
   const setE = (k, v) => setEdit(s => ({ ...s, [k]: v }))
@@ -1206,7 +1218,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         </div>
 
         {/* نقل المرحلة — مباشرة تحت العرض */}
-        <div className="stage-box">
+        <div className="stage-box" id="lead-stage-box">
           <div className="row-label">
             {t('drawer.moveStage')} · {currentBoard === 'coordinator' ? t('leads.coordBoard') : t('leads.salesBoard')}
           </div>
@@ -1318,8 +1330,10 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
         </div>
 
         {/* المتابعة */}
-        <TaskSection leadId={leadId} leadOwnerId={lead.owner_id}
-          onChanged={() => { const st = lead.stage_id; load(); emitBoardPatch({ refetch: [st] }); onChanged() }} />
+        <div id="lead-task-box">
+          <TaskSection leadId={leadId} leadOwnerId={lead.owner_id}
+            onChanged={() => { const st = lead.stage_id; load(); emitBoardPatch({ refetch: [st] }); onChanged() }} />
+        </div>
 
         {/* إعادة الإسناد — للمديرين */}
         {isManager && (
@@ -1418,6 +1432,14 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
             )}
           </div>
         )}
+        <div className="m-action-bar">
+          <button type="button" className="btn btn-primary" onClick={() => jumpTo('lead-stage-box', 'select')}>
+            {t('mlist.moveStage')}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => jumpTo('lead-task-box')}>
+            {t('mlist.followUp')}
+          </button>
+        </div>
       </aside>
     </div>
   )

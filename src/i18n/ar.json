@@ -100,7 +100,9 @@
     "reports": "التقارير",
     "calls": "المكالمات",
     "archive": "أرشيف الشهور",
-    "settings": "إعدادات النظام"
+    "settings": "إعدادات النظام",
+    "bottom": "التنقل السريع",
+    "more": "المزيد"
   },
   "auth": {
     "welcome": "أهلاً بعودتك",
@@ -1770,5 +1772,24 @@
     "yesterday": "امبارح",
     "emptyUnreadTitle": "كله مقروء",
     "emptyUnreadBody": "مفيش إشعارات جديدة محتاجة تتشاف"
+  },
+  "mlist": {
+    "filters": "الفلاتر",
+    "sort": "الترتيب",
+    "showResults": "عرض النتائج",
+    "clear": "مسح الفلاتر",
+    "late": "متأخر {{n}} يوم",
+    "today": "متابعة النهارده {{time}}",
+    "next": "متابعة {{when}}",
+    "paused": "المتابعة موقوفة",
+    "snoozed": "مؤجّل لبكرة",
+    "lastActivity": "آخر حركة {{ago}}",
+    "searchResults": "نتائج البحث: {{n}}",
+    "sortOldest": "الأقدم إهمالًا أولًا",
+    "sortRecent": "الأحدث حركة أولًا",
+    "emptyStage": "مفيش ليدات في المرحلة دي",
+    "showMore": "عرض المزيد ({{left}} باقي)",
+    "moveStage": "نقل المرحلة",
+    "followUp": "المتابعة"
   }
 }

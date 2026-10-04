@@ -72,6 +72,18 @@ const NAV = [
   ]},
 ]
 
+// شريط التنقل السفلي (موبايل) — أهم 4 أقسام لكل دور + «المزيد» يفتح القائمة الكاملة
+// مبني على استخدام الموبايل الفعلي: الليدات ثم المعاينات ثم المهام ثم الشات
+const BOTTOM_NAV = {
+  coordinator:   ['/leads', '/appointments', '/tasks', '/chat'],
+  agent:         ['/leads', '/tasks', '/appointments', '/chat'],
+  sales_manager: ['/', '/leads', '/appointments', '/chat'],
+  super_admin:   ['/', '/leads', '/appointments', '/chat'],
+  accountant:    ['/payments', '/deals', '/installments', '/chat'],
+  prp_officer:   ['/prp', '/', '/chat'],
+}
+const NAV_BY_PATH = Object.fromEntries(NAV.flatMap(g => g.items).map(i => [i.to, i]))
+
 export default function Shell() {
   const { profile, roleCode, signOut } = useAuth()
   const { t, dn } = useT()
@@ -123,6 +135,11 @@ export default function Shell() {
 
   const canSee = (roles) => roles === 'all' || roles.includes(roleCode)
 
+  const bottomItems = (BOTTOM_NAV[roleCode] ?? ['/', '/chat'])
+    .map(p => NAV_BY_PATH[p]).filter(i => i && canSee(i.roles))
+  const inChatThread = location.pathname === '/chat' && new URLSearchParams(location.search).get('c')
+  const showBottomNav = !!profile && !inChatThread
+
   // إغلاق القائمة واللوحة عند الانتقال لصفحة أخرى
   useEffect(() => { setNavOpen(false); setNotifOpen(false) }, [location.pathname])
 
@@ -158,7 +175,7 @@ export default function Shell() {
   }, [loadDue, location.pathname])
 
   return (
-    <div className="shell">
+    <div className={'shell' + (showBottomNav ? ' has-bnav' : '')}>
       {/* شريط علوي — يظهر على الموبايل فقط */}
       <header className="topbar">
         <button className="topbar-btn" onClick={() => setNavOpen(true)} aria-label={t('common.openMenu')}>
@@ -166,10 +183,13 @@ export default function Shell() {
         </button>
         <div className="topbar-brand">{t('common.appName')}</div>
         <div className="topbar-end">
-          {chatUnread > 0 && (
+          {/* الشارات اللي ليها مكان في الشريط السفلي بتظهر هناك بس */}
+          {chatUnread > 0 && !(showBottomNav && bottomItems.some(i => i.to === '/chat')) && (
             <NavLink to="/chat" className="topbar-badge chat" title={t('common.unreadMessages')}>💬 {chatUnread}</NavLink>
           )}
-          {dueTasks > 0 && <span className="topbar-badge">{dueTasks}</span>}
+          {dueTasks > 0 && !(showBottomNav && bottomItems.some(i => i.to === '/tasks')) && (
+            <span className="topbar-badge">{dueTasks}</span>
+          )}
           <BellButton className="on-topbar" unread={notif.unread} open={notifOpen}
             onToggle={toggleNotif} />
         </div>
@@ -234,6 +254,29 @@ export default function Shell() {
       </aside>
 
       <main className="main"><Outlet /></main>
+
+      {showBottomNav && (
+        <nav className="bottom-nav" aria-label={t('nav.bottom')}>
+          {bottomItems.map(i => (
+            <NavLink key={i.to} to={i.to} end={i.to === '/'}
+              className={({ isActive }) => 'bnav-item' + (isActive ? ' active' : '')}>
+              <span className="bnav-ico">
+                <Icon k={i.icon} />
+                {i.badge === 'tasks' && dueTasks > 0 && <span className="bnav-badge">{dueTasks > 99 ? '99+' : dueTasks}</span>}
+                {i.badge === 'chat' && chatUnread > 0 && <span className="bnav-badge">{chatUnread > 99 ? '99+' : chatUnread}</span>}
+              </span>
+              <span className="bnav-text">{t(`nav.${i.label}`)}</span>
+            </NavLink>
+          ))}
+          <button type="button" className={'bnav-item' + (navOpen ? ' active' : '')} onClick={() => setNavOpen(true)}>
+            <span className="bnav-ico">
+              <svg className="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+                strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+            </span>
+            <span className="bnav-text">{t('nav.more')}</span>
+          </button>
+        </nav>
+      )}
 
       {notifOpen && (
         <NotificationPanel notif={notif} onClose={closeNotif} onPick={pickNotif} />

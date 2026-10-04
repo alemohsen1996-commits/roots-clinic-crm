@@ -100,7 +100,9 @@
     "reports": "Reports",
     "calls": "Calls",
     "archive": "Monthly Archive",
-    "settings": "System Settings"
+    "settings": "System Settings",
+    "bottom": "Quick navigation",
+    "more": "More"
   },
   "auth": {
     "welcome": "Welcome back",
@@ -1770,5 +1772,24 @@
     "yesterday": "Yesterday",
     "emptyUnreadTitle": "All caught up",
     "emptyUnreadBody": "No new notifications to review"
+  },
+  "mlist": {
+    "filters": "Filters",
+    "sort": "Sort",
+    "showResults": "Show results",
+    "clear": "Clear filters",
+    "late": "{{n}} day(s) late",
+    "today": "Follow-up today {{time}}",
+    "next": "Follow-up {{when}}",
+    "paused": "Follow-up paused",
+    "snoozed": "Snoozed to tomorrow",
+    "lastActivity": "Last activity {{ago}}",
+    "searchResults": "Search results: {{n}}",
+    "sortOldest": "Most neglected first",
+    "sortRecent": "Most recent first",
+    "emptyStage": "No leads in this stage",
+    "showMore": "Show more ({{left}} left)",
+    "moveStage": "Move stage",
+    "followUp": "Follow-up"
   }
 }

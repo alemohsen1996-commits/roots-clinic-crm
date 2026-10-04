@@ -6,6 +6,8 @@ import useT from '../i18n/useT'
 import { fmtDate } from '../lib/format'
 import { useLeadRefs, fetchLeadsPage } from './useLeadRefs'
 import Kanban from './Kanban'
+import MobileLeadList from './MobileLeadList'
+import { useIsMobile } from '../lib/useIsMobile'
 import LeadsTable from './LeadsTable'
 import AddLeadModal from './AddLeadModal'
 import LeadDrawer from './LeadDrawer'
@@ -31,6 +33,8 @@ export default function LeadsPage() {
   const { isManager, roleCode, profile } = useAuth()
   const { t, dn } = useT()
   const refs = useLeadRefs()
+  const isMobile = useIsMobile()
+  const [showSheet, setShowSheet] = useState(false)   // لوحة الفلاتر من تحت (موبايل)
   const [branches, setBranches] = useState([])
   // اختيار العرض يُحفظ محليًا فلا يضيع عند إعادة تحميل الصفحة
   const [view, setView] = useState(() => {
@@ -289,9 +293,179 @@ export default function LeadsPage() {
   const activeFilterCount = Object.entries(filters)
     .filter(([k, v]) => v !== '' && v !== false && v != null).length
 
+  // فلاتر المصدر والأشخاص — نفس العناصر في شريط الكمبيوتر ولوحة الموبايل
+  const peopleSelects = (
+    <>
+      <select value={filters.source} onChange={e => set('source', e.target.value)}>
+        <option value="">{t('leads.allSources')}</option>
+        {refs.sources.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
+      </select>
+      {/* فلاتر الأشخاص — متاحة للجميع، وRLS يحدّ ما يراه كل دور
+          السيلز يحتاج معرفة مرضاه عند أي منسقة،
+          والمنسقة تحتاج معرفة مصدر مرضاها من المبيعات */}
+      {board === 'sales' && isManager && (
+        <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
+          <option value="">{t('leads.allSales')}</option>
+          {iAmSales && <option value={profile.id}>{t('leads.myLeads')}</option>}
+          {otherSales.map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
+        </select>
+      )}
+
+      {board === 'coordinator' && (
+        <>
+          <select value={filters.coordinator} onChange={e => set('coordinator', e.target.value)}
+            title={roleCode === 'agent' ? t('leads.coordFilterTitleAgent') : t('leads.coordFilterTitle')}>
+            <option value="">
+              {roleCode === 'agent' ? t('leads.myPatientsAllCoords') : t('leads.allCoords')}
+            </option>
+            {(refs.coordinators ?? []).map(c => (
+              <option key={c.id} value={c.id}>{c.full_name}</option>
+            ))}
+          </select>
+
+          {(isManager || roleCode === 'coordinator') && (
+            <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
+              <option value="">{t('leads.allSales')}</option>
+              {salesAgents.map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
+            </select>
+          )}
+        </>
+      )}
+    </>
+  )
+
+  // عدد الفلاتر المفعّلة جوه لوحة الموبايل (من غير البحث والشرائح)
+  const sheetCount = ['source', 'owner', 'coordinator'].filter(k => filters[k]).length + advancedCount
+
+  const advancedPanel = (
+      <div className="card advanced-filters">
+        <div className="af-grid">
+          <div className="field">
+            <label>{t('leads.f.createdFrom')}</label>
+            <input type="date" value={filters.createdFrom} onChange={e => set('createdFrom', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>{t('leads.f.to')}</label>
+            <input type="date" value={filters.createdTo} onChange={e => set('createdTo', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>{t('leads.f.branch')}</label>
+            <select value={filters.branch} onChange={e => set('branch', e.target.value)}>
+              <option value="">{t('leads.f.allBranches')}</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{dn(b)}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>{t('leads.f.interest')}</label>
+            <select value={filters.interest} onChange={e => set('interest', e.target.value)}>
+              <option value="">{t('common.all')}</option>
+              <option value="hair">{t('interest.hair')}</option>
+              <option value="beard">{t('interest.beard')}</option>
+              <option value="eyebrows">{t('interest.eyebrows')}</option>
+              <option value="prp">{t('interest.prp')}</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>{t('leads.f.priceFrom')}</label>
+            <input type="number" value={filters.priceFrom} onChange={e => set('priceFrom', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>{t('leads.f.priceTo')}</label>
+            <input type="number" value={filters.priceTo} onChange={e => set('priceTo', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>{t('leads.f.ageFrom')}</label>
+            <input type="number" value={filters.ageFrom} onChange={e => set('ageFrom', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>{t('leads.f.ageTo')}</label>
+            <input type="number" value={filters.ageTo} onChange={e => set('ageTo', e.target.value)} />
+          </div>
+        </div>
+        {/* الحركة والمكالمات خلال فترة */}
+        <div className="af-grid" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line-soft)' }}>
+          {isManager && (
+            <div className="field">
+              <label>{t('leads.f.movedBy')}</label>
+              <select value={filters.movedBy} onChange={e => set('movedBy', e.target.value)}>
+                <option value="">{t('leads.f.anyEmployee')}</option>
+                {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="field">
+            <label>{t('leads.f.movedFrom')}</label>
+            <input type="date" value={filters.movedFrom} onChange={e => set('movedFrom', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>{t('leads.f.movedTo')}</label>
+            <input type="date" value={filters.movedTo} onChange={e => set('movedTo', e.target.value)} />
+          </div>
+        </div>
+        {filters.movedBy && (
+          <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
+            {t('leads.f.movedByHint')}
+          </div>
+        )}
+
+        {/* «متصل» — مكالمات السنترال (Azeer) */}
+        <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>📞 {t('leads.f.called')}</div>
+        <div className="af-grid" style={{ marginTop: 8 }}>
+          {isManager && (
+            <div className="field">
+              <label>{t('leads.f.calledBy')}</label>
+              <select value={filters.callsBy} onChange={e => set('callsBy', e.target.value)}>
+                <option value="">{t('leads.f.anyEmployee')}</option>
+                {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="field">
+            <label>{t('leads.f.calledFrom')}</label>
+            <input type="date" value={filters.callsFrom} onChange={e => set('callsFrom', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>{t('leads.f.calledTo')}</label>
+            <input type="date" value={filters.callsTo} onChange={e => set('callsTo', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>{t('leads.f.callsMin')}</label>
+            <input type="number" min="0" placeholder="1" value={filters.callsMin}
+              onChange={e => set('callsMin', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>{t('leads.f.callsMax')}</label>
+            <input type="number" min="0" placeholder={t('leads.f.noLimit')} value={filters.callsMax}
+              onChange={e => set('callsMax', e.target.value)} />
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
+          {t('leads.f.callsHint')}
+        </div>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
+            <input type="checkbox" checked={filters.callsAnswered}
+              onChange={e => set('callsAnswered', e.target.checked)} style={{ width: 16, height: 16 }} />
+            {t('leads.f.answeredOnly')}
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
+            <input type="checkbox" checked={filters.movedToday}
+              onChange={e => set('movedToday', e.target.checked)} style={{ width: 16, height: 16 }} />
+            {t('leads.f.movedToday')}
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
+            <input type="checkbox" checked={filters.snoozed}
+              onChange={e => set('snoozed', e.target.checked)} style={{ width: 16, height: 16 }} />
+            {t('leads.f.snoozed')}
+          </label>
+          <button className="btn btn-ghost" onClick={() => setFilters(EMPTY_FILTERS)}>{t('leads.f.clearAll')}</button>
+        </div>
+      </div>
+  )
+
   return (
     <>
-      <div className="page-head">
+      <div className="page-head leads-head">
         <div>
           <h1>{t('leads.title')}</h1>
           <div className="hint">
@@ -307,7 +481,7 @@ export default function LeadsPage() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {isManager && (
-            <button className="btn btn-ghost" onClick={() => setShowExport(true)}>
+            <button className="btn btn-ghost hide-mobile" onClick={() => setShowExport(true)}>
               ⬇ {t('leads.exportExcel')}
             </button>
           )}
@@ -345,196 +519,54 @@ export default function LeadsPage() {
         ))}
       </div>
 
-      <div className="card filters-bar">
-        <input
-          className="filter-search"
-          placeholder={t('leads.searchPh')}
-          value={filters.search}
-          onChange={e => set('search', e.target.value)}
-        />
-        <select value={filters.stage} onChange={e => set('stage', e.target.value)}>
-          <option value="">{t('leads.allBoardStages')}</option>
-          {boardStages.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
-        </select>
-        <select value={filters.source} onChange={e => set('source', e.target.value)}>
-          <option value="">{t('leads.allSources')}</option>
-          {refs.sources.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
-        </select>
-        {/* فلاتر الأشخاص — متاحة للجميع، وRLS يحدّ ما يراه كل دور
-            السيلز يحتاج معرفة مرضاه عند أي منسقة،
-            والمنسقة تحتاج معرفة مصدر مرضاها من المبيعات */}
-        {board === 'sales' && isManager && (
-          <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
-            <option value="">{t('leads.allSales')}</option>
-            {iAmSales && <option value={profile.id}>{t('leads.myLeads')}</option>}
-            {otherSales.map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
-          </select>
-        )}
-
-        {board === 'coordinator' && (
-          <>
-            <select value={filters.coordinator} onChange={e => set('coordinator', e.target.value)}
-              title={roleCode === 'agent' ? t('leads.coordFilterTitleAgent') : t('leads.coordFilterTitle')}>
-              <option value="">
-                {roleCode === 'agent' ? t('leads.myPatientsAllCoords') : t('leads.allCoords')}
-              </option>
-              {(refs.coordinators ?? []).map(c => (
-                <option key={c.id} value={c.id}>{c.full_name}</option>
-              ))}
-            </select>
-
-            {(isManager || roleCode === 'coordinator') && (
-              <select value={filters.owner} onChange={e => set('owner', e.target.value)}>
-                <option value="">{t('leads.allSales')}</option>
-                {salesAgents.map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
-              </select>
-            )}
-          </>
-        )}
-
-        <button className={'btn btn-ghost' + (advancedCount ? ' on' : '')}
-          onClick={() => setShowMore(s => !s)}>
-          {t('leads.moreFilters')}{advancedCount ? ` (${advancedCount})` : ''}
-        </button>
-        {view === 'kanban' && (
-          <select value={sort} onChange={e => setSort(e.target.value)}
-            title={t('leads.sortTitle')}>
-            <option value="recent">{t('leads.sortRecent')}</option>
-            <option value="oldest">{t('leads.sortOldest')}</option>
-          </select>
-        )}
-        <div className="view-toggle">
-          <button className={view === 'kanban' ? 'on' : ''} onClick={() => setView('kanban')}>{t('leads.kanban')}</button>
-          <button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>{t('leads.table')}</button>
+      {isMobile ? (
+        <div className="m-filterbar">
+          <input className="filter-search" type="search" enterKeyHint="search"
+            placeholder={t('leads.searchPh')}
+            value={filters.search}
+            onChange={e => set('search', e.target.value)} />
+          <button type="button" className={'m-filter-btn' + (sheetCount ? ' on' : '')}
+            onClick={() => setShowSheet(true)} aria-label={t('mlist.filters')} title={t('mlist.filters')}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8"
+              strokeLinecap="round" aria-hidden="true">
+              <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
+            </svg>
+            {sheetCount > 0 && <span className="n">{sheetCount}</span>}
+          </button>
         </div>
-      </div>
-
-      {/* اللوحة التفصيلية */}
-      {showMore && (
-        <div className="card advanced-filters">
-          <div className="af-grid">
-            <div className="field">
-              <label>{t('leads.f.createdFrom')}</label>
-              <input type="date" value={filters.createdFrom} onChange={e => set('createdFrom', e.target.value)} />
-            </div>
-            <div className="field">
-              <label>{t('leads.f.to')}</label>
-              <input type="date" value={filters.createdTo} onChange={e => set('createdTo', e.target.value)} />
-            </div>
-            <div className="field">
-              <label>{t('leads.f.branch')}</label>
-              <select value={filters.branch} onChange={e => set('branch', e.target.value)}>
-                <option value="">{t('leads.f.allBranches')}</option>
-                {branches.map(b => <option key={b.id} value={b.id}>{dn(b)}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>{t('leads.f.interest')}</label>
-              <select value={filters.interest} onChange={e => set('interest', e.target.value)}>
-                <option value="">{t('common.all')}</option>
-                <option value="hair">{t('interest.hair')}</option>
-                <option value="beard">{t('interest.beard')}</option>
-                <option value="eyebrows">{t('interest.eyebrows')}</option>
-                <option value="prp">{t('interest.prp')}</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>{t('leads.f.priceFrom')}</label>
-              <input type="number" value={filters.priceFrom} onChange={e => set('priceFrom', e.target.value)} />
-            </div>
-            <div className="field">
-              <label>{t('leads.f.priceTo')}</label>
-              <input type="number" value={filters.priceTo} onChange={e => set('priceTo', e.target.value)} />
-            </div>
-            <div className="field">
-              <label>{t('leads.f.ageFrom')}</label>
-              <input type="number" value={filters.ageFrom} onChange={e => set('ageFrom', e.target.value)} />
-            </div>
-            <div className="field">
-              <label>{t('leads.f.ageTo')}</label>
-              <input type="number" value={filters.ageTo} onChange={e => set('ageTo', e.target.value)} />
-            </div>
-          </div>
-          {/* الحركة والمكالمات خلال فترة */}
-          <div className="af-grid" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line-soft)' }}>
-            {isManager && (
-              <div className="field">
-                <label>{t('leads.f.movedBy')}</label>
-                <select value={filters.movedBy} onChange={e => set('movedBy', e.target.value)}>
-                  <option value="">{t('leads.f.anyEmployee')}</option>
-                  {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
-                </select>
-              </div>
-            )}
-            <div className="field">
-              <label>{t('leads.f.movedFrom')}</label>
-              <input type="date" value={filters.movedFrom} onChange={e => set('movedFrom', e.target.value)} />
-            </div>
-            <div className="field">
-              <label>{t('leads.f.movedTo')}</label>
-              <input type="date" value={filters.movedTo} onChange={e => set('movedTo', e.target.value)} />
-            </div>
-          </div>
-          {filters.movedBy && (
-            <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
-              {t('leads.f.movedByHint')}
-            </div>
+      ) : (
+        <div className="card filters-bar">
+          <input
+            className="filter-search"
+            placeholder={t('leads.searchPh')}
+            value={filters.search}
+            onChange={e => set('search', e.target.value)}
+          />
+          <select value={filters.stage} onChange={e => set('stage', e.target.value)}>
+            <option value="">{t('leads.allBoardStages')}</option>
+            {boardStages.map(s => <option key={s.id} value={s.id}>{dn(s)}</option>)}
+          </select>
+          {peopleSelects}
+          <button className={'btn btn-ghost' + (advancedCount ? ' on' : '')}
+            onClick={() => setShowMore(s => !s)}>
+            {t('leads.moreFilters')}{advancedCount ? ` (${advancedCount})` : ''}
+          </button>
+          {view === 'kanban' && (
+            <select value={sort} onChange={e => setSort(e.target.value)}
+              title={t('leads.sortTitle')}>
+              <option value="recent">{t('leads.sortRecent')}</option>
+              <option value="oldest">{t('leads.sortOldest')}</option>
+            </select>
           )}
-
-          {/* «متصل» — مكالمات السنترال (Azeer) */}
-          <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>📞 {t('leads.f.called')}</div>
-          <div className="af-grid" style={{ marginTop: 8 }}>
-            {isManager && (
-              <div className="field">
-                <label>{t('leads.f.calledBy')}</label>
-                <select value={filters.callsBy} onChange={e => set('callsBy', e.target.value)}>
-                  <option value="">{t('leads.f.anyEmployee')}</option>
-                  {(refs.agents ?? []).map(a => <option key={a.id} value={a.id}>{salesLabel(a)}</option>)}
-                </select>
-              </div>
-            )}
-            <div className="field">
-              <label>{t('leads.f.calledFrom')}</label>
-              <input type="date" value={filters.callsFrom} onChange={e => set('callsFrom', e.target.value)} />
-            </div>
-            <div className="field">
-              <label>{t('leads.f.calledTo')}</label>
-              <input type="date" value={filters.callsTo} onChange={e => set('callsTo', e.target.value)} />
-            </div>
-            <div className="field">
-              <label>{t('leads.f.callsMin')}</label>
-              <input type="number" min="0" placeholder="1" value={filters.callsMin}
-                onChange={e => set('callsMin', e.target.value)} />
-            </div>
-            <div className="field">
-              <label>{t('leads.f.callsMax')}</label>
-              <input type="number" min="0" placeholder={t('leads.f.noLimit')} value={filters.callsMax}
-                onChange={e => set('callsMax', e.target.value)} />
-            </div>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.7 }}>
-            {t('leads.f.callsHint')}
-          </div>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
-              <input type="checkbox" checked={filters.callsAnswered}
-                onChange={e => set('callsAnswered', e.target.checked)} style={{ width: 16, height: 16 }} />
-              {t('leads.f.answeredOnly')}
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
-              <input type="checkbox" checked={filters.movedToday}
-                onChange={e => set('movedToday', e.target.checked)} style={{ width: 16, height: 16 }} />
-              {t('leads.f.movedToday')}
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
-              <input type="checkbox" checked={filters.snoozed}
-                onChange={e => set('snoozed', e.target.checked)} style={{ width: 16, height: 16 }} />
-              {t('leads.f.snoozed')}
-            </label>
-            <button className="btn btn-ghost" onClick={() => setFilters(EMPTY_FILTERS)}>{t('leads.f.clearAll')}</button>
+          <div className="view-toggle">
+            <button className={view === 'kanban' ? 'on' : ''} onClick={() => setView('kanban')}>{t('leads.kanban')}</button>
+            <button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>{t('leads.table')}</button>
           </div>
         </div>
       )}
+
+      {/* اللوحة التفصيلية — على الموبايل جوه لوحة الفلاتر */}
+      {showMore && !isMobile && advancedPanel}
 
       {showArchive ? (
         <div className="card">
@@ -575,6 +607,15 @@ export default function LeadsPage() {
             </table>
           )}
         </div>
+      ) : isMobile ? (
+        <MobileLeadList
+          refreshKey={refreshKey}
+          board={board}
+          stages={boardStages}
+          filters={effectiveFilters}
+          sort={sort}
+          onOpen={openLeadWith}
+        />
       ) : view === 'kanban' ? (
         <Kanban
           key={board + '-' + sort + '-' + JSON.stringify(effectiveFilters)}
@@ -637,6 +678,43 @@ export default function LeadsPage() {
         </>
       )}
 
+      {isMobile && showSheet && (
+        <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setShowSheet(false)}>
+          <section className="sheet" role="dialog" aria-modal="true" aria-label={t('mlist.filters')}>
+            <div className="sheet-grip" aria-hidden="true" />
+            <header className="sheet-head">
+              <h2>{t('mlist.filters')}</h2>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowSheet(false)}>
+                {t('common.close')}
+              </button>
+            </header>
+            <div className="sheet-body">
+              <div className="sheet-group">
+                <div className="sheet-label">{t('mlist.sort')}</div>
+                <div className="seg">
+                  <button type="button" className={sort === 'oldest' ? 'on' : ''} onClick={() => setSort('oldest')}>
+                    {t('leads.sortOldest')}
+                  </button>
+                  <button type="button" className={sort === 'recent' ? 'on' : ''} onClick={() => setSort('recent')}>
+                    {t('leads.sortRecent')}
+                  </button>
+                </div>
+              </div>
+              <div className="sheet-group sheet-selects">{peopleSelects}</div>
+              {advancedPanel}
+            </div>
+            <footer className="sheet-foot">
+              <button type="button" className="btn btn-primary" onClick={() => setShowSheet(false)}>
+                {t('mlist.showResults')}
+              </button>
+              <button type="button" className="btn btn-ghost"
+                onClick={() => setFilters(f => ({ ...EMPTY_FILTERS, search: f.search }))}>
+                {t('mlist.clear')}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
       {showExport && (
         <ExportLeadsModal
           boardStageIds={boardStageIds}
