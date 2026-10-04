@@ -119,13 +119,14 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
     }
 
     // المبالغ تُرسل فقط لمن يملك تعديلها، وإن تغيّرت فعلًا
+    // السعر والضريبة: المنسقة + المحاسب + المدير
     if (canEditMoney) {
       const tot = Number(form.total_amount || 0)
       const x = Number(form.tax_amount || 0)
       if (!tot || tot <= 0) { setErr(t('newDeal.err.amountRequired')); setSaving(false); return }
       if (x >= tot) { setErr(t('newDeal.err.taxTooBig')); setSaving(false); return }
-      if (tot !== Number(deal.total_amount) || x !== Number(deal.tax_amount ?? 0)) {
-        patch.total_amount = tot
+      if (tot !== Number(deal.total_amount)) patch.total_amount = tot
+      if (x !== Number(deal.tax_amount ?? 0)) {
         patch.tax_amount = x
         patch.tax_note = form.tax_note || null
       }
@@ -142,14 +143,17 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
     }
 
     // تسجيل تغيير المبالغ في سجل العميل
-    if (patch.total_amount !== undefined) {
+    if (patch.total_amount !== undefined || patch.tax_amount !== undefined) {
+      const parts = []
+      if (patch.total_amount !== undefined)
+        parts.push(`التعاقد ${fmtNum(deal.total_amount)} ← ${fmtNum(patch.total_amount)} ر.س`)
+      if (patch.tax_amount !== undefined)
+        parts.push(`الضريبة ${fmtNum(deal.tax_amount)} ← ${fmtNum(patch.tax_amount)} ر.س`)
       await supabase.from('activities').insert({
         lead_id: deal.lead_id,
         user_id: profile?.id,
         type: 'note',
-        content: `تعديل مالية الديل #${dealId}: `
-          + `التعاقد ${fmtNum(deal.total_amount)} ← ${fmtNum(patch.total_amount)} ر.س · `
-          + `الضريبة ${fmtNum(deal.tax_amount)} ← ${fmtNum(patch.tax_amount)} ر.س`,
+        content: `تعديل مالية الديل #${dealId}: ` + parts.join(' · '),
       })
     }
 
@@ -201,12 +205,14 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
 
   // تعديل البيانات التشغيلية · تعديل المبالغ — والقفل يمنع الجميع
   const canEditFields = !deal.is_locked
+    && ['super_admin', 'sales_manager', 'coordinator', 'accountant'].includes(roleCode)
+  // المبالغ (السعر + الضريبة): المنسقة والمحاسب والمدير
+  const canEditMoney = !deal.is_locked
+    && ['super_admin', 'sales_manager', 'coordinator', 'accountant'].includes(roleCode)
+
   // نوع البيع: المحفوظ للعرض، والمختار في الفورم وقت التعديل
   const savedKind = deal.procedure_types?.kind ?? 'surgery'
   const kind = editing ? kindOf(refs.procedures, form.procedure_type_id) : savedKind
-    && ['super_admin', 'sales_manager', 'coordinator', 'accountant'].includes(roleCode)
-  const canEditMoney = !deal.is_locked
-    && ['super_admin', 'sales_manager', 'accountant'].includes(roleCode)
 
   const st = DEAL_STATUS[deal.status]
   const pay = fin ? PAY_STATUS[fin.payment_status] : null
@@ -340,7 +346,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
               </div>
             </div>
 
-            {canEditMoney ? (
+            {canEditMoney && (
               <>
                 <div style={{ borderTop: '1px dashed var(--line)', margin: '4px 0 14px' }} />
                 <div className="grid-2">
@@ -364,7 +370,8 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
                   ⚠ {t('dealDrawer.amountsWarn')}
                 </div>
               </>
-            ) : (
+            )}
+            {!canEditMoney && (
               <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12 }}>
                 {t('dealDrawer.amountsRoles')}
               </div>
