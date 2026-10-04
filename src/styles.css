@@ -2590,3 +2590,20 @@ button.mcard-main:active { background: var(--surface); }
   /* رقم العميل على كارت اللستة */
   .mlead-phone { color: var(--ink); font-weight: 600; letter-spacing: .2px; }
 }
+
+/* ===== موبايل: إصلاحات من فحص Playwright (tests/e2e/mobile-audit.spec.js) ===== */
+@media (max-width: 900px) {
+  /* شريط "لكل صفحة / السابق / التالي" كان بيطلع بره الشاشة على 360px */
+  .pager { flex-wrap: wrap; gap: 10px 14px; }
+
+  /* أهداف لمس 40px على الأقل */
+  .chip, .deals-tab, .branch-chip, .mstage, .m-filter-btn { min-height: 40px; }
+  .day-nav-btn, .icon-btn, .nav-pager .icon-btn, .chat-icon-btn { min-width: 40px; min-height: 40px; }
+  .nav-pager .icon-btn, .icon-btn { width: 40px; height: 40px; }
+  .drawer .tab { min-height: 40px; }
+  .notif-link, .notif-del { min-height: 40px; min-width: 40px; }
+
+  /* شريط اليوم في المعاينات: ما يعدّيش عرض 360px بعد تكبير الأزرار */
+  .day-nav { gap: 8px; }
+  .day-nav-date { min-width: 0; flex: 1 1 0; padding-inline: 8px; }
+}
