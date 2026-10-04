@@ -1748,6 +1748,16 @@
       "tasks": "{{today}} النهارده · {{overdue}} متأخرة",
       "opDate": "تاريخ العملية {{date}}",
       "session": "الجلسة {{n}}"
-    }
+    },
+    "clearAll": "مسح الكل",
+    "clearAllConfirm": "مسح كل الإشعارات ({{n}})؟ مش هتقدر ترجّعها.",
+    "delete": "مسح الإشعار",
+    "tabAll": "الكل",
+    "tabUnread": "غير المقروء",
+    "loadMore": "عرض المزيد",
+    "today": "النهارده",
+    "yesterday": "امبارح",
+    "emptyUnreadTitle": "كله مقروء",
+    "emptyUnreadBody": "مفيش إشعارات جديدة محتاجة تتشاف"
   }
 }

@@ -78,8 +78,37 @@ export function BellButton({ unread, open, onToggle, className = '' }) {
 }
 
 // ---------- اللوحة ----------
-export function NotificationPanel({ items, unread, onClose, onPick, onMarkAll }) {
+// تجميع حسب اليوم: النهارده / امبارح / التاريخ
+function dayKey(d) {
+  const x = new Date(d); x.setHours(0, 0, 0, 0)
+  return x.getTime()
+}
+function dayLabel(key) {
+  const today = dayKey(Date.now())
+  if (key === today) return i18n.t('notif.today')
+  if (key === today - 86400000) return i18n.t('notif.yesterday')
+  return fmtDate(key)
+}
+function groupByDay(items) {
+  const out = []
+  for (const n of items) {
+    const k = dayKey(n.updated_at ?? n.created_at)
+    const last = out[out.length - 1]
+    if (last && last.key === k) last.items.push(n)
+    else out.push({ key: k, items: [n] })
+  }
+  return out
+}
+
+const XIcon = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+)
+
+export function NotificationPanel({ notif, onClose, onPick }) {
   const { t } = useT()
+  const { items, unread, total, filter, hasMore, loading,
+          setFilter, loadMore, markAllRead, remove, clearAll } = notif
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -87,44 +116,92 @@ export function NotificationPanel({ items, unread, onClose, onPick, onMarkAll })
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  function confirmClear() {
+    if (window.confirm(t('notif.clearAllConfirm', { n: total }))) clearAll()
+  }
+
+  const groups = groupByDay(items)
+
   return (
     <>
       <div className="notif-scrim" onClick={onClose} />
       <section className="notif-panel" role="dialog" aria-label={t('notif.title')}>
         <header className="notif-head">
           <h2>{t('notif.title')}</h2>
-          {unread > 0 && (
-            <button type="button" className="notif-markall" onClick={onMarkAll}>{t('notif.markAll')}</button>
-          )}
+          <div className="notif-actions">
+            {unread > 0 && (
+              <button type="button" className="notif-link" onClick={markAllRead}>{t('notif.markAll')}</button>
+            )}
+            {total > 0 && (
+              <button type="button" className="notif-link danger" onClick={confirmClear}>{t('notif.clearAll')}</button>
+            )}
+          </div>
         </header>
+
+        <div className="notif-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={filter === 'all'}
+            className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>
+            {t('notif.tabAll')} <span>{total.toLocaleString('en-US')}</span>
+          </button>
+          <button type="button" role="tab" aria-selected={filter === 'unread'}
+            className={filter === 'unread' ? 'on' : ''} onClick={() => setFilter('unread')}>
+            {t('notif.tabUnread')} <span>{unread.toLocaleString('en-US')}</span>
+          </button>
+        </div>
 
         {items.length === 0 ? (
           <div className="notif-empty">
-            <strong>{t('notif.emptyTitle')}</strong>
-            <span>{t('notif.emptyBody')}</span>
+            {loading ? <span>{t('common.loading')}</span> : filter === 'unread' ? (
+              <>
+                <strong>{t('notif.emptyUnreadTitle')}</strong>
+                <span>{t('notif.emptyUnreadBody')}</span>
+              </>
+            ) : (
+              <>
+                <strong>{t('notif.emptyTitle')}</strong>
+                <span>{t('notif.emptyBody')}</span>
+              </>
+            )}
           </div>
         ) : (
-          <ul className="notif-list">
-            {items.map(n => {
-              const { title, body } = notifText(n)
-              const kind = KIND[n.type] ?? 'lead'
-              return (
-                <li key={n.id}>
-                  <button type="button" className={'notif-item' + (n.is_read ? '' : ' unread')} onClick={() => onPick(n)}>
-                    <span className={'notif-ico k-' + kind}>
-                      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
-                        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{GLYPH[kind]}</svg>
-                    </span>
-                    <span className="notif-text">
-                      <span className="notif-title">{title}</span>
-                      {body && <span className="notif-body">{body}</span>}
-                    </span>
-                    <span className="notif-time">{timeAgo(n.updated_at ?? n.created_at)}</span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          <div className="notif-scroll">
+            {groups.map(g => (
+              <div key={g.key} className="notif-day">
+                <div className="notif-day-label">{dayLabel(g.key)}</div>
+                <ul className="notif-list">
+                  {g.items.map(n => {
+                    const { title, body } = notifText(n)
+                    const kind = KIND[n.type] ?? 'lead'
+                    return (
+                      <li key={n.id} className={'notif-row' + (n.is_read ? '' : ' unread')}>
+                        <button type="button" className="notif-item" onClick={() => onPick(n)}>
+                          <span className={'notif-ico k-' + kind}>
+                            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+                              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{GLYPH[kind]}</svg>
+                          </span>
+                          <span className="notif-text">
+                            <span className="notif-title">{title}</span>
+                            {body && <span className="notif-body">{body}</span>}
+                            <span className="notif-time">{timeAgo(n.updated_at ?? n.created_at)}</span>
+                          </span>
+                        </button>
+                        <button type="button" className="notif-del" onClick={() => remove(n.id)}
+                          aria-label={t('notif.delete')} title={t('notif.delete')}>
+                          <XIcon />
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            ))}
+
+            {hasMore && (
+              <button type="button" className="notif-more" onClick={loadMore} disabled={loading}>
+                {loading ? t('common.loading') : t('notif.loadMore')}
+              </button>
+            )}
+          </div>
         )}
       </section>
     </>

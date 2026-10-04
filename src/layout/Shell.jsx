@@ -101,6 +101,10 @@ export default function Shell() {
   const [notifTarget, setNotifTarget] = useState(null)   // ليد/ديل/باقة مفتوحة من إشعار
   const resolveNotif = useNotifTarget()
   const closeNotif = useCallback(() => setNotifOpen(false), [])
+  const toggleNotif = useCallback(() => {
+    if (!notifOpen) notif.resetView()   // كل فتح يبدأ من أول صفحة على «الكل»
+    setNotifOpen(!notifOpen)
+  }, [notifOpen, notif.resetView])
   const pickNotif = useCallback((n) => {
     notif.markRead(n.id)
     setNotifOpen(false)
@@ -167,7 +171,7 @@ export default function Shell() {
           )}
           {dueTasks > 0 && <span className="topbar-badge">{dueTasks}</span>}
           <BellButton className="on-topbar" unread={notif.unread} open={notifOpen}
-            onToggle={() => setNotifOpen(o => !o)} />
+            onToggle={toggleNotif} />
         </div>
       </header>
 
@@ -179,7 +183,7 @@ export default function Shell() {
           <div className="brand">
             <span className="brand-text">Roots Clinic <span>·</span> CRM</span>
             <BellButton className="on-sidebar" unread={notif.unread} open={notifOpen}
-              onToggle={() => setNotifOpen(o => !o)} />
+              onToggle={toggleNotif} />
           </div>
           <button className="sidebar-close" onClick={() => setNavOpen(false)} aria-label={t('common.closeMenu')}>
             ✕
@@ -232,8 +236,7 @@ export default function Shell() {
       <main className="main"><Outlet /></main>
 
       {notifOpen && (
-        <NotificationPanel items={notif.items} unread={notif.unread}
-          onClose={closeNotif} onPick={pickNotif} onMarkAll={notif.markAllRead} />
+        <NotificationPanel notif={notif} onClose={closeNotif} onPick={pickNotif} />
       )}
       <EntityOpener target={notifTarget} onClose={() => setNotifTarget(null)} />
     </div>

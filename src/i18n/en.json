@@ -1748,6 +1748,16 @@
       "tasks": "{{today}} today · {{overdue}} overdue",
       "opDate": "Operation date {{date}}",
       "session": "Session {{n}}"
-    }
+    },
+    "clearAll": "Clear all",
+    "clearAllConfirm": "Delete all notifications ({{n}})? This can’t be undone.",
+    "delete": "Delete notification",
+    "tabAll": "All",
+    "tabUnread": "Unread",
+    "loadMore": "Show more",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "emptyUnreadTitle": "All caught up",
+    "emptyUnreadBody": "No new notifications to review"
   }
 }
