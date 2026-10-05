@@ -133,6 +133,83 @@ async function checkOverlap(page, scrollerSel) {
   }, scrollerSel).catch(() => [])
 }
 
+
+// فحص التغطية: العناصر المهمة (عناوين، تبويبات، أزرار حفظ/إلغاء، أول وآخر عناصر) لازم elementFromPoint
+// على نقطها يرجّع العنصر نفسه أو حاجة جواه — لو رجّع عنصر تاني (topbar, bottom-nav…) يبقى مستخبي تحته.
+// phase: top = بعد السكرول لأول المحتوى، bottom = بعد السكرول لآخره. (الكيبورد مش مفتوح — المحاكي مش بيفتحه)
+async function coverageEval({ rootSel, scrollerSels, phase }) {
+  const wait = (ms) => new Promise(r => setTimeout(r, ms))
+  const root = document.querySelector(rootSel) || document.body
+  document.documentElement.style.scrollBehavior = 'auto'
+  const given = scrollerSels.map(s => document.querySelector(s)).filter(Boolean)
+  const scrollers = given.length ? given
+    : [document.body, document.querySelector('#root'), document.querySelector('.shell'), document.querySelector('main')]
+        .filter(e => e && e.scrollHeight > e.clientHeight + 5 && /auto|scroll/.test(getComputedStyle(e).overflowY))
+  for (const sc of scrollers) sc.scrollTo({ top: phase === 'top' ? 0 : sc.scrollHeight, behavior: 'instant' })
+  if (!given.length) window.scrollTo({ top: phase === 'top' ? 0 : document.documentElement.scrollHeight, behavior: 'instant' })
+  await wait(350)
+
+  const closedNav = document.querySelector('aside.sidebar:not(.open)')
+  const vis = (el) => {
+    const r = el.getBoundingClientRect()
+    if (r.width < 1 || r.height < 1) return false
+    const cs = getComputedStyle(el)
+    if (cs.visibility === 'hidden' || cs.display === 'none' || cs.opacity === '0' || cs.pointerEvents === 'none') return false
+    return !(closedNav && closedNav.contains(el))
+  }
+  const all = (sel) => [...root.querySelectorAll(sel)].filter(vis)
+  const sel = (el) => {
+    let s = el.tagName.toLowerCase()
+    if (el.id) return s + '#' + el.id
+    const c = [...el.classList].slice(0, 2).join('.')
+    return c ? s + '.' + c : s
+  }
+  const txt = (el) => (el.innerText || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 28)
+
+  const interactive = all('button, a[href], input:not([type=hidden]), select, textarea, [role=tab]')
+  const heads = all('h1, h2')
+  const tabs = all('.tab, [role=tab], .mstage')
+  const actions = all('.modal-actions .btn, .m-action-bar .btn, .sheet-foot .btn')
+  let lastLeaf = null, lb = -1
+  for (const el of all('*')) {
+    if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue
+    const r = el.getBoundingClientRect()
+    if (r.bottom > lb && r.bottom < innerHeight * 2) { lastLeaf = el; lb = r.bottom }
+  }
+  const set = new Set(phase === 'top'
+    ? [...heads, ...tabs.slice(0, 3), ...interactive.slice(0, 3), ...actions]
+    : [...interactive.slice(-3), ...actions, ...(lastLeaf ? [lastLeaf] : [])])
+
+  const bad = []
+  for (const el of set) {
+    const r = el.getBoundingClientRect()
+    if (r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) continue
+    const cx = Math.min(Math.max(r.left + r.width / 2, 1), innerWidth - 1)
+    for (const y of [r.top + Math.min(8, r.height / 2), r.top + r.height / 2, r.bottom - Math.min(8, r.height / 2)]) {
+      if (y <= 0 || y >= innerHeight) continue
+      const top = document.elementFromPoint(cx, y)
+      if (!top || el === top || el.contains(top)) continue
+      // مقصوص بسكرولر داخلي (زي رسايل الشات) مش متغطّي بعنصر تاني
+      let clippedByScroller = false
+      for (let a = el.parentElement; a && a !== root.parentElement && a !== document.body; a = a.parentElement) {
+        if (scrollers.includes(a)) break
+        if (/auto|scroll/.test(getComputedStyle(a).overflowY) && a.clientHeight >= 100 && a.scrollHeight > a.clientHeight + 2) {   // ≥100px: عشان .tabs المضغوط ما يتحسبش سكرولر
+          const ar = a.getBoundingClientRect()
+          if (r.top < ar.top || r.bottom > ar.bottom) { clippedByScroller = true; break }
+        }
+      }
+      if (clippedByScroller) continue
+      const k = top.closest('.topbar, .bottom-nav, .m-action-bar, .modal-backdrop, .drawer, .sheet, .notif-panel, .chat-lightbox, .sidebar, .modal')
+      // قبل السكرول، اللي تحت الشريط السفلي لسه هيظهر؛ وبعده، اللي فوق تحت الشريط العلوي كان عدّى
+      if (phase === 'top' && top.closest('.bottom-nav, .m-action-bar')) break
+      if (phase === 'bottom' && top.closest('.topbar')) break
+      bad.push(`${phase}: ${sel(el)} "${txt(el)}" مستخبي تحت ${k ? sel(k) : sel(top)}${k && k !== top ? ' (' + sel(top) + ')' : ''}`)
+      break
+    }
+  }
+  return [...new Set(bad)]
+}
+
 // ---------- الاختبار ----------
 for (const role of ROLES) {
   const envKey = role.toUpperCase()
@@ -170,7 +247,7 @@ for (const role of ROLES) {
     }
 
     // يصوّر ويفحص
-    async function capture(name, { scroller, theme } = {}) {
+    async function capture(name, { scroller, theme, root, scrollers, modal } = {}) {
       step = name
       await settle()
       const file = path.join(dir, `${name}.png`)
@@ -180,12 +257,21 @@ for (const role of ROLES) {
       await page.screenshot({ path: file, fullPage: true, clip: { x: 0, y: 0, width: w, height: Math.min(h, 4000) } })
         .catch(async () => page.screenshot({ path: file }))
       const c = await page.evaluate(runChecks, { minTap })
-      c.overlap = isDesktop ? [] : await checkOverlap(page, scroller)
+      c.overlap = (isDesktop || modal) ? [] : await checkOverlap(page, scroller)
+      // فحص التغطية: أول المحتوى ثم آخره
+      const covRoot = root || scroller || 'main'
+      const covScrollers = scrollers || (scroller ? [scroller] : [])
+      const covered = []
+      for (const phase of ['top', 'bottom']) {
+        covered.push(...await page.evaluate(coverageEval, { rootSel: covRoot, scrollerSels: covScrollers, phase }).catch(() => []))
+      }
       await page.evaluate(() => window.scrollTo(0, 0))
+      for (const sc of covScrollers) await page.evaluate((x) => document.querySelector(x)?.scrollTo(0, 0), sc).catch(() => {})
       const add = (kind, severity, detail) => findings.push({ role, device, page: name, kind, severity, detail, image: file.replace(/\\/g, '/') })
       if (c.hscroll) add('سكرول أفقي', 'عالية', `scrollWidth ${c.hscroll.scrollWidth} > ${c.hscroll.innerWidth}`)
       c.offscreen.forEach(d => add('عنصر بره الشاشة', 'عالية', d))
       c.overlap.forEach(d => add('شريط يغطي آخر المحتوى', 'عالية', d))
+      covered.forEach(d => add('مستخبي تحت عنصر', 'عالية', d))
       c.clipped.forEach(d => add('نص مقطوع', 'متوسطة', d))
       if (!isDesktop) c.smallTargets.forEach(d => add('زر أصغر من 40px', 'منخفضة', d))
       c.arrows.forEach(d => add('سهم (راجع الاتجاه)', 'معلومة', `${d} | dir=${c.dir}`))
@@ -203,8 +289,35 @@ for (const role of ROLES) {
 
     async function tryStep(name, fn) {
       step = name
-      try { await fn() } catch (e) { findings.push({ role, device, page: name, kind: 'خطوة فشلت', severity: 'معلومة', detail: String(e.message).split('\n')[0].slice(0, 160), image: '' }) }
+      const t0 = Date.now()
+      try { await fn(); console.log(`  [${role}/${device}] ${name} ${Date.now() - t0}ms`) } catch (e) {
+        const msg = String(e.message).split('\n')[0]
+        console.log(`  [${role}/${device}] ${name} FAIL ${Date.now() - t0}ms: ${msg.slice(0, 90)}`)
+        findings.push({ role, device, page: name, kind: 'خطوة فشلت', severity: 'معلومة', detail: msg.slice(0, 160), image: '' })
+      }
     }
+
+
+    // يفتح نافذة، يصوّرها ويفحصها، ويقفلها بـ"إلغاء" (من غير حفظ). كل صفحة بعدها بتتحمّل من جديد فمفيش حاجة بتفضل مفتوحة
+    async function closeOverlay(rootSel) {
+      // "إلغاء" الأول (عشان ما نقفلش الدرج بالغلط وإحنا بنلغي تعديل جواه)، وبعدين "إغلاق"
+      const root = page.locator(rootSel).first()
+      const cancel = root.getByRole('button', { name: /^(إلغاء|Cancel)$/ }).first()
+      const close = root.getByRole('button', { name: /^(إغلاق|Close)$/ }).first()
+      if (await cancel.count()) await cancel.click({ timeout: 3000 }).catch(() => {})
+      else if (await close.count()) await close.click({ timeout: 3000 }).catch(() => {})
+      else await page.keyboard.press('Escape')
+      await page.waitForTimeout(300)
+    }
+    async function modalStep(name, open, { root = '.modal', scrollers = ['.modal', '.modal-backdrop'], close = root } = {}) {
+      await tryStep(name, async () => {
+        await open()
+        await page.locator(root).first().waitFor({ timeout: 6000 })
+        await capture(name, { root, scrollers, modal: true })
+        await closeOverlay(close)
+      })
+    }
+    const plusBtn = () => page.locator('main button.btn-primary:has-text("+")').first()
 
     // 1) صفحة الدخول (من غير تسجيل)
     await visit('/login', '01-login')
@@ -234,13 +347,37 @@ for (const role of ROLES) {
       await tryStep('04-leads-filter-sheet', async () => {
         await page.locator('.m-filter-btn').click()
         await page.locator('.sheet').waitFor()
-        await capture('04-leads-filter-sheet')
+        await capture('04-leads-filter-sheet', { root: '.sheet', scrollers: ['.sheet-body'], modal: true })
         await page.locator('.sheet-backdrop').click({ position: { x: 5, y: 5 } })
       })
     }
+    await modalStep('20-modal-lead-new', () => plusBtn().click())
+    await tryStep('21-modal-lead-export', async () => {
+      const b = page.locator('main button:has-text("⬇")').first()
+      if (!(await b.isVisible().catch(() => false))) {
+        findings.push({ role, device, page: '21-modal-lead-export', kind: 'تصدير غير متاح', severity: 'معلومة', detail: 'الزر مخفي (hide-mobile) أو للمدراء بس', image: '' }); return
+      }
+      await b.click()
+      await page.locator('.drawer').first().waitFor({ timeout: 6000 })
+      await capture('21-modal-lead-export', { root: '.drawer', scrollers: ['.drawer'], modal: true })
+      await closeOverlay('.drawer')
+    })
     await tryStep('05-lead-drawer', async () => {
       await openFirstLead()
       await capture('05-lead-drawer', { scroller: '.drawer' })
+    })
+    await tryStep('22-lead-edit-data', async () => {
+      await page.locator('.drawer').getByRole('button', { name: /تعديل البيانات/ }).first().click({ timeout: 5000 })
+      await page.waitForTimeout(500)
+      await capture('22-lead-edit-data', { scroller: '.drawer' })
+      await page.locator('.drawer').getByRole('button', { name: /^إلغاء$/ }).first().click({ timeout: 4000 })   // إلغاء التعديل (مش حفظ)
+      await page.waitForTimeout(400)
+    })
+    await tryStep('23-lead-wa-templates', async () => {
+      await page.locator('.wa-tpl .icon-btn').first().click({ timeout: 5000 })
+      await page.locator('.wa-tpl-menu').waitFor({ timeout: 4000 })
+      await capture('23-lead-wa-templates', { root: '.wa-tpl-menu', scrollers: [], modal: true })
+      await page.locator('.wa-tpl .icon-btn').first().click().catch(() => {})
     })
     if (!isDesktop) {
       await tryStep('06-lead-move-stage-bar', async () => {
@@ -257,11 +394,54 @@ for (const role of ROLES) {
     await visit('/tasks', '07-tasks')
     await visit('/appointments', '08-appointments')
     await visit('/deals', '09-deals')
+    await modalStep('24-modal-deal-new', () => plusBtn().click())
+    await tryStep('25-deal-drawer', async () => {
+      await page.locator(isDesktop ? 'tbody tr' : '.mcard-main').first().click({ timeout: 6000 })
+      await page.locator('.drawer').first().waitFor({ timeout: 6000 })
+      await capture('25-deal-drawer', { root: '.drawer', scrollers: ['.drawer'], modal: true })
+      await closeOverlay('.drawer')
+    })
     await visit('/payments', '10-payments')
+    await modalStep('26-modal-payment-add', () => plusBtn().click())
     await visit('/prp', '11-prp')
+    await tryStep('27-prp-drawer', async () => {
+      await page.locator(isDesktop ? 'tbody tr' : 'button.mcard-main').first().click({ timeout: 6000 })
+      await page.locator('.drawer').first().waitFor({ timeout: 6000 })
+      await capture('27-prp-drawer', { root: '.drawer', scrollers: ['.drawer'], modal: true })
+      await closeOverlay('.drawer')
+    })
+    await visit('/installments', '28-installments')
+    await modalStep('29-modal-schedule', () => plusBtn().click())
+    await visit('/team', '30-team')
+    await modalStep('31-modal-employee-add', () => plusBtn().click())
+    await modalStep('32-modal-bulk-reassign', () => page.locator('xpath=//main//button[contains(@class,"btn-primary")][contains(.,"+")]/preceding-sibling::button[1]').click())
 
     // ---- الشات (قراءة فقط — mark_read ممنوع بالحارس) ----
     await visit('/chat', '12-chat-list')
+    await modalStep('33-modal-chat-new-direct', () => page.locator('.chat-new-btn').click())
+    await modalStep('34-modal-chat-new-group', async () => {
+      await page.locator('.chat-new-btn').click()
+      await page.locator('.modal .tabs .tab').nth(1).click()
+    })
+    await tryStep('35-modal-chat-group-info', async () => {
+      await page.goto('/chat', { waitUntil: 'domcontentloaded' })
+      await page.locator('.chat-item').first().waitFor({ timeout: 8000 })
+      const grp = page.locator('.chat-item:has(.chat-avatar.group)').first()
+      if (!(await grp.count())) {
+        await page.locator('.chat-list-head .tab').nth(1).click({ timeout: 3000 }).catch(() => {})   // تبويب المراقبة (قراءة بس)
+        await page.waitForTimeout(1200)
+      }
+      if (!(await grp.count())) {
+        findings.push({ role, device, page: '35-modal-chat-group-info', kind: 'مفيش جروب', severity: 'معلومة', detail: 'مفيش جروب ظاهر للدور ده', image: '' }); return
+      }
+      await grp.click({ timeout: 8000 })   // أول جروب في القايمة
+      await page.waitForTimeout(900)
+      await page.locator('.chat-thread .chat-icon-btn:has-text("ⓘ")').click({ timeout: 6000 })
+      await page.locator('.modal').first().waitFor({ timeout: 6000 })
+      await capture('35-modal-chat-group-info', { root: '.modal', scrollers: ['.modal', '.modal-backdrop'], modal: true })
+      await closeOverlay('.modal')
+    })
+    await visit('/chat', '12b-chat-list-again')
     await tryStep('13-chat-thread', async () => {
       await page.locator('.chat-item').first().click({ timeout: 6000 })
       await page.waitForTimeout(1200)
@@ -274,7 +454,7 @@ for (const role of ROLES) {
       const bell = page.locator('.bell-btn:visible').first()
       await bell.click({ timeout: 6000 })
       await page.locator('.notif-panel').waitFor({ timeout: 6000 })
-      await capture('15-notifications')
+      await capture('15-notifications', { root: '.notif-panel', scrollers: ['.notif-scroll'], modal: true })
       await page.keyboard.press('Escape')
     })
 

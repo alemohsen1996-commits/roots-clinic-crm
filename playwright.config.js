@@ -15,12 +15,12 @@ const PORT = 5199
 
 export default defineConfig({
   testDir: 'tests/e2e',
-  timeout: 10 * 60 * 1000,
+  timeout: 25 * 60 * 1000,
   workers: 1,                 // دخول واحد في الوقت — عشان منعدّيش rate limit على الداتا الحقيقية
   retries: 0,
   reporter: [['list']],
   outputDir: 'test-results',
-  use: { baseURL: `http://localhost:${PORT}`, locale: 'ar-EG', trace: 'off' },
+  use: { actionTimeout: 8000, navigationTimeout: 30000, baseURL: `http://localhost:${PORT}`, locale: 'ar-EG', trace: 'off' },
   webServer: {
     command: `npm run dev -- --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
