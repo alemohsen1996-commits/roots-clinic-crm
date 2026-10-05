@@ -2658,3 +2658,29 @@ button.mcard-main:active { background: var(--surface); }
   }
   .modal-actions { bottom: -20px; }
 }
+
+/* موبايل: إصلاحات من فحص "العناصر المستخبية" (elementFromPoint) */
+@media (max-width: 900px) {
+  /* تبويبات النافذة (فردية/جروب) كانت بتتضغط لصفر ارتفاع جوه فلكس النافذة لما القايمة تطول
+     (overflow-x:auto على .tabs بيخلي min-height:0) فبتستخبى تحت العنوان */
+  .modal .tabs { flex-shrink: 0; }
+
+  /* قايمة قوالب الواتساب كانت بتطلع بره الشاشة (الخلية direction:ltr) — بقت بعرض الشاشة */
+  .wa-tpl-menu {
+    position: fixed; left: 12px; right: 12px; width: auto; top: calc(56px + env(safe-area-inset-top, 0px) + 170px); margin-top: 0;
+    max-height: min(360px, 50vh);
+  }
+  :root[dir="rtl"] .wa-tpl-menu { direction: rtl; }
+
+  /* رأس درج الديل/البلازما: التنقل والإغلاق في سطر لوحده (زي ملف الليد) بدل ما يطلع بره الشاشة */
+  .drawer-head:has(.head-actions):not(.lead-head) { flex-wrap: wrap; gap: 0; }
+  .drawer-head:has(.head-actions):not(.lead-head) > div:first-child { flex: 1 1 100%; }
+  .drawer-head:has(.head-actions):not(.lead-head) .head-actions {
+    order: -1; width: 100%;
+    flex-direction: row; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+
+  /* اختيار عدد جلسات الباقة: يلفّ بدل ما يتقطع */
+  .pkg-count-row { flex-wrap: wrap; }
+}

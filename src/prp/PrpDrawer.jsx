@@ -183,7 +183,7 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
         {pkg.status === 'active' && canEdit && (
           <div className="drawer-section">
             <h3>{t('prpDrawer.sessionsCount')}</h3>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="pkg-count-row" style={{ display: 'flex', gap: 8 }}>
               {[2, 3, 4].map(n => (
                 <button key={n}
                   className={'btn ' + (pkg.sessions_total === n ? 'btn-primary' : 'btn-ghost')}
