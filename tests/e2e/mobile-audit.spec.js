@@ -287,6 +287,12 @@ for (const role of ROLES) {
       await capture(name, opts)
     }
 
+    // تخطّي متوقّع (مفيش صلاحية / مش متاح للدور) — بيتسجّل معلومة، مش فشل
+    function skipStep(name, reason) {
+      console.log(`  [${role}/${device}] ${name} SKIP: ${reason}`)
+      findings.push({ role, device, page: name, kind: 'اتخطّت', severity: 'معلومة', detail: reason, image: '' })
+    }
+
     async function tryStep(name, fn) {
       step = name
       const t0 = Date.now()
@@ -355,12 +361,13 @@ for (const role of ROLES) {
     await tryStep('21-modal-lead-export', async () => {
       const b = page.locator('main button:has-text("⬇")').first()
       if (!(await b.isVisible().catch(() => false))) {
-        findings.push({ role, device, page: '21-modal-lead-export', kind: 'تصدير غير متاح', severity: 'معلومة', detail: 'الزر مخفي (hide-mobile) أو للمدراء بس', image: '' }); return
+        skipStep('21-modal-lead-export', 'الزر مخفي على الموبايل أو للمدراء بس'); return
       }
       await b.click()
-      await page.locator('.drawer').first().waitFor({ timeout: 6000 })
-      await capture('21-modal-lead-export', { root: '.drawer', scrollers: ['.drawer'], modal: true })
-      await closeOverlay('.drawer')
+      const root = '.drawer-backdrop .card'
+      await page.locator(root).first().waitFor({ timeout: 6000 })
+      await capture('21-modal-lead-export', { root, scrollers: ['.drawer-backdrop'], modal: true })
+      await closeOverlay(root)
     })
     await tryStep('05-lead-drawer', async () => {
       await openFirstLead()
@@ -405,7 +412,7 @@ for (const role of ROLES) {
     await modalStep('26-modal-payment-add', () => plusBtn().click())
     await visit('/prp', '11-prp')
     await tryStep('27-prp-drawer', async () => {
-      await page.locator(isDesktop ? 'tbody tr' : 'button.mcard-main').first().click({ timeout: 6000 })
+      await page.locator(isDesktop ? 'tr[style*="cursor: pointer"]' : 'button.mcard-main').first().click({ timeout: 6000 })
       await page.locator('.drawer').first().waitFor({ timeout: 6000 })
       await capture('27-prp-drawer', { root: '.drawer', scrollers: ['.drawer'], modal: true })
       await closeOverlay('.drawer')
@@ -413,15 +420,24 @@ for (const role of ROLES) {
     await visit('/installments', '28-installments')
     await modalStep('29-modal-schedule', () => plusBtn().click())
     await visit('/team', '30-team')
-    await modalStep('31-modal-employee-add', () => plusBtn().click())
-    await modalStep('32-modal-bulk-reassign', () => page.locator('xpath=//main//button[contains(@class,"btn-primary")][contains(.,"+")]/preceding-sibling::button[1]').click())
+    const onTeam = new URL(page.url()).pathname === '/team'
+    if (!onTeam) { skipStep('31-modal-employee-add', 'صفحة الفريق للمدراء بس'); skipStep('32-modal-bulk-reassign', 'صفحة الفريق للمدراء بس') }
+    if (onTeam) await modalStep('31-modal-employee-add', () => plusBtn().click())
+    if (onTeam) await modalStep('32-modal-bulk-reassign', () => page.locator('xpath=//main//button[contains(@class,"btn-primary")][contains(.,"+")]/preceding-sibling::button[1]').click())
 
     // ---- الشات (قراءة فقط — mark_read ممنوع بالحارس) ----
     await visit('/chat', '12-chat-list')
     await modalStep('33-modal-chat-new-direct', () => page.locator('.chat-new-btn').click())
-    await modalStep('34-modal-chat-new-group', async () => {
+    await tryStep('34-modal-chat-new-group', async () => {
       await page.locator('.chat-new-btn').click()
+      await page.locator('.modal').first().waitFor({ timeout: 6000 })
+      if ((await page.locator('.modal .tabs .tab').count()) < 2) {
+        skipStep('34-modal-chat-new-group', 'الدور مش بيقدر يعمل جروب (مفيش تبويب جروب)')
+        await closeOverlay('.modal'); return
+      }
       await page.locator('.modal .tabs .tab').nth(1).click()
+      await capture('34-modal-chat-new-group', { root: '.modal', scrollers: ['.modal', '.modal-backdrop'], modal: true })
+      await closeOverlay('.modal')
     })
     await tryStep('35-modal-chat-group-info', async () => {
       await page.goto('/chat', { waitUntil: 'domcontentloaded' })
