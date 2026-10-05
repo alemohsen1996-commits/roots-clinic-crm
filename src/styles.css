@@ -2643,3 +2643,18 @@ button.mcard-main:active { background: var(--surface); }
   .kpi-target { padding: 16px !important; margin-top: 10px !important; }
   .dash-table th, .dash-table td { padding: 9px 10px; font-size: 12.5px; white-space: nowrap; }
 }
+
+/* ---------- النوافذ (Modals) على الموبايل ----------
+   كانت تحت الشريط العلوي (50 < 60)، فأي نافذة طويلة كان أولها بيستخبى تحته —
+   زي تبويبات «محادثة / جروب» في نافذة المحادثة الجديدة */
+@media (max-width: 900px) {
+  .modal-backdrop {
+    z-index: 65;                   /* فوق الشريط العلوي (60) وتحت القائمة الجانبية ولوحة الفلاتر */
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px 12px;
+  }
+  .modal {
+    padding: 20px;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px));
+  }
+  .modal-actions { bottom: -20px; }
+}
