@@ -2607,3 +2607,14 @@ button.mcard-main:active { background: var(--surface); }
   .day-nav { gap: 8px; }
   .day-nav-date { min-width: 0; flex: 1 1 0; padding-inline: 8px; }
 }
+
+/* موبايل: حقول الإدخال 16px (سفاري بيعمل zoom تحتها) و44px ارتفاع، وأهداف لمس 44px */
+@media (max-width: 900px) {
+  input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]):not([type=range]):not([type=color]),
+  select, textarea {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .link-name { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; }
+  .pass-eye { min-width: 44px; min-height: 44px; }
+}
