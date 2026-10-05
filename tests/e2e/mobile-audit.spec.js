@@ -197,6 +197,11 @@ async function coverageEval({ rootSel, scrollerSels, phase }) {
           const ar = a.getBoundingClientRect()
           if (r.top < ar.top || r.bottom > ar.bottom) { clippedByScroller = true; break }
         }
+        // سكرول أفقي (جدول جوه كارت): عنصر برا حدود الكارت أفقيًا بيتوصله بالسكرول مش متغطّي
+        if (/auto|scroll/.test(getComputedStyle(a).overflowX) && a.scrollWidth > a.clientWidth + 2) {
+          const ar = a.getBoundingClientRect()
+          if (r.left < ar.left || r.right > ar.right) { clippedByScroller = true; break }
+        }
       }
       if (clippedByScroller) continue
       const k = top.closest('.topbar, .bottom-nav, .m-action-bar, .modal-backdrop, .drawer, .sheet, .notif-panel, .chat-lightbox, .sidebar, .modal')
@@ -210,6 +215,89 @@ async function coverageEval({ rootSel, scrollerSels, phase }) {
   return [...new Set(bad)]
 }
 
+
+// ---------- فحوصات اللابتوب ----------
+// الكانبان (أعمدة ≥240px وعنوان/عدد مش مقطوعين) + الجداول (مفيش رقم مقطوع، والجدول بيسكرول جوه الكارت)
+function laptopEval() {
+  const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 1 && r.height > 1 && cs.visibility !== 'hidden' && cs.display !== 'none' }
+  const sel = (el) => { let s = el.tagName.toLowerCase(); const c = [...el.classList].slice(0, 2).join('.'); return c ? s + '.' + c : s }
+  const out = []
+  for (const col of document.querySelectorAll('.kanban-col')) {
+    if (!visible(col)) continue
+    const w = col.getBoundingClientRect().width
+    if (w < 240) out.push({ kind: 'كانبان: عمود ضيق', severity: 'متوسطة', detail: `${Math.round(w)}px (<240)` })
+    const head = col.querySelector('.kanban-head')
+    if (!head) continue
+    for (const q of ['.name', '.count']) {
+      const e = head.querySelector(q)
+      if (e && e.scrollWidth > e.clientWidth + 1) out.push({ kind: 'كانبان: عنوان/عدد مقطوع', severity: 'متوسطة', detail: `${q} "${e.textContent.trim().slice(0, 24)}" ${e.scrollWidth}>${e.clientWidth}` })
+    }
+    if (head.scrollWidth > head.clientWidth + 1) out.push({ kind: 'كانبان: عنوان/عدد مقطوع', severity: 'متوسطة', detail: `رأس العمود ${head.scrollWidth}>${head.clientWidth}` })
+  }
+  const seen = new Set()
+  for (const t of document.querySelectorAll('table')) {
+    if (!visible(t)) continue
+    for (const c of t.querySelectorAll('td, th')) {
+      for (const n of [c, ...c.querySelectorAll('*')]) {
+        if (n.clientWidth > 0 && n.scrollWidth > n.clientWidth + 1) {
+          const cs = getComputedStyle(n)
+          if (cs.overflowX === 'visible' && cs.textOverflow !== 'ellipsis') continue
+          const txt = n.textContent.trim().replace(/\s+/g, ' ')
+          const numeric = /[\d٠-٩]/.test(txt) && txt.length <= 28
+          const key = sel(n) + txt
+          if (seen.has(key)) continue
+          seen.add(key)
+          out.push({ kind: numeric ? 'جدول: رقم/مبلغ مقطوع' : 'جدول: نص مقطوع', severity: numeric ? 'عالية' : 'منخفضة', detail: `${sel(n)} "${txt.slice(0, 28)}" ${n.scrollWidth}>${n.clientWidth}` })
+        }
+      }
+    }
+    const r = t.getBoundingClientRect()
+    const wrap = t.closest('.card, .table-scroll')
+    if (wrap && r.width > wrap.clientWidth + 1 && !/auto|scroll/.test(getComputedStyle(wrap).overflowX)) {
+      out.push({ kind: 'جدول: مش بيسكرول جوه الكارت', severity: 'متوسطة', detail: `الجدول ${Math.round(r.width)}px أعرض من الكارت ${wrap.clientWidth}px (overflow-x=${getComputedStyle(wrap).overflowX})` })
+    }
+  }
+  return out.slice(0, 20)
+}
+
+// السايدبار: كل عناصر الفوتر (الثيم، اللغة، الخروج) لازم توصلها بالسكرول وتبقى ظاهرة وفوقها مفيش حاجة
+async function sidebarEval() {
+  const wait = (ms) => new Promise(r => setTimeout(r, ms))
+  const sb = document.querySelector('aside.sidebar')
+  if (!sb) return [{ kind: 'سايدبار', severity: 'معلومة', detail: 'مش موجود' }]
+  const scrollers = [sb, sb.querySelector('.nav-scroll')].filter(Boolean)
+  for (const sc of scrollers) sc.scrollTo({ top: sc.scrollHeight, behavior: 'instant' })
+  await wait(300)
+  const out = []
+  for (const b of sb.querySelectorAll('.foot button, .foot a')) {
+    const r = b.getBoundingClientRect()
+    if (r.width < 1) continue
+    const name = (b.getAttribute('aria-label') || b.innerText || '').trim().slice(0, 20)
+    if (r.bottom > innerHeight + 1 || r.top < 0) { out.push({ kind: 'سايدبار: عنصر مش واصله', severity: 'عالية', detail: `"${name}" top=${Math.round(r.top)} bottom=${Math.round(r.bottom)} vh=${innerHeight}` }); continue }
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+    if (top && top !== b && !b.contains(top)) out.push({ kind: 'سايدبار: عنصر مستخبي', severity: 'عالية', detail: `"${name}" تحت ${top.tagName.toLowerCase()}.${[...top.classList].slice(0, 2).join('.')}` })
+  }
+  for (const sc of scrollers) sc.scrollTo({ top: 0, behavior: 'instant' })
+  return out
+}
+
+// أزرار الحفظ/الإلغاء في النافذة: ظاهرة في الشاشة (بعد سكرول النافذة نفسها لآخرها)
+async function modalActionsEval() {
+  const wait = (ms) => new Promise(r => setTimeout(r, ms))
+  const m = document.querySelector('.modal')
+  if (!m) return []
+  m.scrollTo({ top: m.scrollHeight, behavior: 'instant' })
+  document.querySelector('.modal-backdrop')?.scrollTo({ top: 99999, behavior: 'instant' })
+  await wait(300)
+  const out = []
+  for (const b of m.querySelectorAll('.modal-actions .btn')) {
+    const r = b.getBoundingClientRect()
+    if (r.width < 1) continue
+    if (r.top < 0 || r.bottom > innerHeight + 1) out.push({ kind: 'نافذة: زرار الحفظ/الإلغاء مش ظاهر', severity: 'عالية', detail: `"${b.innerText.trim().slice(0, 20)}" top=${Math.round(r.top)} bottom=${Math.round(r.bottom)} vh=${innerHeight}` })
+  }
+  return out
+}
+
 // ---------- الاختبار ----------
 for (const role of ROLES) {
   const envKey = role.toUpperCase()
@@ -219,7 +307,7 @@ for (const role of ROLES) {
   test(`audit ${role}`, async ({ browser }, testInfo) => {
     test.skip(!email || !password, `مفيش بيانات دخول لدور ${role} في .env.test`)
     const device = testInfo.project.name
-    const isDesktop = device === 'desktop'
+    const isDesktop = device.startsWith('desktop')   // كل اللابتوبات بتبدأ بـ desktop
     const minTap = 40
     const dir = path.join(OUT, role, device)
     fs.mkdirSync(dir, { recursive: true })
@@ -272,6 +360,11 @@ for (const role of ROLES) {
       c.offscreen.forEach(d => add('عنصر بره الشاشة', 'عالية', d))
       c.overlap.forEach(d => add('شريط يغطي آخر المحتوى', 'عالية', d))
       covered.forEach(d => add('مستخبي تحت عنصر', 'عالية', d))
+      if (isDesktop) {
+        const lap = await page.evaluate(laptopEval).catch(() => [])
+        lap.forEach(f => add(f.kind, f.severity, f.detail))
+        if (modal && root === '.modal') (await page.evaluate(modalActionsEval).catch(() => [])).forEach(f => add(f.kind, f.severity, f.detail))
+      }
       c.clipped.forEach(d => add('نص مقطوع', 'متوسطة', d))
       if (!isDesktop) c.smallTargets.forEach(d => add('زر أصغر من 40px', 'منخفضة', d))
       c.arrows.forEach(d => add('سهم (راجع الاتجاه)', 'معلومة', `${d} | dir=${c.dir}`))
@@ -323,6 +416,27 @@ for (const role of ROLES) {
         await closeOverlay(close)
       })
     }
+
+    // الدرج لازم يتقفل بـ Esc وبالضغط بره (على الكمبيوتر)
+    async function drawerCloseChecks(prefix, open) {
+      const isOpen = () => page.locator('.drawer').count().then(n => n > 0)
+      await tryStep(`${prefix}-esc`, async () => {
+        await open()
+        await page.keyboard.press('Escape')
+        await page.waitForTimeout(500)
+        if (await isOpen()) findings.push({ role, device, page: prefix, kind: 'درج: Esc مش بيقفله', severity: 'متوسطة', detail: 'الدرج فضل مفتوح بعد Escape', image: '' })
+      })
+      await tryStep(`${prefix}-outside`, async () => {
+        if (!(await isOpen())) await open()
+        const vp = page.viewportSize()
+        await page.mouse.click(vp.width - 30, Math.round(vp.height / 2))   // الدرج على الشمال (RTL) فبره = اليمين
+        await page.waitForTimeout(500)
+        if (await isOpen()) {
+          findings.push({ role, device, page: prefix, kind: 'درج: الضغط بره مش بيقفله', severity: 'متوسطة', detail: 'الدرج فضل مفتوح بعد الضغط بره', image: '' })
+          await page.keyboard.press('Escape')
+        }
+      })
+    }
     const plusBtn = () => page.locator('main button.btn-primary:has-text("+")').first()
 
     // 1) صفحة الدخول (من غير تسجيل)
@@ -340,6 +454,12 @@ for (const role of ROLES) {
 
     // 3) الصفحات الأساسية
     await visit('/', '02-home')
+    if (isDesktop) {
+      await tryStep('02b-sidebar-reach', async () => {
+        const res = await page.evaluate(sidebarEval)
+        res.forEach(f => findings.push({ role, device, page: '02-home', kind: f.kind, severity: f.severity, detail: f.detail, image: '' }))
+      })
+    }
 
     // ---- الليدات ----
     await visit('/leads', '03-leads-board')
@@ -395,6 +515,26 @@ for (const role of ROLES) {
         await page.keyboard.press('Escape')
       })
     }
+    if (isDesktop) {
+      await drawerCloseChecks('41-lead-drawer', async () => { if (!(await page.locator('.drawer').count())) await openFirstLead() })
+      await tryStep('40-lead-drawer-notifications', async () => {
+        if (!(await page.locator('.drawer').count())) await openFirstLead()
+        const bell = page.locator('.bell-btn:visible').first()
+        try { await bell.click({ timeout: 4000 }) } catch {
+          findings.push({ role, device, page: '40-lead-drawer-notifications', kind: 'الجرس مش متاح والدرج مفتوح', severity: 'معلومة', detail: 'الدرج بيغطي الجرس (متوقع)', image: '' }); return
+        }
+        await page.locator('.notif-panel').waitFor({ timeout: 4000 })
+        await capture('40-lead-drawer-notifications', { root: '.notif-panel', scrollers: ['.notif-scroll'], modal: true })
+        const geo = await page.evaluate(() => {
+          const n = document.querySelector('.notif-panel')?.getBoundingClientRect(), d = document.querySelector('.drawer')?.getBoundingClientRect()
+          if (!n || !d) return null
+          const ix = Math.max(0, Math.min(n.right, d.right) - Math.max(n.left, d.left)), iy = Math.max(0, Math.min(n.bottom, d.bottom) - Math.max(n.top, d.top))
+          return { overlap: Math.round(ix * iy), n: [n.left, n.right, n.top, n.bottom].map(Math.round), vw: innerWidth, vh: innerHeight }
+        })
+        if (geo && geo.overlap > 0) findings.push({ role, device, page: '40-lead-drawer-notifications', kind: 'الإشعارات بتغطي الدرج', severity: 'متوسطة', detail: `تداخل ${geo.overlap}px² — لوحة ${geo.n} على شاشة ${geo.vw}×${geo.vh}`, image: '' })
+        if (geo && (geo.n[0] < 0 || geo.n[1] > geo.vw || geo.n[3] > geo.vh)) findings.push({ role, device, page: '40-lead-drawer-notifications', kind: 'الإشعارات بره الشاشة', severity: 'عالية', detail: `لوحة ${geo.n} على شاشة ${geo.vw}×${geo.vh}`, image: '' })
+      })
+    }
     await page.goto('about:blank')
 
     // ---- باقي الصفحات ----
@@ -408,14 +548,20 @@ for (const role of ROLES) {
       await capture('25-deal-drawer', { root: '.drawer', scrollers: ['.drawer'], modal: true })
       await closeOverlay('.drawer')
     })
+    if (isDesktop) await drawerCloseChecks('43-deal-drawer', async () => {
+      if (!(await page.locator('.drawer').count())) { await page.locator('tbody tr').first().click({ timeout: 6000 }); await page.locator('.drawer').first().waitFor({ timeout: 6000 }) }
+    })
     await visit('/payments', '10-payments')
     await modalStep('26-modal-payment-add', () => plusBtn().click())
     await visit('/prp', '11-prp')
     await tryStep('27-prp-drawer', async () => {
-      await page.locator(isDesktop ? 'tr[style*="cursor: pointer"]' : 'button.mcard-main').first().click({ timeout: 6000 })
+      await page.locator(isDesktop ? 'tr[style*="cursor: pointer"]' : 'button.mcard-main').first().click({ timeout: 15000 })
       await page.locator('.drawer').first().waitFor({ timeout: 6000 })
       await capture('27-prp-drawer', { root: '.drawer', scrollers: ['.drawer'], modal: true })
       await closeOverlay('.drawer')
+    })
+    if (isDesktop) await drawerCloseChecks('44-prp-drawer', async () => {
+      if (!(await page.locator('.drawer').count())) { await page.locator('tr[style*="cursor: pointer"]').first().click({ timeout: 15000 }); await page.locator('.drawer').first().waitFor({ timeout: 6000 }) }
     })
     await visit('/installments', '28-installments')
     await modalStep('29-modal-schedule', () => plusBtn().click())

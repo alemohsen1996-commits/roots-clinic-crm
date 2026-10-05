@@ -34,5 +34,12 @@ export default defineConfig({
       use: { ...devices['Pixel 5'], viewport: { width: 360, height: 780 }, screen: { width: 360, height: 780 } },
     },
     { name: 'desktop', use: { browserName: 'chromium', viewport: { width: 1440, height: 900 } } },
+    // لابتوبات (Chromium — الموظفين على كروم وإيدج). كل الأسماء بتبدأ بـ desktop
+    { name: 'desktop-1366', use: { browserName: 'chromium', viewport: { width: 1366, height: 768 } } },
+    { name: 'desktop-1536', use: { browserName: 'chromium', viewport: { width: 1536, height: 864 } } },
+    { name: 'desktop-1280', use: { browserName: 'chromium', viewport: { width: 1280, height: 720 } } },
+    { name: 'desktop-1024', use: { browserName: 'chromium', viewport: { width: 1024, height: 768 } } },   // أسوأ حالة فوق حد الموبايل (900)
+    // لابتوب 1366×768 بتكبير متصفح 125%: deviceScaleFactor 1.25 + مقاس CSS الفعلي (1366/1.25 × 768/1.25) زي ما الكروم بيحسبه
+    { name: 'desktop-1366-z125', use: { browserName: 'chromium', viewport: { width: 1093, height: 614 }, deviceScaleFactor: 1.25 } },
   ],
 })

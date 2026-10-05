@@ -16,7 +16,14 @@ const order = { 'عالية': 0, 'متوسطة': 1, 'منخفضة': 2, 'معلو
 rows.sort((a, b) => order[a.severity] - order[b.severity] || a.page.localeCompare(b.page))
 
 const rel = (p) => p ? `[صورة](${p.replace(new RegExp('^' + OUT + '/'), '')})` : ''
-let md = '# تقرير فحص الموبايل\n\n'
+// ملخص لكل مقاس: عدد الملاحظات حسب الخطورة
+const devs = [...new Set(rows.map(r => r.device))].sort()
+let summary = ['## ملخص لكل مقاس', '', '| المقاس | عالية | متوسطة | منخفضة | معلومة |', '|---|---|---|---|---|']
+for (const d of devs) {
+  const c = (sev) => rows.filter(r => r.device === d && r.severity === sev).length
+  summary.push(`| ${d} | ${c('عالية')} | ${c('متوسطة')} | ${c('منخفضة')} | ${c('معلومة')} |`)
+}
+let md = ['# تقرير فحص الموبايل واللابتوب', '', ...summary, '', ''].join('\n')
 md += `عدد الملاحظات: ${rows.length}\n\n| الصفحة | الجهاز | الدور | الخطورة | النوع | التفاصيل | الصورة |\n|---|---|---|---|---|---|---|\n`
 for (const r of rows) md += `| ${r.page} | ${r.device} | ${r.role} | ${r.severity} | ${r.kind} | ${String(r.detail).replace(/\|/g, '\|')} | ${rel(r.image)} |\n`
 md += `\n## طلبات كتابة اتمنعت بالحارس (مفيش داتا اتعدّلت)\n\n${blocked.length ? blocked.map(b => '- ' + b).join('\n') : 'ولا طلب.'}\n`
