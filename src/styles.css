@@ -2684,3 +2684,9 @@ button.mcard-main:active { background: var(--surface); }
   /* اختيار عدد جلسات الباقة: يلفّ بدل ما يتقطع */
   .pkg-count-row { flex-wrap: wrap; }
 }
+
+/* لابتوب ضيق (901–1279px): جدول الفريق أعرض من الكارت فكان بيطلع منه وأزرار الصفوف بتتقطع — يسكرول جوه الكارت.
+   مقصور على الكارت اللي فيه .row-actions (صفحة الفريق) ولا يمس الموبايل */
+@media (min-width: 901px) and (max-width: 1279px) {
+  .card:has(> table.table .row-actions) { overflow-x: auto; }
+}

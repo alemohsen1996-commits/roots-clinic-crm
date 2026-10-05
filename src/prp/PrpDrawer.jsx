@@ -47,6 +47,17 @@ export default function PrpDrawer({ packageId, onClose, onChanged }) {
 
   useEffect(() => { load() }, [load])
 
+  // Esc للإغلاق (زي درج الليد والديل) — ما لم يكن المؤشر داخل حقل إدخال
+  useEffect(() => {
+    const onKey = (e) => {
+      const tag = e.target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   async function updateSession(id, patch) {
     const { error } = await supabase.from('prp_sessions').update(patch).eq('id', id)
     if (error) { setErr(t('prpDrawer.updateFailed')); return }
