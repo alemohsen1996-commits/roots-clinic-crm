@@ -9,6 +9,7 @@ import { useChatUnread } from '../chat/useChatUnread'
 import useT from '../i18n/useT'
 import LangToggle from './LangToggle'
 import { useNotifications } from '../notifications/useNotifications'
+import { connectCrm, disconnectCrm } from '../lib/crmRealtime'
 import { BellButton, NotificationPanel, EntityOpener, useNotifTarget } from '../notifications/NotificationBell'
 
 // أيقونات خطّية موحّدة — التعرّف عليها أسرع من قراءة النص
@@ -104,6 +105,12 @@ export default function Shell() {
   const [navOpen, setNavOpen] = useState(false)
   const [dueTasks, setDueTasks] = useState(0)
   const chatUnread = useChatUnread(profile?.id, ['super_admin', 'sales_manager'].includes(roleCode))
+
+  // التحديث اللحظي للّيدات والدفعات والمعاينات (قنوات الدور + الـ Pool)
+  useEffect(() => {
+    connectCrm(profile?.id, roleCode)
+    return () => disconnectCrm()
+  }, [profile?.id, roleCode])
   const location = useLocation()
   const navigate = useNavigate()
 

@@ -7,6 +7,7 @@ import { fmtDate } from '../lib/format'
 import { useLeadRefs, fetchLeadsPage } from './useLeadRefs'
 import Kanban from './Kanban'
 import MobileLeadList from './MobileLeadList'
+import { onCrm } from '../lib/crmRealtime'
 import { useIsMobile } from '../lib/useIsMobile'
 import LeadsTable from './LeadsTable'
 import AddLeadModal from './AddLeadModal'
@@ -172,7 +173,6 @@ export default function LeadsPage() {
   useEffect(() => { viewRef.current = view }, [view])
   useEffect(() => {
     let tableTimer = null, chipsTimer = null
-    let subscribedOnce = false
 
     const refreshAllQuiet = () => {
       emitBoardPatch({ refetchAll: true })
@@ -180,28 +180,23 @@ export default function LeadsPage() {
       setChipsTick(t => t + 1)
     }
 
-    const ch = supabase.channel('leads-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (payload) => {
-        const id = payload.new?.id ?? payload.old?.id
-        const stageId = payload.new?.stage_id
-        emitBoardPatch({ realtime: true, id, refetch: stageId != null ? [stageId] : [] })
-        if (viewRef.current === 'table') {
-          clearTimeout(tableTimer)
-          tableTimer = setTimeout(() => loadTableRef.current({ quiet: true }), 600)
-        }
-        clearTimeout(chipsTimer)
-        // أعداد الشرائح (chip_counts) نداء تقيل على كل الليدات — تكفي كل 8 ثواني وقت الزحمة
-        chipsTimer = setTimeout(() => setChipsTick(t => t + 1), 8000)
-      })
-      .subscribe((status) => {
-        if (status !== 'SUBSCRIBED') return
-        // إعادة اتصال بعد انقطاع النت → فيه أحداث فاتتنا، نحدّث الكل مرة واحدة
-        if (subscribedOnce) refreshAllQuiet()
-        subscribedOnce = true
-      })
+    // الداتابيز بتبعت إشعار لأصحاب الصلاحية بس (lib/crmRealtime) — فيه المرحلة الجديدة والقديمة،
+    // فالعمود اللي الليد خرج منه بيتحدث كمان. وصاحب الليد القديم بيوصله الحدث فالليد بيختفي من عنده.
+    const off = onCrm((event, p) => {
+      if (event === 'resync') { refreshAllQuiet(); return }   // إعادة اتصال — ممكن يكون فاتنا أحداث
+      if (event !== 'crm_leads') return
+      const refetch = [...new Set([p.stage_id, p.old_stage_id].filter(v => v != null))]
+      emitBoardPatch({ realtime: true, id: p.id, refetch })
+      if (viewRef.current === 'table') {
+        clearTimeout(tableTimer)
+        tableTimer = setTimeout(() => loadTableRef.current({ quiet: true }), 600)
+      }
+      clearTimeout(chipsTimer)
+      // أعداد الشرائح (chip_counts) نداء تقيل على كل الليدات — تكفي كل 8 ثواني وقت الزحمة
+      chipsTimer = setTimeout(() => setChipsTick(t => t + 1), 8000)
+    })
 
     // احتياطي: لو التاب كان في الخلفية فترة، نحدّث بهدوء عند الرجوع
-    // (بيغطي كمان الليد اللي اتسحب من الموظف لغيره — الـ RLS بيمنع وصول حدثه له)
     let hiddenAt = 0
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return }
@@ -213,7 +208,7 @@ export default function LeadsPage() {
     return () => {
       clearTimeout(tableTimer); clearTimeout(chipsTimer)
       document.removeEventListener('visibilitychange', onVisibility)
-      supabase.removeChannel(ch)
+      off()
     }
   }, [])
 

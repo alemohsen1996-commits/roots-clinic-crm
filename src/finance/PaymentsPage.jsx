@@ -9,6 +9,7 @@ import { uploadReceipt, discardReceipt, openReceipt } from './receipts'
 import AddPaymentModal from './AddPaymentModal'
 import useT from '../i18n/useT'
 import { useIsMobile } from '../lib/useIsMobile'
+import { onCrm } from '../lib/crmRealtime'
 import ContactButtons from '../components/ContactButtons'
 import { dbErr } from '../lib/dbErrors'
 
@@ -143,13 +144,12 @@ export default function PaymentsPage() {
   })
   useEffect(() => {
     let timer = null
-    const ch = supabase.channel('payments-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
-        clearTimeout(timer)
-        timer = setTimeout(() => refreshRef.current(), 400)
-      })
-      .subscribe()
-    return () => { clearTimeout(timer); supabase.removeChannel(ch) }
+    const off = onCrm((event) => {
+      if (event !== 'crm_payments' && event !== 'resync') return
+      clearTimeout(timer)
+      timer = setTimeout(() => refreshRef.current(), 400)
+    })
+    return () => { clearTimeout(timer); off() }
   }, [])
 
   // ---------- الإجراءات ----------

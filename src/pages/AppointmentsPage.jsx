@@ -9,6 +9,7 @@ import { emitBoardPatch } from '../leads/boardBus'
 import { STAGE } from '../lib/stageCodes'
 import { useAuth } from '../auth/AuthContext'
 import useT from '../i18n/useT'
+import { onCrm } from '../lib/crmRealtime'
 
 // الأسماء في الترجمة: apptStatus.*
 const STATUS = {
@@ -195,11 +196,13 @@ export default function AppointmentsPage() {
   const sumRef = useRef(refreshSummary)
   useEffect(() => { loadRef.current = load; sumRef.current = refreshSummary })
   useEffect(() => {
-    const ch = supabase.channel('appointments-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' },
-        () => { loadRef.current(); sumRef.current() })
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
+    let timer = null
+    const off = onCrm((event) => {
+      if (event !== 'crm_appts' && event !== 'resync') return
+      clearTimeout(timer)
+      timer = setTimeout(() => { loadRef.current(); sumRef.current() }, 300)
+    })
+    return () => { clearTimeout(timer); off() }
   }, [])
 
   // خريطة الوقت → معاينة
