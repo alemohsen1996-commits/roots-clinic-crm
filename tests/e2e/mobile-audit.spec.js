@@ -313,6 +313,7 @@ for (const role of ROLES) {
     fs.mkdirSync(dir, { recursive: true })
     const findings = []
     const blocked = []
+    let routed = 0   // عدّاد طلبات Supabase اللي الحارس شافها
 
     const context = await browser.newContext(testInfo.project.use)
     const page = await context.newPage()
@@ -321,6 +322,7 @@ for (const role of ROLES) {
 
     await context.route('**/*', (route) => {
       const req = route.request()
+      if (/\.supabase\.co\//.test(req.url())) routed++
       if (isWrite(req)) { blocked.push(`${step}: ${req.method()} ${req.url().replace(/^https?:\/\/[^/]+/, '').slice(0, 90)}`); return route.fulfill({ status: 200, contentType: 'application/json', body: 'null' }) }
       return route.continue()
     })
@@ -449,6 +451,8 @@ for (const role of ROLES) {
     await page.click('button.auth-submit')
     await page.waitForURL(u => !u.pathname.startsWith('/login'), { timeout: 30000 })
     await settle()
+    // فحص أمان: لو الحارس ما شافش أي طلب Supabase يبقى مش بيحمي (زي WebKit مع الـservice worker) — نوقف
+    if (!routed) throw new Error('الحارس ما شافش أي طلب Supabase — حماية الكتابة مش شغّالة')
     // اللغة عربي دايمًا والثيم الافتراضي
     await page.evaluate(() => { try { localStorage.setItem('theme', 'default') } catch {} })
 

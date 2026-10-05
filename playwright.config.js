@@ -20,7 +20,8 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   outputDir: 'test-results',
-  use: { actionTimeout: 8000, navigationTimeout: 30000, baseURL: `http://localhost:${PORT}`, locale: 'ar-EG', trace: 'off' },
+  // serviceWorkers:'block' ضروري: في WebKit وجود الـservice worker بيخلّي context.route ما يشوفش طلبات Supabase (حارس الكتابة بيبقى مفتوح)
+  use: { serviceWorkers: 'block', actionTimeout: 8000, navigationTimeout: 30000, baseURL: `http://localhost:${PORT}`, locale: 'ar-EG', trace: 'off' },
   webServer: {
     command: `npm run dev -- --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
