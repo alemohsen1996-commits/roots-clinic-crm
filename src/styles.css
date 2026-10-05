@@ -2562,19 +2562,6 @@ button.mcard-main:active { background: var(--surface); }
 
 /* ---------- تصحيحات الموبايل بعد التجربة على آيفون ---------- */
 @media (max-width: 900px) {
-  /* باج آيفون (تطبيق على الشاشة الرئيسية): العناصر الثابتة تحت كانت عايمة فوق الحافة
-     --ios-gap بيتحسب في lib/iosViewportFix.js — صفر على أي جهاز تاني */
-  .bottom-nav, .m-action-bar { bottom: calc(0px - var(--ios-gap, 0px)); }
-  .drawer-backdrop, .sheet-backdrop, .modal-backdrop, .nav-overlay, .notif-scrim {
-    bottom: calc(0px - var(--ios-gap, 0px));
-  }
-  .shell .chat-page {
-    height: calc(100dvh - 68px - 14px - env(safe-area-inset-top, 0px) + var(--ios-gap, 0px));
-  }
-  .shell.has-bnav .chat-page {
-    height: calc(100dvh - 68px - 14px - env(safe-area-inset-top, 0px) - var(--bnav-h) - 14px + var(--ios-gap, 0px));
-  }
-
   /* رأس ملف الليد: الإغلاق والتنقّل في سطر لوحده فوق، والاسم وأزرار التواصل بعرض الشاشة كله */
   .drawer-head.lead-head { flex-wrap: wrap; gap: 0; }
   .lead-head > div:first-child { flex: 1 1 100% !important; }
@@ -2617,4 +2604,42 @@ button.mcard-main:active { background: var(--surface); }
   }
   .link-name { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; }
   .pass-eye { min-width: 44px; min-height: 44px; }
+}
+
+/* ---------- باج آيفون (تطبيق من الشاشة الرئيسية + شريط حالة شفاف) ----------
+   سفاري بيقصّر المساحة القابلة للرسم بارتفاع شريط الساعة، فبيفضل شريط تحت محدش يقدر يرسم فيه —
+   وهو نفسه مكان شَرطة الـ Home. فبدل ما نحجز safe-area زيادة فوقه:
+   - الأشرطة الثابتة تقعد على آخر سطر مرسوم من غير padding للـ safe-area
+   - وتاخد لون خلفية الصفحة، فالشريط اللي تحتها يبان امتداد ليها مش فراغ
+   الـ class بيتحط من lib/iosViewportFix.js بس لما الباج موجود فعلًا */
+@media (max-width: 900px) {
+  html.ios-gap { --bnav-h: 60px; }
+  html.ios-gap .bottom-nav {
+    padding-bottom: 0;
+    background: var(--surface);
+  }
+  html.ios-gap .m-action-bar {
+    padding-bottom: 10px;
+    background: var(--surface);
+    box-shadow: none;
+  }
+  html.ios-gap .drawer:has(.m-action-bar) { padding-bottom: 84px; }
+  html.ios-gap .drawer { padding-bottom: 26px; }
+  html.ios-gap .sheet-foot { padding-bottom: 12px; }
+  html.ios-gap .chat-composer { padding-bottom: 8px; }
+}
+
+/* ---------- لوحة التحكم على الموبايل: كارتين في الصف بدل كارت ضخم لكل رقم ---------- */
+@media (max-width: 900px) {
+  .shell .main .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+  .shell .main .kpi-card { padding: 14px !important; min-width: 0; }
+  .shell .main .kpi-card.kpi-wide { grid-column: 1 / -1; }
+  .kpi-label { font-size: 12.5px !important; margin-bottom: 2px !important; }
+  .kpi-value { font-size: 21px !important; line-height: 1.35; overflow-wrap: anywhere; }
+  .kpi-delta { margin-top: 4px !important; font-size: 11.5px; line-height: 1.5; }
+  .kpi-target { padding: 16px !important; margin-top: 10px !important; }
+  .dash-table th, .dash-table td { padding: 9px 10px; font-size: 12.5px; white-space: nowrap; }
 }

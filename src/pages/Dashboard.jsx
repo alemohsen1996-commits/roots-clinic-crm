@@ -198,11 +198,11 @@ export default function Dashboard() {
           )}
 
           {!(isPrp && !isManager) && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+          <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
             {cards.map(c => (
-              <div key={c.key} className="card" style={{ padding: 20 }}>
-                <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 6 }}>{t(`dashboard.cards.${c.key}`)}</div>
-                <div style={{
+              <div key={c.key} className={'card kpi-card' + (c.other ? ' kpi-wide' : '')} style={{ padding: 20 }}>
+                <div className="kpi-label" style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 6 }}>{t(`dashboard.cards.${c.key}`)}</div>
+                <div className="kpi-value" style={{
                   fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 26,
                   color: c.gold ? 'var(--gold)' : 'var(--ink)',
                 }}>{c.value}</div>
@@ -212,7 +212,7 @@ export default function Dashboard() {
                     <div style={{ fontSize: 11.5 }}>{t('dashboard.otherHint')}</div>
                   </div>
                 ) : (
-                <div style={{ marginTop: 6, minHeight: 18 }}>
+                <div className="kpi-delta" style={{ marginTop: 6, minHeight: 18 }}>
                   <Delta now={c.now} before={c.before} />
                 </div>
                 )}
@@ -223,7 +223,7 @@ export default function Dashboard() {
 
           {/* الهدف الشهري — للشهر الجاري فقط، لأن القيمة واحدة لا تاريخية */}
           {!isManager && isCurrentMonth && (
-            <div className="card" style={{ padding: 20, marginTop: 16 }}>
+            <div className="card kpi-target" style={{ padding: 20, marginTop: 16 }}>
               {target > 0 ? (() => {
                 const done = Number(cur?.revenue ?? 0)
                 const pct = Math.min(100, Math.round((done / target) * 100))
@@ -287,7 +287,7 @@ export default function Dashboard() {
                 <h2 style={{ fontSize: 16 }}>{t('dashboard.monthsLog')}</h2>
               </div>
               <div className="table-scroll" style={{ marginTop: 10, maxHeight: 300 }}>
-              <table className="table sticky-head">
+              <table className="table sticky-head dash-table">
                 <thead>
                   <tr>
                     <th>{t('common.month')}</th><th>{t('common.operations')}</th><th>{t('common.revenue')}</th>
@@ -355,7 +355,7 @@ export default function Dashboard() {
                       <div className="hint" style={{ padding: 16 }}>{t('dashboard.noNumbersMonth')}</div>
                     ) : (
                       <div className="table-scroll" style={{ marginTop: 8 }}>
-                      <table className="table sticky-head">
+                      <table className="table sticky-head dash-table">
                         <thead>
                           <tr>
                             <th>{t('common.employee')}</th>

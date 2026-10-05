@@ -1,7 +1,9 @@
 // إصلاح آيفون: لما السيستم مفتوح كتطبيق من الشاشة الرئيسية مع شريط حالة شفاف (black-translucent)
 // سفاري بيحسب ارتفاع الشاشة ناقص ارتفاع شريط الحالة — فأي عنصر ثابت تحت (bottom: 0)
 // زي الشريط السفلي وأزرار ملف الليد بيطلع فوق حافة الشاشة بمسافة فاضية.
-// بنقيس الفرق الحقيقي ونحطه في --ios-gap، والـ CSS بينزّل العناصر دي بمقداره.
+// الشريط اللي تحت ده مينفعش أي عنصر ثابت يترسم فيه (اتجرّب: العنصر بيتقص)،
+// وهو نفسه مكان شَرطة الـ Home. فلما نلاقي الفرق بنحط class="ios-gap" على <html>،
+// والـ CSS بيشيل الـ safe-area من تحت ويخلّي الشريط السفلي بلون الصفحة فيبان متصل بالشريط.
 // على أي جهاز تاني (أو لو أبل صلّحت الباج) الفرق = 0 ومفيش أي تغيير.
 
 const isIOS = () => {
@@ -13,7 +15,9 @@ const isStandalone = () =>
 
 function measure() {
   const root = document.documentElement
-  if (!document.body || !isIOS() || !isStandalone()) { root.style.removeProperty('--ios-gap'); return }
+  if (!document.body || !isIOS() || !isStandalone()) {
+    root.style.removeProperty('--ios-gap'); root.classList.remove('ios-gap'); return
+  }
 
   // ارتفاع المنطقة اللي العناصر الثابتة بتتحسب منها فعلًا
   const probe = document.createElement('div')
@@ -29,8 +33,11 @@ function measure() {
   const gap = Math.round(screenH - viewportH)
 
   // فرق منطقي بس (ارتفاع شريط حالة) — أي رقم أكبر يبقى حاجة تانية (تقسيم شاشة على الآيباد مثلًا)
-  if (gap > 0 && gap < 100) root.style.setProperty('--ios-gap', gap + 'px')
-  else root.style.removeProperty('--ios-gap')
+  if (gap > 0 && gap < 100) {
+    root.style.setProperty('--ios-gap', gap + 'px'); root.classList.add('ios-gap')
+  } else {
+    root.style.removeProperty('--ios-gap'); root.classList.remove('ios-gap')
+  }
 }
 
 let timer = null
