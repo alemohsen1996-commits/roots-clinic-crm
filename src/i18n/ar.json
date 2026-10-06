@@ -1757,13 +1757,15 @@
       "tasks_digest": "متابعاتك النهارده",
       "deal_outcome_due": "حدّد نتيجة العملية",
       "prp_due": "جلسة بلازما النهارده",
-      "appt_tomorrow": "معاينة بكرة"
+      "appt_tomorrow": "معاينة بكرة",
+      "payment_added": "تحصيل جديد محتاج تأكيد"
     },
     "b": {
       "openLeads": "افتح بورد الليدات",
       "tasks": "{{today}} النهارده · {{overdue}} متأخرة",
       "opDate": "تاريخ العملية {{date}}",
-      "session": "الجلسة {{n}}"
+      "session": "الجلسة {{n}}",
+      "by": "سجّلها {{name}}"
     },
     "clearAll": "مسح الكل",
     "clearAllConfirm": "مسح كل الإشعارات ({{n}})؟ مش هتقدر ترجّعها.",

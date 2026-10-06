@@ -28,6 +28,14 @@ function notifText(n) {
     case 'void_approved':
     case 'void_rejected':
       return { title: t(`notif.t.${n.type}`), body: [d.name, d.amount != null && `${fmtNum(d.amount)} ${cur()}`].filter(Boolean).join(' · ') }
+    case 'payment_added': {
+      const method = d.method ? t(`payMethod.${d.method}`, { defaultValue: d.method }) : null
+      return {
+        title: t('notif.t.payment_added'),
+        body: [d.name, d.amount != null && `${fmtNum(d.amount)} ${cur()}`, method, d.by && t('notif.b.by', { name: d.by })]
+          .filter(Boolean).join(' · '),
+      }
+    }
     case 'tasks_digest':
       return { title: t('notif.t.tasks_digest'), body: t('notif.b.tasks', { today: d.today ?? 0, overdue: d.overdue ?? 0 }) }
     case 'deal_outcome_due':
@@ -44,7 +52,7 @@ function notifText(n) {
 // ---------- الأيقونة حسب نوع الإشعار ----------
 const KIND = {
   lead_assigned: 'lead', lead_returned: 'lead', lead_transferred: 'coord',
-  void_requested: 'money', void_approved: 'money', void_rejected: 'money',
+  void_requested: 'money', void_approved: 'money', void_rejected: 'money', payment_added: 'money',
   tasks_digest: 'clock', deal_outcome_due: 'flag', prp_due: 'clock', appt_tomorrow: 'cal',
 }
 const GLYPH = {

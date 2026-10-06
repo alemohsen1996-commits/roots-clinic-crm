@@ -1757,13 +1757,15 @@
       "tasks_digest": "Your follow-ups today",
       "deal_outcome_due": "Set the operation outcome",
       "prp_due": "PRP session today",
-      "appt_tomorrow": "Consultation tomorrow"
+      "appt_tomorrow": "Consultation tomorrow",
+      "payment_added": "New payment to confirm"
     },
     "b": {
       "openLeads": "Open the leads board",
       "tasks": "{{today}} today · {{overdue}} overdue",
       "opDate": "Operation date {{date}}",
-      "session": "Session {{n}}"
+      "session": "Session {{n}}",
+      "by": "by {{name}}"
     },
     "clearAll": "Clear all",
     "clearAllConfirm": "Delete all notifications ({{n}})? This can’t be undone.",
