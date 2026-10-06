@@ -1708,7 +1708,9 @@
     "restoreSuperOnly": "Restoring is for the general manager only",
     "undoNotAllowed": "You're not allowed to undo",
     "alreadyUndone": "This batch was already undone",
-    "notAllowed": "Not allowed"
+    "notAllowed": "Not allowed",
+    "voidDirectRole": "Voiding directly requires a manager or accountant",
+    "paymentMissingOrVoidedNow": "The payment doesn't exist or was already voided"
   },
   "activityText": {
     "noAnswer": "Call — no answer",
@@ -1807,7 +1809,15 @@
     "ref": "Reference",
     "confirmedBy": "Confirmed by",
     "openFull": "Open in new tab",
-    "view": "view receipts"
+    "view": "view receipts",
+    "confirm": "Confirm",
+    "confirmAll": "Confirm all unconfirmed ({{n}})",
+    "voidNow": "Void payment",
+    "approveVoid": "Approve void",
+    "voidTitle": "Void payment",
+    "voidSub": "Voiding is immediate and final, no approval needed — enter the reason so it's recorded",
+    "voidSubPending": "This payment already has a pending void request — confirming approves it now and keeps the requester's reason",
+    "voidConfirm": "Void payment"
   },
   "receiptViewer": {
     "rotate": "Rotate",

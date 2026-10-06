@@ -571,7 +571,7 @@ export default function DealsPage() {
         />
       )}
 
-      {payDeal && <DealPaymentsModal deal={payDeal} onClose={() => setPayDeal(null)} />}
+      {payDeal && <DealPaymentsModal deal={payDeal} onClose={() => setPayDeal(null)} onChanged={reloadQuiet} />}
 
       {openDeal && (
         <DealDrawer

@@ -2731,6 +2731,8 @@ button.mcard-main:active { background: var(--surface); }
 .paydlg-meta b { color: var(--ink); font-weight: 600; }
 .paydlg-note { font-size: 12.5px; background: var(--surface); border-radius: 8px; padding: 6px 8px; }
 .paydlg-note.danger { color: var(--danger); background: var(--danger-soft); }
+.paydlg-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.paydlg-bulk { display: flex; justify-content: flex-end; margin-bottom: 10px; flex-shrink: 0; }
 @media (max-width: 560px) {
   .paydlg-sum { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
   .paydlg-sum b { font-size: 13.5px; }

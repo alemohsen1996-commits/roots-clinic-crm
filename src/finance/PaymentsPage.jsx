@@ -217,12 +217,16 @@ export default function PaymentsPage() {
 
   async function submitVoidRequest() {
     if (!voidReason.trim()) return
-    const { error } = await supabase.rpc('request_payment_void', {
+    // المحاسب/المدير بيلغي مباشرة (قرار أكتوبر 2026) — الباقي بيبعت طلب
+    const { error } = await supabase.rpc(canApproveVoid ? 'void_payment_direct' : 'request_payment_void', {
       p_payment_id: voidingId, p_reason: voidReason.trim(),
     })
     setVoidingId(null); setVoidReason('')
-    if (error) { flash(t('payments.err.voidRequest')); return }
-    flash(t('payments.voidRequested'))
+    if (error) {
+      flash((canApproveVoid ? t('payments.err.approveVoid') : t('payments.err.voidRequest')) + ' — ' + dbErr(error.message))
+      return
+    }
+    flash(canApproveVoid ? t('payments.voided') : t('payments.voidRequested'))
     load(); loadStats(); loadPendingVoids()
   }
 
@@ -714,8 +718,8 @@ export default function PaymentsPage() {
       {voidingId && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setVoidingId(null)}>
           <div className="modal" style={{ maxWidth: 420 }}>
-            <h2>{t('payments.voidTitle')}</h2>
-            <p className="sub">{t('payments.voidSub')}</p>
+            <h2>{canApproveVoid ? t('dealPays.voidTitle') : t('payments.voidTitle')}</h2>
+            <p className="sub">{canApproveVoid ? t('dealPays.voidSub') : t('payments.voidSub')}</p>
             <div className="field">
               <label>{t('payments.voidReason')}</label>
               <input value={voidReason} onChange={e => setVoidReason(e.target.value)}
@@ -723,8 +727,8 @@ export default function PaymentsPage() {
                 onKeyDown={e => e.key === 'Enter' && submitVoidRequest()} autoFocus />
             </div>
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={submitVoidRequest} disabled={!voidReason.trim()}>
-                {t('payments.sendRequest')}
+              <button className={'btn ' + (canApproveVoid ? 'btn-danger' : 'btn-primary')} onClick={submitVoidRequest} disabled={!voidReason.trim()}>
+                {canApproveVoid ? t('dealPays.voidConfirm') : t('payments.sendRequest')}
               </button>
               <button className="btn btn-ghost" onClick={() => setVoidingId(null)}>{t('common.cancel')}</button>
             </div>

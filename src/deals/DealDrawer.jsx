@@ -526,6 +526,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
             open_remaining: Math.max(0, Number(fin?.remaining) || 0),
           }}
           onClose={() => setShowPays(false)}
+          onChanged={() => { load(); onChanged?.() }}
         />
       )}
     </div>

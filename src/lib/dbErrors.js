@@ -53,6 +53,8 @@ const MAP = [
   ['رفض الإلغاء يتطلب صلاحية مدير أو محاسب', 'voidRejectRole'],
   ['سبب الإلغاء مطلوب', 'voidReasonRequired'],
   ['الدفعة غير موجودة أو سبق طلب إلغائها', 'paymentMissingOrVoided'],
+  ['الإلغاء المباشر يتطلب صلاحية مدير أو محاسب', 'voidDirectRole'],
+  ['الدفعة غير موجودة أو سبق إلغاؤها', 'paymentMissingOrVoidedNow'],
   ['حدد فرع العميل قبل فتح ملف التعاقد', 'branchBeforeDeal'],
   ['صورة الإيصال مطلوبة لتسجيل الدفعة', 'receiptRequired'],
   ['غير مسجل الدخول', 'notSignedIn'],
