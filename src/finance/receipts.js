@@ -59,3 +59,22 @@ export async function openReceipt(path) {
   if (win) win.location.href = data.signedUrl
   else window.location.href = data.signedUrl
 }
+
+// روابط مؤقتة لعدة إيصالات مرة واحدة (للمعاينة المصغّرة) — بترجع { path: url }
+export async function signedReceiptUrls(paths, seconds = 600) {
+  const list = [...new Set((paths ?? []).filter(Boolean))]
+  if (!list.length) return {}
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(list, seconds)
+  if (error || !data) return {}
+  const map = {}
+  data.forEach(x => { if (x.signedUrl) map[x.path] = x.signedUrl })
+  return map
+}
+
+// نوع الإيصال من الامتداد: image | pdf | file (HEIC المتصفح مابيعرضهوش)
+export function receiptKind(path) {
+  const ext = (path ?? '').split('.').pop().toLowerCase()
+  if (ext === 'pdf') return 'pdf'
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) return 'image'
+  return 'file'
+}

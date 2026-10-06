@@ -28,6 +28,18 @@ const CARD_METHODS = ['card', 'mada', 'visa', 'mastercard']
 const STATUSES = ['active', 'void_requested', 'void']
 
 const PAGE = 100
+// تجهيز نص البحث: لو أرقام (تليفون) نشيل + والمسافات والصفر في الأول
+// عشان 0557... تلاقي 966557... — غير كده (اسم/ملف/إيصال) زي ما هو
+function searchTerm(s) {
+  const v = (s ?? '').trim()
+  if (!v) return ''
+  if (/^[+\d\s()-]+$/.test(v)) {
+    const digits = v.replace(/\D/g, '').replace(/^0+/, '')
+    return digits || v
+  }
+  return v
+}
+
 const today = () => new Date().toISOString().slice(0, 10)
 const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(), 1)
   .toISOString().slice(0, 10)
@@ -36,7 +48,8 @@ const SELECT = `
   id, receipt_no, amount, method, paid_at, reference, notes, confirmed_at,
   status, void_reason, receipt_path, created_at,
   deals(id, total_amount, tax_amount, net_amount, status,
-        leads(file_no, full_name, phone),
+        leads(file_no, full_name, phone,
+              branch:branches!leads_branch_id_fkey(id, name, name_en)),
         agent:profiles!deals_agent_id_fkey(full_name),
         coordinator:profiles!deals_coordinator_id_fkey(full_name)),
   received:profiles!payments_received_by_fkey(full_name),
@@ -46,7 +59,7 @@ const SELECT = `
 
 export default function PaymentsPage() {
   const { profile, isManager, roleCode } = useAuth()
-  const { t } = useT()
+  const { t, dn } = useT()
   const SAR = t('common.currency')
   const methodLabel = (m) => t(`payMethod.${m}`, { defaultValue: m })
   const canConfirm = isManager || roleCode === 'accountant'
@@ -62,6 +75,9 @@ export default function PaymentsPage() {
 
   // الفلاتر
   const [search, setSearch] = useState('')
+  const [term, setTerm] = useState('')          // نص البحث بعد التأخير والتجهيز
+  const [branch, setBranch] = useState('')
+  const [branches, setBranches] = useState([])
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [method, setMethod] = useState('')
@@ -80,6 +96,17 @@ export default function PaymentsPage() {
 
   const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 4000) }
 
+  // تأخير بسيط للبحث عشان مانعملش طلب مع كل حرف
+  useEffect(() => {
+    const id = setTimeout(() => setTerm(searchTerm(search)), 300)
+    return () => clearTimeout(id)
+  }, [search])
+
+  useEffect(() => {
+    supabase.from('branches').select('id, name, name_en').eq('is_active', true).order('name')
+      .then(({ data }) => setBranches(data ?? []))
+  }, [])
+
   const fromTs = from ? from + 'T00:00:00' : null
   const toTs = to ? to + 'T23:59:59' : null
 
@@ -90,9 +117,11 @@ export default function PaymentsPage() {
     else if (method) q = q.eq('method', method)
     if (status) q = q.eq('status', status)
     if (onlyUnconfirmed) q = q.is('confirmed_at', null)
-    if (search.trim()) q = q.ilike('receipt_no', `%${search.trim()}%`)
+    if (branch) q = q.eq('pay_branch_id', branch)
+    // pay_search = رقم الإيصال + الاسم + الهاتف + رقم الملف (عمود محسوب في القاعدة)
+    if (term) q = q.ilike('pay_search', `%${term}%`)
     return q
-  }, [fromTs, toTs, method, status, onlyUnconfirmed, search])
+  }, [fromTs, toTs, method, status, onlyUnconfirmed, term, branch])
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
@@ -112,14 +141,15 @@ export default function PaymentsPage() {
     const { data: t } = await supabase.rpc('payment_totals', {
       p_from: fromTs, p_to: toTs,
       p_method: method || null,
-      p_search: search.trim() || null,
+      p_search: term || null,
+      p_branch: branch ? Number(branch) : null,
     })
     setSums(t ?? null)
     setLoading(false)
-  }, [page, fromTs, toTs, method, applyFilters, sortAsc])
+  }, [page, fromTs, toTs, method, term, branch, applyFilters, sortAsc])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(0); setSelected(new Set()) }, [fromTs, toTs, method, status, onlyUnconfirmed, search, sortAsc])
+  useEffect(() => { setPage(0); setSelected(new Set()) }, [fromTs, toTs, method, status, onlyUnconfirmed, term, branch, sortAsc])
 
   // طلبات الإلغاء المعلّقة تُجلب مستقلة عن الفلاتر والصفحة — حتى لا تختفي عن المدير
   const loadPendingVoids = useCallback(async () => {
@@ -239,7 +269,7 @@ export default function PaymentsPage() {
       t('payments.exportHeaders', { returnObjects: true }),
       all.map((p, i) => [
         i + 1, fmtDateTime(p.paid_at), p.receipt_no, p.deals?.leads?.full_name, p.deals?.leads?.file_no,
-        p.deals?.leads?.phone, p.deals?.agent?.full_name, p.deals?.coordinator?.full_name,
+        p.deals?.leads?.phone, dn(p.deals?.leads?.branch ?? {}) ?? '', p.deals?.agent?.full_name, p.deals?.coordinator?.full_name,
         p.amount, p.deals?.tax_amount ?? '', p.deals?.net_amount ?? '', p.deals?.total_amount ?? '',
         methodLabel(p.method), p.reference ?? '',
         p.received?.full_name ?? '',
@@ -269,7 +299,8 @@ export default function PaymentsPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE))
-  const hasFilters = search || from || to || method || status || onlyUnconfirmed
+  const hasFilters = search || from || to || method || status || onlyUnconfirmed || branch
+  const branchName = (p) => (p.deals?.leads?.branch ? dn(p.deals.leads.branch) : '')
 
   // كارت دفعة (موبايل)
   const paymentCard = (p) => {
@@ -280,7 +311,7 @@ export default function PaymentsPage() {
       <li key={p.id} className={'mcard' + (isVoid ? ' is-void' : '')}>
         <div className="mcard-main">
           <div className="mcard-top">
-            <span className="mcard-title">{lead?.full_name}<small>{lead?.file_no}</small></span>
+            <span className="mcard-title">{lead?.full_name}<small>{[lead?.file_no, branchName(p)].filter(Boolean).join(' · ')}</small></span>
             <span className="mcard-amount">{fmtNum(p.amount)} {SAR}</span>
           </div>
           <div className="mcard-sub">
@@ -452,7 +483,11 @@ export default function PaymentsPage() {
       {/* الفلاتر */}
       <div className="card filters-bar">
         <input className="filter-search" placeholder={t('payments.searchPh')}
-          value={search} onChange={e => setSearch(e.target.value)} />
+          aria-label={t('common.search')} value={search} onChange={e => setSearch(e.target.value)} />
+        <select aria-label={t('lead.branch')} value={branch} onChange={e => setBranch(e.target.value)}>
+          <option value="">{t('leads.f.allBranches')}</option>
+          {branches.map(b => <option key={b.id} value={b.id}>{dn(b)}</option>)}
+        </select>
         <label style={{ fontSize: 13, fontWeight: 600 }}>{t('drawer.from')}</label>
         <input type="date" value={from} onChange={e => setFrom(e.target.value)} />
         <label style={{ fontSize: 13, fontWeight: 600 }}>{t('leads.f.to')}</label>
@@ -480,7 +515,7 @@ export default function PaymentsPage() {
           onClick={() => { setFrom(monthStart()); setTo(today()) }}>{t('payments.thisMonth')}</button>
         {hasFilters && (
           <button className="btn btn-ghost btn-sm"
-            onClick={() => { setSearch(''); setFrom(''); setTo(''); setMethod(''); setStatus(''); setOnlyUnconfirmed(false) }}>
+            onClick={() => { setSearch(''); setFrom(''); setTo(''); setMethod(''); setStatus(''); setOnlyUnconfirmed(false); setBranch('') }}>
             {t('deals.clearFilters')}
           </button>
         )}
@@ -558,7 +593,7 @@ export default function PaymentsPage() {
                     <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {p.deals?.leads?.full_name}
                       <small style={{ color: 'var(--ink-soft)', display: 'block', fontWeight: 400 }}>
-                        {p.deals?.leads?.file_no}
+                        {[p.deals?.leads?.file_no, branchName(p)].filter(Boolean).join(' · ')}
                       </small>
                     </td>
                     <td style={{ fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' }}>

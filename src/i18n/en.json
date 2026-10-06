@@ -818,6 +818,7 @@
       "Client",
       "File No",
       "Phone",
+      "Branch",
       "Sales",
       "Coordinator",
       "Amount",
@@ -854,7 +855,7 @@
     "viewReceipt": "View receipt image",
     "approve": "Approve",
     "reject": "Reject",
-    "searchPh": "Search by receipt number…",
+    "searchPh": "Search by name, phone, file or receipt no…",
     "allMethods": "All methods",
     "allCards": "All cards (mada/Visa/Mastercard)",
     "allStatuses": "All statuses",
@@ -1791,5 +1792,20 @@
     "showMore": "Show more ({{left}} left)",
     "moveStage": "Move stage",
     "followUp": "Follow-up"
+  },
+  "dealPays": {
+    "open": "Collection details",
+    "title": "Collection details & payment receipts",
+    "total": "Contract value",
+    "collected": "Collected",
+    "remaining": "Remaining",
+    "none": "No payments recorded on this deal",
+    "loadFailed": "Could not load payments",
+    "noReceipt": "No receipt",
+    "pdf": "PDF receipt",
+    "file": "Open receipt",
+    "ref": "Reference",
+    "confirmedBy": "Confirmed by",
+    "openFull": "Open in new tab"
   }
 }

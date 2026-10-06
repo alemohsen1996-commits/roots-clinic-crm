@@ -13,6 +13,7 @@ import i18n from '../i18n'
 import useT from '../i18n/useT'
 import NewDealModal from './NewDealModal'
 import DealDrawer from './DealDrawer'
+import DealPaymentsModal from './DealPaymentsModal'
 import { useIsMobile } from '../lib/useIsMobile'
 import ContactButtons from '../components/ContactButtons'
 
@@ -49,7 +50,7 @@ function dealFlags(d, t) {
 }
 
 // كارت ديل (موبايل) — نفس معلومات صف الجدول، مرتّبة للقراءة من فوق لتحت
-function DealCard({ d, onOpen }) {
+function DealCard({ d, onOpen, onPays }) {
   const { t, dn } = useT()
   const SAR = t('common.currency')
   const st = DEAL_STATUS[d.status]
@@ -101,10 +102,14 @@ function DealCard({ d, onOpen }) {
           </div>
         )}
       </button>
-      {d.phone && (
+      {(d.phone || collected > 0) && (
         <div className="mcard-actions">
-          <ContactButtons phone={d.phone} />
-          <span className="hint" dir="ltr">{d.phone}</span>
+          {d.phone && <ContactButtons phone={d.phone} />}
+          {d.phone && <span className="hint" dir="ltr">{d.phone}</span>}
+          {collected > 0 && (
+            <button type="button" className="btn btn-ghost btn-sm" style={{ marginInlineStart: 'auto' }}
+              onClick={onPays}>💳 {t('dealPays.open')}</button>
+          )}
         </div>
       )}
     </li>
@@ -143,6 +148,7 @@ export default function DealsPage() {
 
   const [showNew, setShowNew] = useState(false)
   const [openDeal, setOpenDeal] = useState(null)
+  const [payDeal, setPayDeal] = useState(null)     // تفاصيل المحصّل + الإيصالات
   const [copied, setCopied] = useState(null)
   const [exporting, setExporting] = useState(false)
 
@@ -402,7 +408,7 @@ export default function DealsPage() {
         </div>
       ) : isMobile ? (
         <ul className="mcards">
-          {deals.map(d => <DealCard key={d.id} d={d} onOpen={() => setOpenDeal(d)} />)}
+          {deals.map(d => <DealCard key={d.id} d={d} onOpen={() => setOpenDeal(d)} onPays={() => setPayDeal(d)} />)}
         </ul>
       ) : (
         <div className="card" style={{ overflowX: 'auto', padding: 0 }}>
@@ -490,10 +496,15 @@ export default function DealsPage() {
                     </td>
                     <td style={{ whiteSpace: 'nowrap', fontWeight: 800 }}>{fmtNum(d.net_amount)} {SAR}</td>
                     <td>
-                      {closed ? (
+                      {closed && collected === 0 ? (
                         <span className="deals-muted">—</span>
                       ) : (
-                        <>
+                        <button type="button" className="deals-collect-btn"
+                          title={t('dealPays.open')} aria-label={`${t('dealPays.open')} — ${d.full_name ?? ''}`}
+                          onClick={e => { e.stopPropagation(); setPayDeal(d) }}>
+                          {closed ? (
+                            <span className="deals-muted">{fmtNum(collected)} {t('common.collected')}</span>
+                          ) : (<>
                           <div className="deals-bar" role="img"
                             aria-label={t('deals.collectedPct', { pct })}>
                             <span className={rem > 0 ? 'part' : 'full'} style={{ width: pct + '%' }} />
@@ -504,7 +515,8 @@ export default function DealsPage() {
                               ? <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{t('deals.sorts.remaining')} {fmtNum(rem)}</span>
                               : <span style={{ color: 'var(--ok)', fontWeight: 700 }}>{t('payStatus.paid')}</span>}
                           </div>
-                        </>
+                          </>)}
+                        </button>
                       )}
                     </td>
                     <td>
@@ -558,6 +570,8 @@ export default function DealsPage() {
           onSaved={() => { setShowNew(false); if (preloadLead) setParams({}); reloadQuiet() }}
         />
       )}
+
+      {payDeal && <DealPaymentsModal deal={payDeal} onClose={() => setPayDeal(null)} />}
 
       {openDeal && (
         <DealDrawer
