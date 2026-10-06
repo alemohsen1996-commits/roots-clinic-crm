@@ -2745,3 +2745,12 @@ button.mcard-main:active { background: var(--surface); }
   .paydlg-thumb { height: 180px; }
   .paydlg-file, .paydlg-noimg { height: 64px; flex-direction: row; }
 }
+
+/* خانة "المحصّل" في درج الديل — بتفتح تفاصيل الدفعات والإيصالات */
+.fin-grid > .fin-click {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 12px 14px; font: inherit; font-weight: 800; font-size: 16px; color: inherit;
+  text-align: start; cursor: pointer; transition: border-color .15s, background .15s;
+}
+.fin-grid > .fin-click:hover, .fin-grid > .fin-click:focus-visible { border-color: var(--gold); background: var(--card); }
+.fin-click i { font-style: normal; color: var(--gold); font-weight: 700; }

@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fetchDealFinance, DEAL_STATUS, PAY_STATUS, kindOf, dateLabel } from './useDealRefs'
 import ProcedureOptions from './ProcedureOptions'
+import DealPaymentsModal from './DealPaymentsModal'
 import { fmtNum, fmtDate } from '../lib/format'
 import useT from '../i18n/useT'
 import { dbErr } from '../lib/dbErrors'
@@ -24,6 +25,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [flash, setFlash] = useState('')
+  const [showPays, setShowPays] = useState(false)   // تفاصيل المحصّل + صور الإيصالات
 
   const load = useCallback(async () => {
     const [{ data: d }, f] = await Promise.all([
@@ -69,6 +71,7 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
     const onKey = (e) => {
       const t = e.target?.tagName
       if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return
+      if (showPays) return          // نافذة الإيصالات مفتوحة: Esc يقفلها هي بس
       if (e.key === 'Escape') { onClose(); return }
       if (!hasNav || editing) return
       // في الواجهة العربية: السهم الأيسر يتقدّم للتالي
@@ -260,7 +263,10 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
           </div>
           <div className="fin-grid">
             <div><span>{t('dealDrawer.dueFromClient')}</span>{fmtNum(deal.total_amount)} {SAR}</div>
-            <div><span>{t('common.collected')}</span>{fmtNum(fin?.collected)} {SAR}</div>
+            <button type="button" className="fin-click" onClick={() => setShowPays(true)}
+              title={t('dealPays.open')} aria-label={t('dealPays.open')}>
+              <span>{t('common.collected')} <i aria-hidden="true">· {t('dealPays.view')}</i></span>{fmtNum(fin?.collected)} {SAR}
+            </button>
             <div className={Number(fin?.remaining) > 0 ? 'fin-danger' : ''}>
               <span>{t('dealDrawer.remainingOnClient')}</span>{fmtNum(fin?.remaining)} {SAR}
             </div>
@@ -508,6 +514,20 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
           </div>
         )}
       </aside>
+      {showPays && (
+        <DealPaymentsModal
+          deal={{
+            id: deal.id, status: deal.status,
+            full_name: deal.leads?.full_name, file_no: deal.leads?.file_no,
+            procedure_name: deal.procedure_types?.name_ar, procedure_name_en: deal.procedure_types?.name_en,
+            branch_name: deal.leads?.branches?.name, branch_name_en: deal.leads?.branches?.name_en,
+            total_amount: deal.total_amount,
+            collected: fin?.collected ?? 0,
+            open_remaining: Math.max(0, Number(fin?.remaining) || 0),
+          }}
+          onClose={() => setShowPays(false)}
+        />
+      )}
     </div>
   )
 }
