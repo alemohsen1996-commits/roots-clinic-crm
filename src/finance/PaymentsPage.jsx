@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { fmtNum, fmtDateTime, openWhatsApp } from '../lib/format'
 import { exportCsv } from '../lib/exportCsv'
-import { uploadReceipt, discardReceipt, openReceipt } from './receipts'
+import { uploadReceipt, discardReceipt } from './receipts'
+import ReceiptViewer from './ReceiptViewer'
 import AddPaymentModal from './AddPaymentModal'
 import useT from '../i18n/useT'
 import { useIsMobile } from '../lib/useIsMobile'
@@ -88,6 +89,7 @@ export default function PaymentsPage() {
   const [pendingVoids, setPendingVoids] = useState([])
 
   const [showAdd, setShowAdd] = useState(false)
+  const [viewer, setViewer] = useState(null)   // { list, index } — عرض الإيصال جوه الصفحة
   const [voidingId, setVoidingId] = useState(null)
   const [voidReason, setVoidReason] = useState('')
   const [msg, setMsg] = useState('')
@@ -181,6 +183,12 @@ export default function PaymentsPage() {
     })
     return () => { clearTimeout(timer); off() }
   }, [])
+
+  // فتح الإيصال جوه الصفحة مع إمكانية التنقل بين إيصالات نفس القائمة
+  function viewReceipt(list, p) {
+    const withReceipts = list.filter(r => r.receipt_path)
+    setViewer({ list: withReceipts, index: Math.max(0, withReceipts.findIndex(r => r.id === p.id)) })
+  }
 
   // ---------- الإجراءات ----------
   async function confirm(id) {
@@ -337,7 +345,7 @@ export default function PaymentsPage() {
           <ContactButtons phone={lead?.phone} />
           {p.receipt_path ? (
             <button type="button" className="mact" title={t('payments.viewReceipt')} aria-label={t('payments.viewReceipt')}
-              onClick={() => openReceipt(p.receipt_path)}>📎</button>
+              onClick={() => viewReceipt(rows, p)}>📎</button>
           ) : canConfirm && !isVoid ? (
             <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }} title={t('payments.attachHint')}>
               {attachingId === p.id ? '…' : t('payments.attach')}
@@ -440,7 +448,7 @@ export default function PaymentsPage() {
                   <div className="mcard-actions">
                     {p.receipt_path && (
                       <button type="button" className="mact" title={t('payments.viewReceipt')} aria-label={t('payments.viewReceipt')}
-                        onClick={() => openReceipt(p.receipt_path)}>📎</button>
+                        onClick={() => viewReceipt(pendingVoids, p)}>📎</button>
                     )}
                     <button type="button" className="btn btn-danger grow" onClick={() => approveVoid(p.id)}>{t('payments.approve')}</button>
                     <button type="button" className="btn btn-ghost grow" onClick={() => rejectVoid(p.id)}>{t('payments.reject')}</button>
@@ -465,7 +473,7 @@ export default function PaymentsPage() {
                   <td>{p.void_requester?.full_name ?? '—'}</td>
                   <td>
                     {p.receipt_path
-                      ? <button className="icon-btn" title={t('payments.viewReceipt')} onClick={() => openReceipt(p.receipt_path)}>📎</button>
+                      ? <button className="icon-btn" title={t('payments.viewReceipt')} onClick={() => viewReceipt(pendingVoids, p)}>📎</button>
                       : <span style={{ color: 'var(--ink-soft)' }}>—</span>}
                   </td>
                   <td style={{ display: 'flex', gap: 6 }}>
@@ -601,7 +609,7 @@ export default function PaymentsPage() {
                         {p.receipt_no}
                         {p.receipt_path ? (
                           <button className="icon-btn" title={t('payments.viewReceipt')} aria-label={t('payments.viewReceipt')}
-                            onClick={() => openReceipt(p.receipt_path)}>📎</button>
+                            onClick={() => viewReceipt(rows, p)}>📎</button>
                         ) : canConfirm && !isVoid ? (
                           <label className="btn btn-ghost btn-sm" style={{ fontFamily: 'var(--font-body)', cursor: 'pointer' }}
                             title={t('payments.attachHint')}>
@@ -689,6 +697,10 @@ export default function PaymentsPage() {
             </div>
           )}
         </div>
+      )}
+
+      {viewer && (
+        <ReceiptViewer list={viewer.list} index={viewer.index} onClose={() => setViewer(null)} />
       )}
 
       {showAdd && (

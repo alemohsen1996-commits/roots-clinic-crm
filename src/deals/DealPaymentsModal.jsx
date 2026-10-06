@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtNum, fmtDateTime } from '../lib/format'
-import { signedReceiptUrls, receiptKind, openReceipt } from '../finance/receipts'
+import { signedReceiptUrls, receiptKind } from '../finance/receipts'
+import ReceiptViewer from '../finance/ReceiptViewer'
 import useT from '../i18n/useT'
 
 const SELECT = `
@@ -21,7 +22,7 @@ export default function DealPaymentsModal({ deal, onClose }) {
   const [rows, setRows] = useState(null)
   const [urls, setUrls] = useState({})
   const [err, setErr] = useState('')
-  const [zoom, setZoom] = useState(null)      // رابط الصورة المكبّرة
+  const [viewAt, setViewAt] = useState(null)  // رقم الإيصال المفتوح في العارض
 
   useEffect(() => {
     let alive = true
@@ -38,15 +39,17 @@ export default function DealPaymentsModal({ deal, onClose }) {
     return () => { alive = false }
   }, [deal.id, t])
 
-  // Esc يقفل المكبّر الأول ثم النافذة
+  // Esc يقفل النافذة (العارض لما يكون مفتوح بيقفل نفسه الأول)
   useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== 'Escape') return
-      if (zoom) setZoom(null); else onClose()
-    }
+    const onKey = (e) => { if (e.key === 'Escape' && viewAt == null) onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [zoom, onClose])
+  }, [viewAt, onClose])
+
+  // قائمة العارض: الدفعات اللي ليها إيصال، ومعاها اسم العميل للعنوان
+  const viewList = (rows ?? []).filter(p => p.receipt_path)
+    .map(p => ({ ...p, deals: { leads: { full_name: deal.full_name } } }))
+  const openView = (p) => setViewAt(Math.max(0, viewList.findIndex(x => x.id === p.id)))
 
   const due = Number(deal.total_amount) || 0
   const collected = Number(deal.collected) || 0
@@ -96,12 +99,12 @@ export default function DealPaymentsModal({ deal, onClose }) {
                     {!p.receipt_path ? (
                       <div className="paydlg-noimg">{t('dealPays.noReceipt')}</div>
                     ) : kind === 'image' && url ? (
-                      <button type="button" className="paydlg-thumb" onClick={() => setZoom(url)}
+                      <button type="button" className="paydlg-thumb" onClick={() => openView(p)}
                         title={t('payments.viewReceipt')} aria-label={t('payments.viewReceipt')}>
                         <img src={url} alt={`${t('payments.receipt')} ${p.receipt_no}`} loading="lazy" />
                       </button>
                     ) : (
-                      <button type="button" className="paydlg-file" onClick={() => openReceipt(p.receipt_path)}>
+                      <button type="button" className="paydlg-file" onClick={() => openView(p)}>
                         <span aria-hidden="true">📄</span>
                         {kind === 'pdf' ? t('dealPays.pdf') : t('dealPays.file')}
                       </button>
@@ -150,14 +153,8 @@ export default function DealPaymentsModal({ deal, onClose }) {
         </div>
       </div>
 
-      {zoom && (
-        <div className="paydlg-zoom" onClick={() => setZoom(null)} role="dialog" aria-modal="true">
-          <img src={zoom} alt={t('payments.receipt')} onClick={e => e.stopPropagation()} />
-          <div className="paydlg-zoom-bar" onClick={e => e.stopPropagation()}>
-            <a className="btn btn-ghost btn-sm" href={zoom} target="_blank" rel="noreferrer">{t('dealPays.openFull')}</a>
-            <button className="btn btn-primary btn-sm" onClick={() => setZoom(null)}>{t('common.close')}</button>
-          </div>
-        </div>
+      {viewAt != null && (
+        <ReceiptViewer list={viewList} index={viewAt} onClose={() => setViewAt(null)} />
       )}
     </div>
   )

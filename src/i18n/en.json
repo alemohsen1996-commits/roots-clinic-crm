@@ -1808,5 +1808,12 @@
     "confirmedBy": "Confirmed by",
     "openFull": "Open in new tab",
     "view": "view receipts"
+  },
+  "receiptViewer": {
+    "rotate": "Rotate",
+    "zoom": "Zoom in",
+    "fit": "Fit to screen",
+    "noPreview": "This file type can’t be previewed here",
+    "download": "Download receipt"
   }
 }
