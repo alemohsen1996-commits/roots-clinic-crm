@@ -16,6 +16,7 @@ async function config() {
   return cfg!;
 }
 
+const SEEN_WAIT_MS = 2000;
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
 Deno.serve(async (req) => {
@@ -29,7 +30,7 @@ Deno.serve(async (req) => {
   // لازم نحدد الـ FK صراحةً: chat_conversations.pinned_message_id عمل علاقة تانية بين الجدولين
   // ومن غير التحديد PostgREST بيرجّع 300 (PGRST201) والإشعارات كلها بتقف بصمت
   const { data: m, error: mErr } = await sb.from("chat_messages")
-    .select("id, conversation_id, sender_id, body, lead_label, deleted_at, attachment_type, attachment_name, mentions, chat_conversations!chat_messages_conversation_id_fkey(kind, title, announce), sender:profiles!chat_messages_sender_id_fkey(full_name)")
+    .select("id, conversation_id, sender_id, created_at, body, lead_label, deleted_at, attachment_type, attachment_name, mentions, chat_conversations!chat_messages_conversation_id_fkey(kind, title, announce), sender:profiles!chat_messages_sender_id_fkey(full_name)")
     .eq("id", message_id).maybeSingle();
   if (mErr) {
     console.error("[chat-push] message query", mErr);
@@ -37,10 +38,17 @@ Deno.serve(async (req) => {
   }
   if (!m || m.deleted_at) return Response.json({ ok: true, skipped: "no message" });
 
+  // نستنى شوية: اللي فاتح المحادثة دي قدامه السيستم بيعلّمها مقروءة خلال أقل من ثانية
+  // → مايوصلوش إشعار (زي واتساب). الآيفون بيعرض الإشعار فورًا، فمسحه بعد ما يظهر مش كفاية
+  await new Promise((r) => setTimeout(r, SEEN_WAIT_MS));
+
   const { data: parts } = await sb.from("chat_participants")
-    .select("user_id").eq("conversation_id", m.conversation_id).is("left_at", null).neq("user_id", m.sender_id);
-  const users = (parts ?? []).map((p) => p.user_id);
-  if (!users.length) return Response.json({ ok: true, skipped: "no recipients" });
+    .select("user_id, last_read_at").eq("conversation_id", m.conversation_id).is("left_at", null).neq("user_id", m.sender_id);
+  const sentAt = new Date(m.created_at).getTime();
+  const all = parts ?? [];
+  const users = all.filter((p) => !p.last_read_at || new Date(p.last_read_at).getTime() < sentAt).map((p) => p.user_id);
+  const seen = all.length - users.length;
+  if (!users.length) return Response.json({ ok: true, skipped: all.length ? "all seen" : "no recipients", seen });
 
   const [{ data: subs, error: sErr }, { data: unread }] = await Promise.all([
     sb.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth, fail_count").in("user_id", users),
@@ -90,5 +98,5 @@ Deno.serve(async (req) => {
     }
   }));
 
-  return Response.json({ ok: true, sent, removed, failed });
+  return Response.json({ ok: true, sent, removed, failed, seen });
 });
