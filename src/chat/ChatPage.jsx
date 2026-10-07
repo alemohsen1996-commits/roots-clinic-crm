@@ -269,6 +269,9 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
   const [att, setAtt] = useState(null)             // { file, preview } مرفق مستني الإرسال
   const [mention, setMention] = useState(null)     // { q, start } القائمة مفتوحة بعد @
   const [pinnedMsg, setPinnedMsg] = useState(null)
+  // خط «رسائل غير مقروءة»: وقت آخر قراءة ليا قبل ما أفتح المحادثة (بيفضل ثابت لحد ما أقفلها أو أرد)
+  const [unreadSince, setUnreadSince] = useState(null)
+  const jumpToUnread = useRef(false)
   const fileRef = useRef(null)
 
   const scroller = useRef(null)
@@ -308,6 +311,11 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
       try {
         const [c, p, m] = await Promise.all([fetchConversation(convId), fetchParticipants(convId), fetchMessages(convId)])
         if (dead) return
+        const myRow = p.find(x => x.user_id === meId && !x.left_at)
+        const since = myRow?.last_read_at ?? null
+        if (since && m.some(x => x.sender_id !== meId && !x.deleted_at && new Date(x.created_at) > new Date(since))) {
+          setUnreadSince(since); jumpToUnread.current = true; stickBottom.current = false
+        }
         setConv(c); setParts(p); setMsgs(m); setHasMore(m.length === PAGE)
         setLoading(false)
         loadHistoryFor(m)
@@ -363,6 +371,10 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
       if (event !== 'resync' && p.conversation_id !== convId) return
       if (event === 'msg_new') {
         upsert(p)   // لو هي رسالتي اللي لسه «بتتبعت» بتتأكد هنا
+        // وصلت والشاشة مش قدام الموظف → نبدأ الخط من عندها لو مفيش خط أصلاً
+        if (p.sender_id !== meId && isMember && document.visibilityState !== 'visible') {
+          setUnreadSince(cur => cur ?? new Date(new Date(p.created_at).getTime() - 1).toISOString())
+        }
         if (p.sender_id !== meId && isMember && document.visibilityState === 'visible') markReadSoon()
       } else if (event === 'msg_update') {
         upsert(p); loadHistoryFor([p])
@@ -404,8 +416,26 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
   }
   useEffect(() => {
     const el = scroller.current
-    if (el && stickBottom.current) el.scrollTop = el.scrollHeight
+    if (!el) return
+    if (jumpToUnread.current) {
+      const mark = el.querySelector('.chat-unread-divider')
+      if (mark) {
+        jumpToUnread.current = false
+        el.scrollTop = Math.max(0, mark.offsetTop - el.offsetTop - 12)
+        stickBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+        return
+      }
+    }
+    if (stickBottom.current) el.scrollTop = el.scrollHeight
   }, [msgs, loading])
+
+  // أول رسالة غير مقروءة + عددهم
+  const { firstUnreadId, unreadCount } = useMemo(() => {
+    if (!unreadSince) return { firstUnreadId: null, unreadCount: 0 }
+    const since = new Date(unreadSince)
+    const list = msgs.filter(m => m.sender_id !== meId && !m.deleted_at && new Date(m.created_at) > since)
+    return { firstUnreadId: list[0]?.id ?? null, unreadCount: list.length }
+  }, [msgs, unreadSince, meId])
 
   // ---------- الإرسال ----------
   // الرسالة بتظهر فورًا بعلامة 🕓، وبتتأكد لما السيرفر يرد أو يوصل الحدث اللحظي
@@ -454,7 +484,7 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
     }
     stickBottom.current = true
     setMsgs(list => [...list, temp])
-    setText(''); setReply(null); setLead(null); setAtt(null); setMention(null)
+    setText(''); setReply(null); setLead(null); setAtt(null); setMention(null); setUnreadSince(null)
     inputRef.current?.focus()
     deliver(temp)
   }
@@ -607,7 +637,14 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
           return (
             <div key={m.id}>
               {newDay && <div className="chat-day"><span>{dayLabel(m.created_at)}</span></div>}
-              <div className={'chat-row' + (mine ? ' mine' : '')} id={'msg-' + m.id}>
+              {m.id === firstUnreadId && (
+                <div className="chat-unread-divider">
+                  <span>{t('chat.unreadDivider', { n: unreadCount >= PAGE && hasMore ? `${PAGE}+` : unreadCount })}</span>
+                </div>
+              )}
+              <div className={'chat-row' + (mine ? ' mine' : '')
+                + (!mine && unreadSince && !m.deleted_at && new Date(m.created_at) > new Date(unreadSince) ? ' is-unread' : '')}
+                id={'msg-' + m.id}>
                 <div className={'chat-bubble' + (m.deleted_at ? ' deleted' : '') + ((m.mentions ?? []).includes(meId) ? ' mentions-me' : '') + (conv.pinned_message_id === m.id ? ' pinned' : '')}>
                   {showName && <div className="chat-sender">{nameOf(m.sender_id)}</div>}
 

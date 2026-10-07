@@ -291,3 +291,9 @@
 .chat-announce-opt input { margin-top: 3px; width: 16px; height: 16px; }
 .chat-announce-opt span { display: flex; flex-direction: column; }
 .chat-announce-opt small { color: var(--ink-soft); font-size: 12px; }
+
+/* خط «رسائل غير مقروءة» + تمييز الرسائل الجديدة */
+.chat-unread-divider { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; color: var(--primary); }
+.chat-unread-divider::before, .chat-unread-divider::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--primary) 45%, transparent); }
+.chat-unread-divider span { font-size: 12px; font-weight: 800; background: var(--primary-soft); border-radius: 999px; padding: 3px 12px; white-space: nowrap; }
+.chat-row.is-unread .chat-bubble { border-inline-start: 3px solid var(--primary); }

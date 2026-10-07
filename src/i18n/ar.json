@@ -1215,7 +1215,8 @@
     "openChat": "افتح المحادثة",
     "askCoordinator": "ناقش مع المنسقة",
     "askSales": "ناقش مع السيلز",
-    "inChat": "في"
+    "inChat": "في",
+    "unreadDivider": "{{n}} رسائل غير مقروءة"
   },
   "reports": {
     "fromAfterTo": "تاريخ البداية بعد تاريخ النهاية",

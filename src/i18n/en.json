@@ -1215,7 +1215,8 @@
     "openChat": "Open chat",
     "askCoordinator": "Discuss with coordinator",
     "askSales": "Discuss with sales agent",
-    "inChat": "in"
+    "inChat": "in",
+    "unreadDivider": "{{n}} unread messages"
   },
   "reports": {
     "fromAfterTo": "Start date is after the end date",
