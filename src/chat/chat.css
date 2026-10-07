@@ -1,7 +1,7 @@
 /* ============ الشات الداخلي ============ */
 .chat-page {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 340px minmax(0, 1fr);
   height: calc(100dvh - 64px);
   background: var(--card);
   border: 1px solid var(--line);
@@ -11,7 +11,7 @@
 }
 
 /* ---------- القائمة ---------- */
-.chat-list { display: flex; flex-direction: column; min-height: 0; border-inline-end: 1px solid var(--line); background: var(--card); }
+.chat-list { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-inline-end: 1px solid var(--line); background: var(--card); }
 .chat-list-head { padding: 16px 16px 10px; border-bottom: 1px solid var(--line-soft); }
 .chat-list-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .chat-list-title h1 { font-size: 21px; }
@@ -29,7 +29,7 @@
 .chat-notice { font-size: 11.5px; color: var(--ink-soft); text-align: center; padding: 8px; border-top: 1px solid var(--line-soft); }
 
 .chat-item {
-  display: flex; gap: 10px; width: 100%; padding: 11px 14px; text-align: start;
+  display: flex; min-width: 0; gap: 10px; width: 100%; padding: 11px 14px; text-align: start;
   background: none; border: none; border-bottom: 1px solid var(--line-soft);
   cursor: pointer; font-family: var(--font-body); color: var(--ink);
 }
@@ -188,7 +188,9 @@
 /* ---------- الموبايل: شاشة واحدة (قائمة أو محادثة) ---------- */
 @media (max-width: 900px) {
   .chat-page {
-    grid-template-columns: 1fr;
+    /* minmax(0,…) مش 1fr: آخر رسالة طويلة كانت بتوسّع العمود أكبر من الشاشة
+       فالوقت والعدّاد الأحمر وزرار «+ محادثة» كانوا بيتقصّوا برّه على الشمال */
+    grid-template-columns: minmax(0, 1fr);
     height: calc(100dvh - 68px - 14px - env(safe-area-inset-top, 0px));
     border-radius: 12px;
   }
