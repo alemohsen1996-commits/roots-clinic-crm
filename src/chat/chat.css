@@ -131,11 +131,10 @@
 .chat-bubble:hover .chat-msg-menu-btn { opacity: 1; }
 @media (pointer: coarse) { .chat-msg-menu-btn { opacity: .6; } }
 .chat-msg-menu {
-  position: fixed; z-index: 1000; width: 236px;
+  position: fixed; z-index: 1000; width: 236px; max-width: calc(100vw - 16px);
   background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg);
   display: flex; flex-direction: column; overflow: hidden;
 }
-.chat-msg-menu.up { transform: translateY(-100%); }
 .chat-msg-menu button { background: none; border: none; text-align: start; padding: 8px 12px; cursor: pointer; font-family: var(--font-body); font-size: 13px; color: var(--ink); }
 .chat-msg-menu button:hover { background: var(--surface); }
 .chat-msg-menu button.danger { color: var(--danger); }

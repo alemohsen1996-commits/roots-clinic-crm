@@ -4,7 +4,7 @@
 //   مع النص الأصلي لأي رسالة اتعدلت أو اتمسحت — وفتح المحادثة بيتسجل
 import i18n from '../i18n'
 import useT from '../i18n/useT'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -257,17 +257,30 @@ function groupReactions(list) {
   return [...map].map(([emoji, users]) => ({ emoji, users }))
 }
 
-// مكان المنيو: fixed على الشاشة جنب زرار ⋯، تطلع لفوق لو مفيش مكان تحت، ومتخرجش برّه الشاشة
-const MENU_W = 236, MENU_H = 230, EDGE = 8
-function menuPos(id, btn, rtl) {
-  const r = btn.getBoundingClientRect()
-  const vw = window.innerWidth, vh = window.visualViewport?.height ?? window.innerHeight
-  const up = r.bottom + MENU_H + EDGE > vh && r.top - MENU_H - EDGE > 0
-  const top = up ? Math.max(EDGE, r.top - 4) : Math.min(r.bottom + 4, vh - EDGE - 60)
+// المنيو بتترسم fixed على الشاشة. أول رسم مخفي → نقيس حجمها الحقيقي → نحطها جنب زرار ⋯
+// جوه الجزء الظاهر فعلاً من الشاشة (visualViewport) — على آيفون innerWidth/innerHeight
+// ممكن يبقوا أكبر من اللي ظاهر، وده اللي كان بيقص المنيو
+const EDGE = 8
+function placeMenu(el, btn, rtl) {
+  const vv = window.visualViewport
+  const vx = vv?.offsetLeft ?? 0, vy = vv?.offsetTop ?? 0
+  const vw = vv?.width ?? document.documentElement.clientWidth
+  const vh = vv?.height ?? document.documentElement.clientHeight
+  const w = el.offsetWidth, h = el.offsetHeight
+  const x0 = vx + EDGE, x1 = vx + vw - EDGE, y0 = vy + EDGE, y1 = vy + vh - EDGE
+
+  let top
+  if (btn.bottom + 4 + h <= y1) top = btn.bottom + 4            // تحت الزرار
+  else if (btn.top - 4 - h >= y0) top = btn.top - 4 - h          // فوق الزرار
+  else top = Math.max(y0, y1 - h)                                 // الشاشة صغيرة: أقرب مكان يبان فيه كله
+
   // في العربي الزرار على شمال الفقاعة → المنيو تفتح يمين منه، وفي الإنجليزي العكس
-  let left = rtl ? r.left : r.right - MENU_W
-  left = Math.min(Math.max(EDGE, left), vw - MENU_W - EDGE)
-  return { id, top, left, up }
+  let left = rtl ? btn.left : btn.right - w
+  left = Math.max(x0, Math.min(left, x1 - w))
+
+  el.style.top = top + 'px'
+  el.style.left = left + 'px'
+  el.style.visibility = 'visible'
 }
 
 function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, onOpenLead, onLeft }) {
@@ -352,13 +365,23 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
     })
   }, [])
 
-  // المنيو برّه شجرة الصفحة (portal) → نقفلها بأي ضغطة برّه أو تغيير مقاس الشاشة
+  const menuRef = useRef(null)
+  useLayoutEffect(() => {
+    if (menuFor && menuRef.current) placeMenu(menuRef.current, menuFor.btn, isRtl)
+  }, [menuFor, isRtl])
+
+  // المنيو برّه شجرة الصفحة (portal) → نقفلها بأي ضغطة برّه أو تغيير مقاس/زووم الشاشة
   useEffect(() => {
     if (!menuFor) return
     const close = () => setMenuFor(null)
+    const vv = window.visualViewport
     document.addEventListener('click', close)
     window.addEventListener('resize', close)
-    return () => { document.removeEventListener('click', close); window.removeEventListener('resize', close) }
+    vv?.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('click', close); window.removeEventListener('resize', close)
+      vv?.removeEventListener('resize', close)
+    }
   }, [menuFor])
 
   const react = async (m, emoji) => {
@@ -787,11 +810,15 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
 
                   {!m.deleted_at && !m._status && (canReact || canWrite || (canPin && conv.kind === 'group')) && (
                     <button className="chat-msg-menu-btn" aria-label={t('chat.options')}
-                      onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor?.id === m.id ? null : menuPos(m.id, e.currentTarget, isRtl)) }}>⋯</button>
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const r = e.currentTarget.getBoundingClientRect()
+                        setMenuFor(menuFor?.id === m.id ? null : { id: m.id, btn: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } })
+                      }}>⋯</button>
                   )}
                   {menuFor?.id === m.id && createPortal(
-                    <div className={'chat-msg-menu' + (menuFor.up ? ' up' : '')}
-                      style={{ top: menuFor.top, left: menuFor.left }} onClick={e => e.stopPropagation()}>
+                    <div className="chat-msg-menu" ref={menuRef} style={{ top: 0, left: 0, visibility: 'hidden' }}
+                      onClick={e => e.stopPropagation()}>
                       {canReact && (
                         <div className="chat-react-bar">
                           {REACTIONS.map(em => (
