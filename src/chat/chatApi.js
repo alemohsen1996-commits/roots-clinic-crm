@@ -82,6 +82,9 @@ export const createGroup = async (title, members, leadId = null, announce = fals
 // ---------- الريأكشنز ----------
 export const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 export const reactTo = async (msgId, emoji) => unwrap(await supabase.rpc('chat_react', { p_msg: msgId, p_emoji: emoji }))
+// إشعار لصاحب الرسالة — الـ Edge Function بتتأكد من الريأكشن في الداتابيز بنفسها، فمحدش يقدر يزوّر
+export const notifyReaction = (msgId) =>
+  supabase.functions.invoke('chat-react-push', { body: { message_id: msgId } }).catch(() => {})
 export async function fetchReactions(ids) {
   if (!ids.length) return []
   return unwrap(await supabase.from('chat_reactions')

@@ -13,7 +13,12 @@ self.addEventListener('push', (event) => {
       try { await self.navigator.setAppBadge(d.unread) } catch {}
     }
 
+    // السيستم مفتوح قدام الموظف → الإشعار يظهر من غير صوت الجهاز (الصوت المميز بيشتغل جوه السيستم)
+    const wins0 = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    const appVisible = wins0.some(w => w.visibilityState === 'visible')
+
     await self.registration.showNotification(d.title || 'رسالة جديدة', {
+      silent: appVisible,
       body: d.body || '',
       icon: '/icon-192.png',
       tag: d.tag || 'chat',        // رسائل نفس المحادثة بتستبدل بعض بدل ما تتراكم

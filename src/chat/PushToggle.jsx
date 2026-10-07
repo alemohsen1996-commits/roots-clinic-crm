@@ -1,11 +1,37 @@
 // تفعيل إشعارات الموبايل/الكمبيوتر للشات
 import { useEffect, useState } from 'react'
 import { disablePush, enablePush, getPushState } from '../lib/push'
+import { playSound, setSoundEnabled, soundEnabled } from '../lib/sounds'
 import useT from '../i18n/useT'
 
 const HIDE_KEY = 'push-banner-hidden-until'
 
+// 🔊 صوت التنبيه داخل السيستم — اختيار لكل جهاز
+function SoundToggle() {
+  const { t } = useT()
+  const [on, setOn] = useState(soundEnabled)
+  const toggle = () => {
+    const v = !on
+    setSoundEnabled(v); setOn(v)
+    if (v) playSound('message')   // يسمع الصوت وهو بيفعّله
+  }
+  return (
+    <button className={'chat-push-on' + (on ? '' : ' off')} onClick={toggle} title={t('chat.sound.title')}>
+      {on ? '🔊' : '🔇'} {on ? t('chat.sound.on') : t('chat.sound.off')}
+    </button>
+  )
+}
+
 export default function PushToggle() {
+  return (
+    <div className="chat-alert-toggles">
+      <PushState />
+      <SoundToggle />
+    </div>
+  )
+}
+
+function PushState() {
   const { t } = useT()
   const [state, setState] = useState(null)
   const [busy, setBusy] = useState(false)

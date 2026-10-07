@@ -1,26 +1,13 @@
 // عدّاد رسائل الشات غير المقروءة — للسايدبار والشريط العلوي وأيقونة الأبلكيشن
 // بيتحدث محليًا من القناة اللحظية (من غير طلب للسيرفر مع كل رسالة)
-// + صوت تنبيه خفيف لو الرسالة في محادثة مش مفتوحة قدام الموظف
+// + صوت تنبيه مميز لو الرسالة في محادثة مش مفتوحة قدام الموظف، وصوت تاني لما حد يتفاعل على رسالتي
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchUnreadTotal } from './chatApi'
+import { fetchMessage, fetchUnreadTotal } from './chatApi'
+import { playSound } from '../lib/sounds'
 import { connectChat, disconnectChat, onChat, watchingConv } from './chatRealtime'
 
-let audioCtx = null
-export function ding() {
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)()
-    const t = audioCtx.currentTime
-    ;[880, 1320].forEach((f, i) => {
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain()
-      o.type = 'sine'; o.frequency.value = f
-      g.gain.setValueAtTime(0.0001, t + i * 0.12)
-      g.gain.exponentialRampToValueAtTime(0.15, t + i * 0.12 + 0.02)
-      g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.12 + 0.18)
-      o.connect(g).connect(audioCtx.destination)
-      o.start(t + i * 0.12); o.stop(t + i * 0.12 + 0.2)
-    })
-  } catch {}
-}
+// متوافق مع الاستخدام القديم (جرس الإشعارات)
+export const ding = () => playSound('notify')
 
 export function useChatUnread(userId, isMonitor) {
   const [count, setCount] = useState(0)
@@ -48,8 +35,11 @@ export function useChatUnread(userId, isMonitor) {
       if (event === 'msg_new' && p.sender_id !== userId) {
         if (!watchingConv(p.conversation_id)) {
           setCount(c => c + 1)
-          if (document.visibilityState === 'visible') ding()
+          playSound('message')
         }
+      } else if (event === 'reaction' && p.emoji && p.user_id !== userId) {
+        // صوت بس لو الرسالة بتاعتي
+        fetchMessage(p.message_id).then(m => { if (m?.sender_id === userId) playSound('reaction') }).catch(() => {})
       } else if (
         (event === 'read' && p.user_id === userId) || event === 'members' || event === 'resync' ||
         (event === 'msg_update' && p.deleted_at && p.sender_id !== userId)

@@ -12,7 +12,7 @@ import { fmtDate } from '../lib/format'
 import LeadDrawer from '../leads/LeadDrawer'
 import { useLeadRefs } from '../leads/useLeadRefs'
 import {
-  PAGE, REACTIONS, convName, deleteMessage, editMessage, errText, fetchConversation, fetchEmployees, fetchReactions, reactTo,
+  PAGE, REACTIONS, convName, deleteMessage, editMessage, errText, fetchConversation, fetchEmployees, fetchReactions, notifyReaction, reactTo,
   fetchHistory, fetchInbox, fetchMessage, fetchMessages, fetchMonitorList, fetchParticipants,
   logMonitorView, markRead, newMsgId, sendMessage, uploadAttachment, discardAttachment,
   extractMentions, pinMessage,
@@ -389,7 +389,10 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
     const mineNow = (reactions[m.id] ?? []).find(r => r.user_id === meId)?.emoji
     const next = mineNow === emoji ? null : emoji
     applyReaction(m.id, meId, next, nameOf(meId))   // يظهر فورًا
-    try { await reactTo(m.id, emoji) }
+    try {
+      await reactTo(m.id, emoji)
+      if (next && m.sender_id !== meId) notifyReaction(m.id)
+    }
     catch (e) { applyReaction(m.id, meId, mineNow ?? null, nameOf(meId)); setErr(errText(e)) }
   }
 

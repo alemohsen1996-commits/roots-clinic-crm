@@ -1216,7 +1216,12 @@
     "askCoordinator": "Discuss with coordinator",
     "askSales": "Discuss with sales agent",
     "inChat": "in",
-    "unreadDivider": "{{n}} unread messages"
+    "unreadDivider": "{{n}} unread messages",
+    "sound": {
+      "title": "Play a sound for new messages and reactions while the CRM is open",
+      "on": "Sound on",
+      "off": "Sound off"
+    }
   },
   "reports": {
     "fromAfterTo": "Start date is after the end date",
