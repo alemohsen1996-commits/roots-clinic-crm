@@ -79,6 +79,15 @@ export const logMonitorView = async (convId) => { await supabase.rpc('chat_log_v
 export const startDirect = async (userId) => unwrap(await supabase.rpc('chat_start_direct', { p_user: userId }))
 export const createGroup = async (title, members, leadId = null, announce = false) =>
   unwrap(await supabase.rpc('chat_create_group', { p_title: title, p_members: members, p_lead_id: leadId, p_announce: announce }))
+// ---------- الريأكشنز ----------
+export const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+export const reactTo = async (msgId, emoji) => unwrap(await supabase.rpc('chat_react', { p_msg: msgId, p_emoji: emoji }))
+export async function fetchReactions(ids) {
+  if (!ids.length) return []
+  return unwrap(await supabase.from('chat_reactions')
+    .select('message_id, user_id, emoji, profiles(full_name)').in('message_id', ids)) ?? []
+}
+
 export const pinMessage = async (convId, msgId) => unwrap(await supabase.rpc('chat_pin_message', { p_conv: convId, p_msg: msgId }))
 
 // نقاشات ليد معيّن عبر كل المحادثات اللي الموظف شايفها

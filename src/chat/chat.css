@@ -131,10 +131,11 @@
 .chat-bubble:hover .chat-msg-menu-btn { opacity: 1; }
 @media (pointer: coarse) { .chat-msg-menu-btn { opacity: .6; } }
 .chat-msg-menu {
-  position: absolute; top: 24px; inset-inline-end: 4px; z-index: 5;
-  background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg);
-  display: flex; flex-direction: column; min-width: 120px; overflow: hidden;
+  position: fixed; z-index: 1000; width: 236px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column; overflow: hidden;
 }
+.chat-msg-menu.up { transform: translateY(-100%); }
 .chat-msg-menu button { background: none; border: none; text-align: start; padding: 8px 12px; cursor: pointer; font-family: var(--font-body); font-size: 13px; color: var(--ink); }
 .chat-msg-menu button:hover { background: var(--surface); }
 .chat-msg-menu button.danger { color: var(--danger); }
@@ -299,3 +300,21 @@
 .chat-unread-divider::before, .chat-unread-divider::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--primary) 45%, transparent); }
 .chat-unread-divider span { font-size: 12px; font-weight: 800; background: var(--primary-soft); border-radius: 999px; padding: 3px 12px; white-space: nowrap; }
 .chat-row.is-unread .chat-bubble { border-inline-start: 3px solid var(--primary); }
+
+/* ---------- الريأكشنز ---------- */
+.chat-react-bar { display: flex; justify-content: space-between; gap: 2px; padding: 6px; border-bottom: 1px solid var(--line-soft); }
+.chat-msg-menu .chat-react-bar button {
+  flex: 1; padding: 6px 0; font-size: 20px; line-height: 1; text-align: center; border-radius: 8px;
+  transition: transform .12s;
+}
+.chat-msg-menu .chat-react-bar button:hover { transform: scale(1.2); background: var(--surface); }
+.chat-msg-menu .chat-react-bar button.on { background: var(--primary-soft); }
+.chat-reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.chat-react-chip {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--line); cursor: pointer;
+  font-family: var(--font-body); font-size: 13px; line-height: 20px; color: var(--ink);
+}
+.chat-react-chip b { font-size: 11px; font-weight: 800; color: var(--ink-soft); }
+.chat-react-chip.mine { border-color: var(--primary); background: var(--primary-soft); }
+.chat-react-chip:disabled { cursor: default; }

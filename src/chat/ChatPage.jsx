@@ -5,13 +5,14 @@
 import i18n from '../i18n'
 import useT from '../i18n/useT'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { fmtDate } from '../lib/format'
 import LeadDrawer from '../leads/LeadDrawer'
 import { useLeadRefs } from '../leads/useLeadRefs'
 import {
-  PAGE, convName, deleteMessage, editMessage, errText, fetchConversation, fetchEmployees,
+  PAGE, REACTIONS, convName, deleteMessage, editMessage, errText, fetchConversation, fetchEmployees, fetchReactions, reactTo,
   fetchHistory, fetchInbox, fetchMessage, fetchMessages, fetchMonitorList, fetchParticipants,
   logMonitorView, markRead, newMsgId, sendMessage, uploadAttachment, discardAttachment,
   extractMentions, pinMessage,
@@ -248,6 +249,27 @@ export default function ChatPage() {
 }
 
 // =====================================================================
+
+// تجميع الريأكشنز حسب الإيموجي بنفس ترتيب أول ظهور
+function groupReactions(list) {
+  const map = new Map()
+  list.forEach(r => { if (!map.has(r.emoji)) map.set(r.emoji, []); map.get(r.emoji).push(r) })
+  return [...map].map(([emoji, users]) => ({ emoji, users }))
+}
+
+// مكان المنيو: fixed على الشاشة جنب زرار ⋯، تطلع لفوق لو مفيش مكان تحت، ومتخرجش برّه الشاشة
+const MENU_W = 236, MENU_H = 230, EDGE = 8
+function menuPos(id, btn, rtl) {
+  const r = btn.getBoundingClientRect()
+  const vw = window.innerWidth, vh = window.visualViewport?.height ?? window.innerHeight
+  const up = r.bottom + MENU_H + EDGE > vh && r.top - MENU_H - EDGE > 0
+  const top = up ? Math.max(EDGE, r.top - 4) : Math.min(r.bottom + 4, vh - EDGE - 60)
+  // في العربي الزرار على شمال الفقاعة → المنيو تفتح يمين منه، وفي الإنجليزي العكس
+  let left = rtl ? r.left : r.right - MENU_W
+  left = Math.min(Math.max(EDGE, left), vw - MENU_W - EDGE)
+  return { id, top, left, up }
+}
+
 function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, onOpenLead, onLeft }) {
   const { t, dn, isRtl } = useT()
   const [conv, setConv] = useState(null)
@@ -263,7 +285,8 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
   const [editing, setEditing] = useState(null)
   const [lead, setLead] = useState(null)
   const [pickLead, setPickLead] = useState(false)
-  const [menuFor, setMenuFor] = useState(null)
+  const [menuFor, setMenuFor] = useState(null)   // { id, top, left, up } المنيو بتترسم fixed فوق كل حاجة
+  const [reactions, setReactions] = useState({}) // message_id → [{ user_id, emoji, name }]
   const [openHist, setOpenHist] = useState(null)
   const [showInfo, setShowInfo] = useState(false)
   const [att, setAtt] = useState(null)             // { file, preview } مرفق مستني الإرسال
@@ -284,6 +307,8 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
   // قناة الإعلانات: الأدمن بس اللي يكتب
   const canWrite = isMember && (!conv?.announce || me?.is_admin)
   const canPin = isMember && (me?.is_admin || canMonitor)
+  // الريأكشن: أعضاء المحادثة + المراقبين
+  const canReact = isMember || canMonitor
   const activeParts = parts.filter(p => !p.left_at)
   const others = activeParts.filter(p => p.user_id !== meId)
   const nameOf = useCallback((id) => parts.find(p => p.user_id === id)?.profiles?.full_name ?? t('chat.employee'), [parts, t])
@@ -305,6 +330,46 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
     })
   }, [canMonitor])
 
+  const loadReactionsFor = useCallback(async (list, replace = false) => {
+    const ids = list.filter(m => !m._status).map(m => m.id)
+    if (!ids.length) return
+    try {
+      const rows = await fetchReactions(ids)
+      setReactions(prev => {
+        const next = replace ? {} : { ...prev }
+        ids.forEach(id => { next[id] = [] })
+        rows.forEach(r => next[r.message_id].push({ user_id: r.user_id, emoji: r.emoji, name: r.profiles?.full_name }))
+        return next
+      })
+    } catch (e) { console.error('[reactions]', e) }
+  }, [])
+
+  const applyReaction = useCallback((msgId, userId, emoji, name) => {
+    setReactions(prev => {
+      const list = (prev[msgId] ?? []).filter(r => r.user_id !== userId)
+      if (emoji) list.push({ user_id: userId, emoji, name })
+      return { ...prev, [msgId]: list }
+    })
+  }, [])
+
+  // المنيو برّه شجرة الصفحة (portal) → نقفلها بأي ضغطة برّه أو تغيير مقاس الشاشة
+  useEffect(() => {
+    if (!menuFor) return
+    const close = () => setMenuFor(null)
+    document.addEventListener('click', close)
+    window.addEventListener('resize', close)
+    return () => { document.removeEventListener('click', close); window.removeEventListener('resize', close) }
+  }, [menuFor])
+
+  const react = async (m, emoji) => {
+    setMenuFor(null)
+    const mineNow = (reactions[m.id] ?? []).find(r => r.user_id === meId)?.emoji
+    const next = mineNow === emoji ? null : emoji
+    applyReaction(m.id, meId, next, nameOf(meId))   // يظهر فورًا
+    try { await reactTo(m.id, emoji) }
+    catch (e) { applyReaction(m.id, meId, mineNow ?? null, nameOf(meId)); setErr(errText(e)) }
+  }
+
   useEffect(() => {
     let dead = false
     ;(async () => {
@@ -319,6 +384,7 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
         setConv(c); setParts(p); setMsgs(m); setHasMore(m.length === PAGE)
         setLoading(false)
         loadHistoryFor(m)
+        loadReactionsFor(m, true)
         if (leadParam) {
           const { data: l } = await supabase.from('leads').select('id, file_no, full_name').eq('id', Number(leadParam)).maybeSingle()
           if (l && !dead) { setLead(l); setTimeout(() => inputRef.current?.focus(), 50) }
@@ -331,7 +397,7 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
       if (!dead) setLoading(false)
     })()
     return () => { dead = true }
-  }, [convId, meId, loadHistoryFor, leadParam])
+  }, [convId, meId, loadHistoryFor, loadReactionsFor, leadParam])
 
   // الرسالة المثبّتة
   useEffect(() => {
@@ -351,6 +417,7 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
     stickBottom.current = false
     setMsgs(m => [...older, ...m])
     loadHistoryFor(older)
+    loadReactionsFor(older)
     requestAnimationFrame(() => { if (el) el.scrollTop = el.scrollHeight - prevH })
   }
 
@@ -378,6 +445,8 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
         if (p.sender_id !== meId && isMember && document.visibilityState === 'visible') markReadSoon()
       } else if (event === 'msg_update') {
         upsert(p); loadHistoryFor([p])
+      } else if (event === 'reaction') {
+        applyReaction(p.message_id, p.user_id, p.emoji, p.full_name)
       } else if (event === 'read') {
         setParts(list => list.map(x => x.user_id === p.user_id ? { ...x, last_read_at: p.last_read_at } : x))
       } else if (event === 'members') {
@@ -390,6 +459,7 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
         // رجع الاتصال بعد انقطاع — نجيب اللي فاتنا
         const [fresh, pp] = await Promise.all([fetchMessages(convId), fetchParticipants(convId)])
         setParts(pp)
+        loadReactionsFor(fresh)
         setMsgs(list => {
           const byId = new Map(list.map(x => [x.id, x]))
           fresh.forEach(m => byId.set(m.id, m))
@@ -399,7 +469,7 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
       }
     })
     return () => { off(); clearTimeout(readTimer.current) }
-  }, [convId, meId, isMember, loadHistoryFor, markReadSoon])
+  }, [convId, meId, isMember, loadHistoryFor, markReadSoon, applyReaction, loadReactionsFor])
 
   // لما الموظف يرجع للتبويب نعلّم المحادثة كمقروءة
   useEffect(() => {
@@ -622,7 +692,7 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
         </button>
       )}
 
-      <div className="chat-messages" ref={scroller} onScroll={onScroll}>
+      <div className="chat-messages" ref={scroller} onScroll={() => { onScroll(); if (menuFor) setMenuFor(null) }}>
         {hasMore && <button className="chat-older" onClick={loadOlder}>{t('chat.loadOlder')}</button>}
         {!msgs.length && <div className="chat-muted center">{t('chat.noMessagesStart')} 👋</div>}
 
@@ -684,6 +754,19 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
                     </div>
                   )}
 
+                  {!m.deleted_at && reactions[m.id]?.length > 0 && (
+                    <div className="chat-reactions">
+                      {groupReactions(reactions[m.id]).map(g => (
+                        <button key={g.emoji} type="button"
+                          className={'chat-react-chip' + (g.users.some(u => u.user_id === meId) ? ' mine' : '')}
+                          title={g.users.map(u => u.user_id === meId ? t('chat.you') : (u.name || nameOf(u.user_id))).join('، ')}
+                          disabled={!canReact} onClick={() => react(m, g.emoji)}>
+                          <span>{g.emoji}</span>{g.users.length > 1 && <b>{g.users.length}</b>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="chat-meta">
                     {m.edited_at && !m.deleted_at && <span>{t('chat.edited')}</span>}
                     <time>{fmtTime(m.created_at)}</time>
@@ -702,17 +785,26 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
                     </div>
                   )}
 
-                  {!readOnly && !m.deleted_at && !m._status && (canWrite || (canPin && conv.kind === 'group')) && (
+                  {!m.deleted_at && !m._status && (canReact || canWrite || (canPin && conv.kind === 'group')) && (
                     <button className="chat-msg-menu-btn" aria-label={t('chat.options')}
-                      onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === m.id ? null : m.id) }}>⋯</button>
+                      onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor?.id === m.id ? null : menuPos(m.id, e.currentTarget, isRtl)) }}>⋯</button>
                   )}
-                  {menuFor === m.id && (
-                    <div className="chat-msg-menu" onClick={e => e.stopPropagation()}>
+                  {menuFor?.id === m.id && createPortal(
+                    <div className={'chat-msg-menu' + (menuFor.up ? ' up' : '')}
+                      style={{ top: menuFor.top, left: menuFor.left }} onClick={e => e.stopPropagation()}>
+                      {canReact && (
+                        <div className="chat-react-bar">
+                          {REACTIONS.map(em => (
+                            <button key={em} type="button" onClick={() => react(m, em)}
+                              className={(reactions[m.id] ?? []).some(r => r.user_id === meId && r.emoji === em) ? 'on' : ''}>{em}</button>
+                          ))}
+                        </div>
+                      )}
                       {canWrite && <button onClick={() => { setMenuFor(null); setEditing(null); setReply(m); inputRef.current?.focus() }}>↩ {t('chat.reply')}</button>}
                       {canPin && conv.kind === 'group' && <button onClick={() => togglePin(m)}>📌 {conv.pinned_message_id === m.id ? t('chat.unpin') : t('chat.pin')}</button>}
-                      {mine && m.body && canEditMsg(m) && <button onClick={() => startEdit(m)}>✎ {t('common.edit')}</button>}
-                      {mine && <button className="danger" onClick={() => doDelete(m)}>🗑 {t('common.delete')}</button>}
-                    </div>
+                      {mine && canWrite && m.body && canEditMsg(m) && <button onClick={() => startEdit(m)}>✎ {t('common.edit')}</button>}
+                      {mine && canWrite && <button className="danger" onClick={() => doDelete(m)}>🗑 {t('common.delete')}</button>}
+                    </div>, document.body
                   )}
                 </div>
               </div>
