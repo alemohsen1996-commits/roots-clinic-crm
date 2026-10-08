@@ -1833,5 +1833,38 @@
     "fit": "Fit to screen",
     "noPreview": "This file type can’t be previewed here",
     "download": "Download receipt"
+  },
+  "search": {
+    "title": "Global search",
+    "open": "Search",
+    "placeholder": "Search by name, phone or file number…",
+    "placeholderShort": "Find a patient…",
+    "hint": "Type a name (3+ letters), a phone in any format (last 4 digits work) or a file number",
+    "noResults": "No results for “{{q}}”",
+    "error": "Search failed — try again",
+    "mine": "Mine",
+    "archived": "Archived",
+    "colleague": "Colleague's lead",
+    "lockedTitle": "You can see where it is — not open the file",
+    "lockedNote": "This patient is handled by {{name}} — you can't open the file. Talk to them or a manager if you need to step in.",
+    "lockedNoteNoOwner": "This patient is handled by a colleague — you can't open the file.",
+    "sales": "Sales",
+    "coord": "Coordinator",
+    "openDeal": "Open deal",
+    "openPrp": "Open PRP package",
+    "prpActive": "Active PRP package",
+    "kbdMove": "move",
+    "kbdOpen": "open",
+    "kbdClose": "close",
+    "scope": {
+      "super_admin": "Searching all leads",
+      "sales_manager": "Searching all leads",
+      "agent": "Your leads open normally — colleagues' leads show location only",
+      "coordinator": "Searching your patients only",
+      "accountant": "Searching patients with deals",
+      "prp_officer": "Searching PRP patients"
+    },
+    "maskedPhone": "Last 4 digits only",
+    "moreDeals": "+{{n}} more"
   }
 }

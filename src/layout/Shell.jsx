@@ -11,6 +11,7 @@ import LangToggle from './LangToggle'
 import { useNotifications } from '../notifications/useNotifications'
 import { connectCrm, disconnectCrm } from '../lib/crmRealtime'
 import { BellButton, NotificationPanel, EntityOpener, useNotifTarget } from '../notifications/NotificationBell'
+import GlobalSearch, { SearchTrigger, SearchTopbarButton, useSearchHotkey } from '../search/GlobalSearch'
 
 // أيقونات خطّية موحّدة — التعرّف عليها أسرع من قراءة النص
 const I = {
@@ -117,7 +118,15 @@ export default function Shell() {
   // جرس الإشعارات — هوك واحد للزرارين (السايدبار + الشريط العلوي)
   const notif = useNotifications(profile?.id)
   const [notifOpen, setNotifOpen] = useState(false)
-  const [notifTarget, setNotifTarget] = useState(null)   // ليد/ديل/باقة مفتوحة من إشعار
+  const [notifTarget, setNotifTarget] = useState(null)   // ليد/ديل/باقة مفتوحة من إشعار أو من البحث
+
+  // البحث الشامل — Ctrl+K من أي صفحة
+  const [searchOpen, setSearchOpen] = useState(false)
+  const openSearch = useCallback(() => {
+    setNavOpen(false); setNotifOpen(false); setSearchOpen(true)
+  }, [])
+  const closeSearch = useCallback(() => setSearchOpen(false), [])
+  useSearchHotkey(openSearch)
   const resolveNotif = useNotifTarget()
   const closeNotif = useCallback(() => setNotifOpen(false), [])
   const toggleNotif = useCallback(() => {
@@ -148,7 +157,7 @@ export default function Shell() {
   const showBottomNav = !!profile && !inChatThread
 
   // إغلاق القائمة واللوحة عند الانتقال لصفحة أخرى
-  useEffect(() => { setNavOpen(false); setNotifOpen(false) }, [location.pathname])
+  useEffect(() => { setNavOpen(false); setNotifOpen(false); setSearchOpen(false) }, [location.pathname])
 
   // منع تمرير الخلفية أثناء فتح القائمة
   useEffect(() => {
@@ -190,6 +199,7 @@ export default function Shell() {
         </button>
         <div className="topbar-brand">{t('common.appName')}</div>
         <div className="topbar-end">
+          <SearchTopbarButton onOpen={openSearch} />
           {/* الشارات اللي ليها مكان في الشريط السفلي بتظهر هناك بس */}
           {chatUnread > 0 && !(showBottomNav && bottomItems.some(i => i.to === '/chat')) && (
             <NavLink to="/chat" className="topbar-badge chat" title={t('common.unreadMessages')}>💬 {chatUnread}</NavLink>
@@ -216,6 +226,8 @@ export default function Shell() {
             ✕
           </button>
         </div>
+
+        <SearchTrigger onOpen={openSearch} />
 
         <nav className="nav-scroll">
           {NAV.map(group => {
@@ -288,7 +300,9 @@ export default function Shell() {
       {notifOpen && (
         <NotificationPanel notif={notif} onClose={closeNotif} onPick={pickNotif} />
       )}
-      <EntityOpener target={notifTarget} onClose={() => setNotifTarget(null)} />
+      <GlobalSearch open={searchOpen} onClose={closeSearch} onPick={setNotifTarget} />
+      <EntityOpener key={notifTarget ? `${notifTarget.kind}-${notifTarget.id}` : 'none'}
+        target={notifTarget} onClose={() => setNotifTarget(null)} />
     </div>
   )
 }
