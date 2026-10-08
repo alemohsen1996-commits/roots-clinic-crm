@@ -26,7 +26,9 @@ create index if not exists idx_leads_name_norm_trgm
   on public.leads using gin (public.ar_norm(full_name) gin_trgm_ops);
 
 -- ── 2) دالة البحث
-create or replace function public.global_search(p_q text, p_limit int default 20)
+-- v2: نفس global_search + stage_code / stage_category / last_activity (لخط رحلة المريض)
+-- اتعملت باسم جديد بدل drop للقديمة — global_search (v1) مبقتش مستخدمة ويتشال براحتنا
+create or replace function public.global_search_v2(p_q text, p_limit int default 20)
 returns table (
   lead_id        bigint,
   access         text,      -- full | limited
@@ -37,6 +39,9 @@ returns table (
   stage_name     text,
   stage_name_en  text,
   stage_color    text,
+  stage_code     text,
+  stage_category text,
+  last_activity  timestamptz,
   owner_id       uuid,
   owner_name     text,
   coordinator_name text,
@@ -138,6 +143,9 @@ begin
     st.name_ar,
     st.name_en,
     st.color,
+    st.code,
+    st.category,
+    s.last_activity,
     s.owner_id,
     po.full_name,
     pc.full_name,
@@ -200,5 +208,5 @@ begin
 end;
 $$;
 
-revoke all on function public.global_search(text, int) from public, anon;
-grant execute on function public.global_search(text, int) to authenticated;
+revoke all on function public.global_search_v2(text, int) from public, anon;
+grant execute on function public.global_search_v2(text, int) to authenticated;
