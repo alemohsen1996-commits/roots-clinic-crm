@@ -1262,19 +1262,25 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
 .lead-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px 14px;
-  font-size: 12.5px;
+  gap: 8px 22px;
+  font-size: 13px;
   color: var(--ink);
-  padding-top: 9px;
+  padding-top: 10px;
   border-top: 1px dashed var(--line);
 }
-.lead-facts span { white-space: nowrap; }
+/* «العنوان: القيمة» — مسافة واضحة بين العنوان والقيمة */
+.lead-facts > span {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  white-space: nowrap; font-weight: 600; line-height: 1.5;
+}
 .lead-facts i {
   font-style: normal;
+  font-weight: 400;
   color: var(--ink-soft);
-  font-size: 11px;
-  margin-inline-end: 5px;
+  font-size: 12px;
 }
+.lead-facts i::after { content: ':'; }
+.lead-facts .race-medal-badge { margin-inline-start: -2px; }
 
 /* ---------- تعديل بيانات العميل (inline في الرأس) ---------- */
 .lead-edit {
