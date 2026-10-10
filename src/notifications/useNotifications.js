@@ -7,7 +7,7 @@ import { onChat } from '../chat/chatRealtime'
 import { ding } from '../chat/useChatUnread'
 
 export const NOTIF_PAGE = 10
-const COLS = 'id, type, title, body, entity, entity_id, data, is_read, group_count, created_at, updated_at'
+const COLS = 'id, user_id, type, title, body, entity, entity_id, data, is_read, group_count, created_at, updated_at'
 
 export function useNotifications(userId) {
   const [items, setItems] = useState([])

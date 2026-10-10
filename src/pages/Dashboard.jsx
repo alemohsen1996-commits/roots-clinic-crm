@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 import { fmtMonth, cur as curSym } from '../lib/format'
 import useT from '../i18n/useT'
 import PrpMonthStats, { usePrpMonthStats, lastMonths } from '../prp/PrpMonthStats'
+import { RaceBanner, Medal } from '../components/SalesRace'
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('en-US')
 
@@ -185,6 +186,9 @@ export default function Dashboard() {
           </select>
         </div>
       </div>
+
+      {/* سباق السيلز — الشهر الجاري بس */}
+      {isCurrentMonth && <RaceBanner />}
 
       {loading ? (
         <div className="empty">{t('common.loading')}</div>
@@ -373,7 +377,7 @@ export default function Dashboard() {
                         <tbody>
                           {list.map(r => (
                             <tr key={r.user_id}>
-                              <td style={{ fontWeight: 600 }}>{r.full_name}</td>
+                              <td style={{ fontWeight: 600 }}>{r.full_name}{isCurrentMonth && <> <Medal userId={r.user_id} /></>}</td>
                               {isAll && (
                                 <td style={{ color: 'var(--ink-soft)' }}>
                                   {r.role_code ? t(`rolesShort.${r.role_code}`, { defaultValue: r.role_code }) : '—'}

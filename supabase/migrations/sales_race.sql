@@ -1,0 +1,9 @@
+-- اتطبّق مباشرة على Supabase (Crm Roots) بتاريخ 2026-10-11 عن طريق الكونكتور
+-- سباق السيلز: المركز الأول والتاني بعدد العمليات الجراحية اللي تمت في الشهر الحالي (توقيت الرياض)
+--   * السيلز بس (role = agent, active) — المديرين برّه السباق
+--   * التعادل: صاحب المركز الحالي يفضل مكانه (sales_race_state) — عشان تاخد المركز لازم تعدّي
+--   * كل شهر يبدأ من الصفر
+-- الجدول: sales_race_state (month, first_id, second_id)
+-- الدوال: _race_month, _race_rank(month), sales_race() [للواجهة], _race_refresh, race_on_deal_change
+-- التريجر: trg_race_on_deal_change (deals, after insert/update) → إشعارات race_first / race_second
+--   للسيلز ومدير المبيعات + بث crm_race لكل الأدوار عشان الشاشات تحدّث

@@ -12,6 +12,8 @@ import { useNotifications } from '../notifications/useNotifications'
 import { connectCrm, disconnectCrm } from '../lib/crmRealtime'
 import { BellButton, NotificationPanel, EntityOpener, useNotifTarget } from '../notifications/NotificationBell'
 import GlobalSearch, { SearchTrigger, SearchTopbarButton, useSearchHotkey } from '../search/GlobalSearch'
+import { connectSalesRace } from '../lib/salesRace'
+import { Medal } from '../components/SalesRace'
 
 // أيقونات خطّية موحّدة — التعرّف عليها أسرع من قراءة النص
 const I = {
@@ -112,6 +114,8 @@ export default function Shell() {
     connectCrm(profile?.id, roleCode)
     return () => disconnectCrm()
   }, [profile?.id, roleCode])
+  // سباق السيلز (الميداليات في كل الشاشات)
+  useEffect(() => { connectSalesRace(profile?.id) }, [profile?.id])
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -255,7 +259,7 @@ export default function Shell() {
         </nav>
 
         <div className="foot">
-          <div className="name">{profile?.full_name}</div>
+          <div className="name">{profile?.full_name} <Medal userId={profile?.id} /></div>
           <div className="role">{dn(profile?.roles)}</div>
           <div className="theme-picker" role="radiogroup" aria-label={t('common.theme')}>
             {THEMES.map(th => (

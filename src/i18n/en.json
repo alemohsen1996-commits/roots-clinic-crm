@@ -1770,7 +1770,11 @@
       "appt_tomorrow": "Consultation tomorrow",
       "payment_added": "New payment to confirm",
       "deal_done": "Operation completed",
-      "patient_edited": "Patient data edited"
+      "patient_edited": "Patient data edited",
+      "race_first": "🥇 {{name}} took 1st place",
+      "race_second": "🥈 {{name}} took 2nd place",
+      "race_first_me": "🥇 Congrats! You took 1st place",
+      "race_second_me": "🥈 Congrats! You took 2nd place"
     },
     "b": {
       "openLeads": "Open the leads board",
@@ -1781,7 +1785,8 @@
       "change": "{{field}}: {{from}} → {{to}}",
       "moreChanges": "+ {{n}} more changes",
       "doneBy": "Marked by {{name}}",
-      "editedBy": "Edited by {{name}}"
+      "editedBy": "Edited by {{name}}",
+      "raceOps": "Operations: {{n}}"
     },
     "clearAll": "Clear all",
     "clearAllConfirm": "Delete all notifications ({{n}})? This can’t be undone.",
@@ -1919,5 +1924,26 @@
       "surgery": "Surgery"
     },
     "tipPhoneEx": "Full, any format, or last 4 digits"
+  },
+  "race": {
+    "title": "Sales race — {{month}}",
+    "hint": "1st and 2nd place by operations completed this month · resets every month",
+    "first": "1st place",
+    "second": "2nd place",
+    "you": "you",
+    "emptySpot": "Still open",
+    "opsLabel": "ops",
+    "ops_one": "{{count}} operation",
+    "ops_other": "{{count}} operations",
+    "me1": "🎉 You're in 1st place!",
+    "me1Alone": "Nobody behind you yet — keep going",
+    "me1Tie": "{{name}} has the same count — one more operation secures your spot",
+    "me1Gap": "You're {{ops}} ahead of {{name}} — hold your spot",
+    "me2": "🥈 You're in 2nd place!",
+    "me2Gap": "{{ops}} more to pass {{name}} for 1st place",
+    "meNeed": "{{ops}} more to reach 2nd place 🥈",
+    "startHint": "No operations closed yet this month — the first one takes 1st place 🥇",
+    "medal1": "Sales 1st place — {{month}}",
+    "medal2": "Sales 2nd place — {{month}}"
   }
 }

@@ -18,6 +18,7 @@ import LeadDiscussions from '../chat/LeadDiscussions'
 import { PhoneIcon } from '../components/ContactButtons'
 import WaTemplatesMenu from '../chat/WaTemplatesMenu'
 import { startDirect, errText as chatErr } from '../chat/chatApi'
+import { Medal } from '../components/SalesRace'
 
 // أسماء أنواع السجل في الترجمة: activity.*
 const ACTIVITY_TYPES = ['call', 'note', 'whatsapp', 'sms', 'email', 'stage_change', 'assignment', 'system', 'offer']
@@ -772,7 +773,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                   <span><i>{t('lead.branch')}</i>{dn(lead.branches) || '—'}</span>
                   <span><i>{t('lead.source')}</i>{dn(lead.lead_sources) || '—'}</span>
                   <span><i>{t('lead.interest')}</i>{lead.procedure_interest ? t(`interest.${lead.procedure_interest}`, { defaultValue: lead.procedure_interest }) : '—'}</span>
-                  <span><i>{t('lead.owner')}</i>{lead.owner?.full_name ?? t('lead.unassigned')}</span>
+                  <span><i>{t('lead.owner')}</i>{lead.owner?.full_name ?? t('lead.unassigned')} <Medal userId={lead.owner_id} /></span>
                   {lead.coordinator?.full_name && (
                     <span><i>{t('lead.coordShort')}</i>{lead.coordinator.full_name}</span>
                   )}

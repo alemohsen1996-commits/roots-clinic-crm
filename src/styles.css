@@ -2799,3 +2799,43 @@ button.mcard-main:active { background: var(--surface); }
   .rv { border-radius: 0; height: 100dvh; width: 100%; }
   .rv-head { flex-wrap: wrap; padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
 }
+
+/* ---------- سباق السيلز ---------- */
+.race-medal-badge { display: inline-block; font-size: .95em; line-height: 1; vertical-align: -1px; cursor: default; }
+.notif-ico.k-trophy { background: var(--gold-soft); color: var(--gold); }
+
+.race-card { padding: 16px; margin-bottom: 18px; }
+.race-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 12px; }
+.race-head h2 { font-size: 16px; margin: 0; }
+.race-head small { font-size: 12px; color: var(--ink-soft); }
+.race-podium { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.race-spot {
+  display: flex; align-items: center; gap: 12px; min-width: 0;
+  padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--surface);
+}
+.race-spot.is-gold { border-color: #d9b44a; background: linear-gradient(135deg, rgba(240, 200, 80, .22), rgba(240, 200, 80, .05)); }
+.race-spot.is-silver { border-color: #b8bec8; background: linear-gradient(135deg, rgba(180, 188, 200, .25), rgba(180, 188, 200, .05)); }
+.race-spot.is-me { box-shadow: 0 0 0 3px var(--gold-soft); }
+.race-spot-medal { font-size: 30px; line-height: 1; flex-shrink: 0; }
+.race-spot-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.race-spot-main small { font-size: 12px; color: var(--ink-soft); }
+.race-spot-main b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.race-spot-main b em { font-style: normal; font-size: 12.5px; color: var(--gold); }
+.race-spot-main .race-empty { font-weight: 600; color: var(--ink-soft); font-size: 14px; }
+.race-spot-ops { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.race-spot-ops b { font-family: var(--font-display); font-size: 24px; font-weight: 800; line-height: 1.1; }
+.race-spot-ops small { font-size: 11px; color: var(--ink-soft); }
+.race-me {
+  margin-top: 12px; padding: 10px 14px; border-radius: 12px;
+  background: var(--primary-soft); font-size: 13.5px;
+  display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline;
+}
+.race-me strong { font-size: 14.5px; }
+.race-me.is-gold { background: rgba(240, 200, 80, .18); }
+.race-me.is-silver { background: rgba(180, 188, 200, .22); }
+@media (max-width: 560px) {
+  .race-podium { grid-template-columns: 1fr; gap: 8px; }
+  .race-spot { padding: 10px 12px; }
+  .race-spot-medal { font-size: 26px; }
+}

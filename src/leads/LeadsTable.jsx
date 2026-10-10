@@ -2,6 +2,7 @@
 // + تحديد متعدد (للمدير) لتنفيذ إجراءات جماعية
 import { timeAgo, fmtDate, openWhatsApp } from '../lib/format'
 import useT from '../i18n/useT'
+import { Medal } from '../components/SalesRace'
 
 function PhoneCell({ phone }) {
   const { t } = useT()
@@ -80,7 +81,7 @@ export default function LeadsTable({ leads, onOpen, selectable, selected, onTogg
                   </span>
                 </td>
                 <td>{dn(l.lead_sources) || '—'}</td>
-                <td>{l.owner?.full_name ?? t('lead.unassigned')}</td>
+                <td>{l.owner?.full_name ?? t('lead.unassigned')} <Medal userId={l.owner_id} /></td>
                 <td>{timeAgo(l.last_activity)}</td>
                 <td>{fmtDate(l.created_at)}</td>
               </tr>

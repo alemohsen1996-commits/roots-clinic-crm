@@ -25,6 +25,7 @@ import GroupInfoModal from './GroupInfoModal'
 import LeadPicker from './LeadPicker'
 import PushToggle from './PushToggle'
 import './chat.css'
+import { Medal } from '../components/SalesRace'
 
 const LOC = () => (i18n.language === 'en' ? 'en-GB' : 'ar-EG-u-nu-latn')
 const fmtTime = (d) => new Date(d).toLocaleTimeString(LOC(), { hour: '2-digit', minute: '2-digit' })
@@ -200,7 +201,7 @@ export default function ChatPage() {
               </span>
               <span className="chat-item-main">
                 <span className="chat-item-top">
-                  <strong>{convName(c, meId)}</strong>
+                  <strong>{convName(c, meId)}{c.kind !== 'group' && <> <Medal userId={(c.members ?? []).find(m => m.id !== meId)?.id} /></>}</strong>
                   <time>{listTime(c.last_message_at)}</time>
                 </span>
                 <span className="chat-item-bottom">
@@ -685,7 +686,7 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
           {conv.kind === 'group' ? '👥' : (title ?? '').trim()[0]}
         </span>
         <div className="chat-thread-title">
-          <strong>{title}</strong>
+          <strong>{title}{conv?.kind !== 'group' && !readOnly && <> <Medal userId={others[0]?.user_id} /></>}</strong>
           <small>
             {conv.kind === 'group'
               ? t('chat.nMembers', { n: activeParts.length })
@@ -742,7 +743,7 @@ function Thread({ convId, meId, canMonitor, leadParam, onBack, onListChanged, on
                 + (!mine && unreadSince && !m.deleted_at && new Date(m.created_at) > new Date(unreadSince) ? ' is-unread' : '')}
                 id={'msg-' + m.id}>
                 <div className={'chat-bubble' + (m.deleted_at ? ' deleted' : '') + ((m.mentions ?? []).includes(meId) ? ' mentions-me' : '') + (conv.pinned_message_id === m.id ? ' pinned' : '')}>
-                  {showName && <div className="chat-sender">{nameOf(m.sender_id)}</div>}
+                  {showName && <div className="chat-sender">{nameOf(m.sender_id)} <Medal userId={m.sender_id} /></div>}
 
                   {replied && (
                     <div className="chat-reply-ref">

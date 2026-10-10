@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import i18n from '../i18n'
 import useT from '../i18n/useT'
-import { fmtNum, cur, timeAgo, fmtDate, fmtClock } from '../lib/format'
+import { fmtNum, cur, timeAgo, fmtDate, fmtClock, fmtMonth } from '../lib/format'
 import { useLeadRefs } from '../leads/useLeadRefs'
 import { useDealRefs, fetchDealFinance } from '../deals/useDealRefs'
 import { supabase } from '../lib/supabase'
@@ -83,6 +83,14 @@ function notifText(n) {
         title: t('notif.t.patient_edited'),
         body: [who, ...changeLines(d), d.by && t('notif.b.editedBy', { name: d.by })].filter(Boolean).join('\n'),
       }
+    case 'race_first':
+    case 'race_second': {
+      const mine = d.user_id && d.user_id === n.user_id
+      return {
+        title: mine ? t(`notif.t.${n.type}_me`) : t(`notif.t.${n.type}`, { name: d.name }),
+        body: [t('notif.b.raceOps', { n: d.ops ?? 0 }), d.month && fmtMonth(d.month)].filter(Boolean).join(' · '),
+      }
+    }
     case 'appt_tomorrow':
       return { title: t('notif.t.appt_tomorrow'), body: [d.name, d.time && fmtClock(d.time), d.branch].filter(Boolean).join(' · ') }
     default:
@@ -95,7 +103,7 @@ const KIND = {
   lead_assigned: 'lead', lead_returned: 'lead', lead_transferred: 'coord',
   void_requested: 'money', void_approved: 'money', void_rejected: 'money', payment_added: 'money',
   tasks_digest: 'clock', deal_outcome_due: 'flag', prp_due: 'clock', appt_tomorrow: 'cal',
-  deal_done: 'done', patient_edited: 'edit',
+  deal_done: 'done', patient_edited: 'edit', race_first: 'trophy', race_second: 'trophy',
 }
 const GLYPH = {
   lead:  <><circle cx="10" cy="8" r="3.5"/><path d="M4 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M18 8h4M20 6v4"/></>,
@@ -106,6 +114,7 @@ const GLYPH = {
   cal:   <><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/></>,
   done:  <><circle cx="12" cy="12" r="8.5"/><path d="m8 12.3 2.7 2.7L16.2 9.5"/></>,
   edit:  <><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></>,
+  trophy: <><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4"/></>,
 }
 
 const BellIcon = () => (
@@ -329,6 +338,7 @@ export function useNotifTarget() {
       case 'payments':   return id ? { kind: 'payment', id } : (navigate('/payments'), null)
       case 'tasks':      navigate('/tasks'); return null
       case 'leads_list': navigate('/leads'); return null
+      case 'dashboard':  navigate('/'); return null
       default:           return null
     }
   }
