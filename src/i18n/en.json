@@ -883,7 +883,10 @@
     "voidTitle": "Request payment void",
     "voidSub": "Write the reason — the manager or accountant reviews it before approval",
     "voidPh": "e.g. Wrong amount entered",
-    "sendRequest": "Send request"
+    "sendRequest": "Send request",
+    "amountPh": "Amount",
+    "amountHint": "Exact amount (5000) or a range (5000-8000)",
+    "amountFilter": "Search by amount"
   },
   "installments": {
     "dayUnit": "days",
@@ -1764,14 +1767,20 @@
       "deal_outcome_due": "Set the operation outcome",
       "prp_due": "PRP session today",
       "appt_tomorrow": "Consultation tomorrow",
-      "payment_added": "New payment to confirm"
+      "payment_added": "New payment to confirm",
+      "deal_done": "Operation completed",
+      "patient_edited": "Patient data edited"
     },
     "b": {
       "openLeads": "Open the leads board",
       "tasks": "{{today}} today · {{overdue}} overdue",
       "opDate": "Operation date {{date}}",
       "session": "Session {{n}}",
-      "by": "by {{name}}"
+      "by": "by {{name}}",
+      "change": "{{field}}: {{from}} → {{to}}",
+      "moreChanges": "+ {{n}} more changes",
+      "doneBy": "Marked by {{name}}",
+      "editedBy": "Edited by {{name}}"
     },
     "clearAll": "Clear all",
     "clearAllConfirm": "Delete all notifications ({{n}})? This can’t be undone.",
@@ -1782,7 +1791,30 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "emptyUnreadTitle": "All caught up",
-    "emptyUnreadBody": "No new notifications to review"
+    "emptyUnreadBody": "No new notifications to review",
+    "f": {
+      "full_name": "Name",
+      "phone": "Phone",
+      "file_no": "File no.",
+      "branch": "Branch",
+      "owner": "Lead owner",
+      "lead_coordinator": "File coordinator",
+      "city": "City",
+      "country": "Country",
+      "age": "Age",
+      "occupation": "Occupation",
+      "status": "Deal status",
+      "total_amount": "Price",
+      "tax_amount": "Tax",
+      "tax_note": "Tax note",
+      "operation_date": "Operation date",
+      "procedure": "Sale type",
+      "technique": "Technique",
+      "doctor": "Doctor",
+      "grafts": "Grafts",
+      "agent": "Sales agent",
+      "coordinator": "Deal coordinator"
+    }
   },
   "mlist": {
     "filters": "Filters",

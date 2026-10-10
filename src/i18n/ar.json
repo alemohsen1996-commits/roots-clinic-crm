@@ -883,7 +883,10 @@
     "voidTitle": "طلب إلغاء دفعة",
     "voidSub": "اكتب سبب الإلغاء — سيراجعه المدير أو المحاسب قبل الاعتماد",
     "voidPh": "مثال: خطأ في المبلغ المُدخل",
-    "sendRequest": "إرسال الطلب"
+    "sendRequest": "إرسال الطلب",
+    "amountPh": "المبلغ",
+    "amountHint": "اكتب مبلغ بالظبط (5000) أو من-إلى (5000-8000)",
+    "amountFilter": "بحث بالمبلغ"
   },
   "installments": {
     "dayUnit": "يوم",
@@ -1764,14 +1767,20 @@
       "deal_outcome_due": "حدّد نتيجة العملية",
       "prp_due": "جلسة بلازما النهارده",
       "appt_tomorrow": "معاينة بكرة",
-      "payment_added": "تحصيل جديد محتاج تأكيد"
+      "payment_added": "تحصيل جديد محتاج تأكيد",
+      "deal_done": "تمت العملية",
+      "patient_edited": "تعديل في بيانات مريض"
     },
     "b": {
       "openLeads": "افتح بورد الليدات",
       "tasks": "{{today}} النهارده · {{overdue}} متأخرة",
       "opDate": "تاريخ العملية {{date}}",
       "session": "الجلسة {{n}}",
-      "by": "سجّلها {{name}}"
+      "by": "سجّلها {{name}}",
+      "change": "{{field}}: {{from}} ← {{to}}",
+      "moreChanges": "+ {{n}} تعديلات تانية",
+      "doneBy": "سجّلها {{name}}",
+      "editedBy": "عدّلها {{name}}"
     },
     "clearAll": "مسح الكل",
     "clearAllConfirm": "مسح كل الإشعارات ({{n}})؟ مش هتقدر ترجّعها.",
@@ -1782,7 +1791,30 @@
     "today": "النهارده",
     "yesterday": "امبارح",
     "emptyUnreadTitle": "كله مقروء",
-    "emptyUnreadBody": "مفيش إشعارات جديدة محتاجة تتشاف"
+    "emptyUnreadBody": "مفيش إشعارات جديدة محتاجة تتشاف",
+    "f": {
+      "full_name": "الاسم",
+      "phone": "الهاتف",
+      "file_no": "رقم الملف",
+      "branch": "الفرع",
+      "owner": "صاحب الليد",
+      "lead_coordinator": "منسقة الملف",
+      "city": "المدينة",
+      "country": "الدولة",
+      "age": "السن",
+      "occupation": "الوظيفة",
+      "status": "حالة الديل",
+      "total_amount": "السعر",
+      "tax_amount": "الضريبة",
+      "tax_note": "ملاحظة الضريبة",
+      "operation_date": "تاريخ العملية",
+      "procedure": "نوع البيع",
+      "technique": "التقنية",
+      "doctor": "الدكتور",
+      "grafts": "البصيلات",
+      "agent": "السيلز",
+      "coordinator": "منسقة الديل"
+    }
   },
   "mlist": {
     "filters": "الفلاتر",

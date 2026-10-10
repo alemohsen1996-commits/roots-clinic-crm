@@ -41,6 +41,19 @@ function searchTerm(s) {
   return v
 }
 
+// خانة المبلغ: «5000» = مبلغ بالظبط، «5000-8000» = من/إلى
+// بتقبل الأرقام العربية (٥٠٠٠) والفواصل (5,000)
+function parseAmount(s) {
+  const v = (s ?? '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+    .replace(/[,،\s]/g, '').replace(/٫/g, '.')
+  if (!v) return null
+  const m = v.match(/^(\d+(?:\.\d+)?)(?:[-–](\d+(?:\.\d+)?))?$/)
+  if (!m) return null
+  const a = Number(m[1]), b = m[2] != null ? Number(m[2]) : a
+  return { min: Math.min(a, b), max: Math.max(a, b) }
+}
+
 const today = () => new Date().toISOString().slice(0, 10)
 const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(), 1)
   .toISOString().slice(0, 10)
@@ -77,6 +90,8 @@ export default function PaymentsPage() {
   // الفلاتر
   const [search, setSearch] = useState('')
   const [term, setTerm] = useState('')          // نص البحث بعد التأخير والتجهيز
+  const [amountText, setAmountText] = useState('')
+  const [amount, setAmount] = useState(null)    // { min, max } بعد التأخير والتجهيز
   const [branch, setBranch] = useState('')
   const [branches, setBranches] = useState([])
   const [from, setFrom] = useState('')
@@ -103,6 +118,16 @@ export default function PaymentsPage() {
     const id = setTimeout(() => setTerm(searchTerm(search)), 300)
     return () => clearTimeout(id)
   }, [search])
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const a = parseAmount(amountText)
+      setAmount(prev => (prev?.min === a?.min && prev?.max === a?.max ? prev : a))
+    }, 300)
+    return () => clearTimeout(id)
+  }, [amountText])
+  const amountBad = !!amountText.trim() && !parseAmount(amountText)
+  const amtMin = amount?.min ?? null
+  const amtMax = amount?.max ?? null
 
   useEffect(() => {
     supabase.from('branches').select('id, name, name_en').eq('is_active', true).order('name')
@@ -122,8 +147,10 @@ export default function PaymentsPage() {
     if (branch) q = q.eq('pay_branch_id', branch)
     // pay_search = رقم الإيصال + الاسم + الهاتف + رقم الملف (عمود محسوب في القاعدة)
     if (term) q = q.ilike('pay_search', `%${term}%`)
+    if (amtMin != null) q = q.gte('amount', amtMin)
+    if (amtMax != null) q = q.lte('amount', amtMax)
     return q
-  }, [fromTs, toTs, method, status, onlyUnconfirmed, term, branch])
+  }, [fromTs, toTs, method, status, onlyUnconfirmed, term, branch, amtMin, amtMax])
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
@@ -140,18 +167,19 @@ export default function PaymentsPage() {
     setTotal(count ?? 0)
 
     // الإجماليات تُحسب في القاعدة على كامل النتائج لا على الصفحة المعروضة
-    const { data: t } = await supabase.rpc('payment_totals', {
+    const { data: t } = await supabase.rpc('payment_totals_v2', {
       p_from: fromTs, p_to: toTs,
       p_method: method || null,
       p_search: term || null,
       p_branch: branch ? Number(branch) : null,
+      p_amount_min: amtMin, p_amount_max: amtMax,
     })
     setSums(t ?? null)
     setLoading(false)
-  }, [page, fromTs, toTs, method, term, branch, applyFilters, sortAsc])
+  }, [page, fromTs, toTs, method, term, branch, amtMin, amtMax, applyFilters, sortAsc])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(0); setSelected(new Set()) }, [fromTs, toTs, method, status, onlyUnconfirmed, term, branch, sortAsc])
+  useEffect(() => { setPage(0); setSelected(new Set()) }, [fromTs, toTs, method, status, onlyUnconfirmed, term, branch, amtMin, amtMax, sortAsc])
 
   // طلبات الإلغاء المعلّقة تُجلب مستقلة عن الفلاتر والصفحة — حتى لا تختفي عن المدير
   const loadPendingVoids = useCallback(async () => {
@@ -311,7 +339,7 @@ export default function PaymentsPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE))
-  const hasFilters = search || from || to || method || status || onlyUnconfirmed || branch
+  const hasFilters = search || amountText || from || to || method || status || onlyUnconfirmed || branch
   const branchName = (p) => (p.deals?.leads?.branch ? dn(p.deals.leads.branch) : '')
 
   // كارت دفعة (موبايل)
@@ -496,6 +524,11 @@ export default function PaymentsPage() {
       <div className="card filters-bar">
         <input className="filter-search" placeholder={t('payments.searchPh')}
           aria-label={t('common.search')} value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="filter-amount" inputMode="decimal" dir="ltr"
+          placeholder={t('payments.amountPh')} title={t('payments.amountHint')}
+          aria-label={t('payments.amountFilter')} aria-invalid={amountBad || undefined}
+          value={amountText} onChange={e => setAmountText(e.target.value)}
+          style={amountBad ? { borderColor: 'var(--danger)' } : undefined} />
         <select aria-label={t('lead.branch')} value={branch} onChange={e => setBranch(e.target.value)}>
           <option value="">{t('leads.f.allBranches')}</option>
           {branches.map(b => <option key={b.id} value={b.id}>{dn(b)}</option>)}
@@ -527,7 +560,7 @@ export default function PaymentsPage() {
           onClick={() => { setFrom(monthStart()); setTo(today()) }}>{t('payments.thisMonth')}</button>
         {hasFilters && (
           <button className="btn btn-ghost btn-sm"
-            onClick={() => { setSearch(''); setFrom(''); setTo(''); setMethod(''); setStatus(''); setOnlyUnconfirmed(false); setBranch('') }}>
+            onClick={() => { setSearch(''); setAmountText(''); setFrom(''); setTo(''); setMethod(''); setStatus(''); setOnlyUnconfirmed(false); setBranch('') }}>
             {t('deals.clearFilters')}
           </button>
         )}

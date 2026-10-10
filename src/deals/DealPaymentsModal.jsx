@@ -1,7 +1,7 @@
 // تفاصيل المحصّل على ديل — كل الدفعات مع صور إيصالات الدفع (طلب المحاسب)
 // بتتفتح بالضغط على عمود التحصيل في شاشة الديلات
 // المحاسب/المدير: تأكيد محاسبي (فردي أو الكل) + إلغاء مباشر بسبب إجباري (void_payment_direct)
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { dbErr } from '../lib/dbErrors'
@@ -17,7 +17,8 @@ const SELECT = `
   confirmer:profiles!payments_confirmed_by_fkey(full_name)
 `
 
-export default function DealPaymentsModal({ deal, onClose, onChanged }) {
+// focusId (اختياري): دفعة بعينها تتعلّم ويتعمل لها scroll — لما النافذة تتفتح من إشعار تحصيل
+export default function DealPaymentsModal({ deal, focusId = null, onClose, onChanged }) {
   const { t, dn } = useT()
   const { profile, isManager, roleCode } = useAuth()
   const canAct = isManager || roleCode === 'accountant'
@@ -33,6 +34,8 @@ export default function DealPaymentsModal({ deal, onClose, onChanged }) {
   const [voiding, setVoiding] = useState(null)  // الدفعة اللي بتتلغي (نافذة السبب)
   const [reason, setReason] = useState('')
   const [voidedHere, setVoidedHere] = useState(0)  // مجموع اللي اتلغى من النافذة دي — لتحديث الملخص فورًا
+  const focusRef = useRef(null)
+  const scrolled = useRef(false)
 
   const loadRows = useCallback(async (alive = () => true) => {
     const { data, error } = await supabase.from('payments').select(SELECT)
@@ -61,6 +64,13 @@ export default function DealPaymentsModal({ deal, onClose, onChanged }) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [viewAt, voiding, onClose])
+
+  // أول ما الدفعات تحمل → نروح للدفعة المقصودة (مرة واحدة بس)
+  useEffect(() => {
+    if (!rows || !focusRef.current || scrolled.current) return
+    scrolled.current = true
+    focusRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [rows])
 
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 3500) }
 
@@ -149,7 +159,8 @@ export default function DealPaymentsModal({ deal, onClose, onChanged }) {
               const kind = receiptKind(p.receipt_path)
               const url = urls[p.receipt_path]
               return (
-                <li key={p.id} className={'paydlg-item' + (isVoid ? ' is-void' : '')}>
+                <li key={p.id} ref={p.id === Number(focusId) ? focusRef : null}
+                  className={'paydlg-item' + (isVoid ? ' is-void' : '') + (p.id === Number(focusId) ? ' is-focus' : '')}>
                   <div className="paydlg-receipt">
                     {!p.receipt_path ? (
                       <div className="paydlg-noimg">{t('dealPays.noReceipt')}</div>

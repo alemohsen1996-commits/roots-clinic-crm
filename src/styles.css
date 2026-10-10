@@ -464,6 +464,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
   outline: none; border-color: var(--primary);
 }
 .filter-search { flex: 1; min-width: 240px; }
+.filter-amount { width: 150px; }
 
 .view-toggle {
   display: flex; border: 1px solid var(--line);
@@ -2145,11 +2146,13 @@ html[dir="ltr"] .ltr-cell { text-align: left; }
 .notif-ico.k-money { background: var(--danger-soft); color: var(--danger); }
 .notif-ico.k-clock, .notif-ico.k-cal { background: var(--ok-soft); color: var(--ok); }
 .notif-ico.k-flag { background: var(--warn-soft); color: var(--warn); }
+.notif-ico.k-done { background: var(--ok-soft); color: var(--ok); }
+.notif-ico.k-edit { background: var(--gold-soft); color: var(--warn); }
 
 .notif-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .notif-title { font-size: 13.5px; font-weight: 600; line-height: 1.5; }
 .notif-row.unread .notif-title { font-weight: 800; }
-.notif-body { font-size: 12.5px; color: var(--ink-soft); line-height: 1.55; overflow-wrap: anywhere; }
+.notif-body { font-size: 12.5px; color: var(--ink-soft); line-height: 1.55; overflow-wrap: anywhere; white-space: pre-line; }
 .notif-time { font-size: 11px; color: var(--ink-soft); }
 .notif-row.unread .notif-time { color: var(--primary); font-weight: 700; }
 
@@ -2711,6 +2714,8 @@ button.mcard-main:active { background: var(--surface); }
 .paydlg-item { display: flex; gap: 14px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
 .paydlg-item.is-void { opacity: .6; }
 .paydlg-item.is-void .paydlg-amount { text-decoration: line-through; }
+/* الدفعة اللي اتفتحت من إشعار */
+.paydlg-item.is-focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
 .paydlg-receipt { flex: 0 0 110px; }
 .paydlg-thumb {
   display: block; width: 110px; height: 110px; padding: 0; border: 1px solid var(--line);
