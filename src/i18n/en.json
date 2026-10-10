@@ -141,6 +141,7 @@
     "tabs": {
       "all": "All",
       "sales": "Sales",
+      "managers": "Managers",
       "coordinator": "Coordinators"
     },
     "vsPrevSame": "= same as last month",

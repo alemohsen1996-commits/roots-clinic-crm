@@ -18,9 +18,11 @@ const thisMonth = () => monthKey(new Date())
 const monthLabel = (m) => fmtMonth(m)
 
 // تابات جدول أداء الفريق (العناوين من dashboard.tabs.*)
-const TEAM_TABS = ['all', 'sales', 'coordinator']
+const TEAM_TABS = ['all', 'sales', 'managers', 'coordinator']
+const MANAGER_ROLES = ['sales_manager', 'super_admin']   // تبويب «المديرين»: مدير المبيعات + المدير العام
 const tabOf = (code) =>
-  code === 'agent' ? 'sales' : code === 'coordinator' ? 'coordinator' : 'other'
+  code === 'agent' ? 'sales' : code === 'coordinator' ? 'coordinator'
+    : MANAGER_ROLES.includes(code) ? 'managers' : 'other'
 const hasNumbers = (r) =>
   ['deals_count', 'revenue', 'collected', 'leads_received'].some(k => Number(r[k] ?? 0) > 0)
 
@@ -334,12 +336,13 @@ export default function Dashboard() {
                 const isAll = teamTab === 'all'
                 const list = rows
                   .filter(r => isAll
-                    // الكل: السيلز والمنسقات دايمًا، وأي وظيفة تانية لو ليها أرقام
-                    ? (tabOf(r.role_code) !== 'other' || hasNumbers(r))
+                    // الكل: السيلز والمنسقات دايمًا، والمديرين وأي وظيفة تانية لو ليها أرقام
+                    ? (['sales', 'coordinator'].includes(tabOf(r.role_code)) || hasNumbers(r))
                     // السيلز: + المديرين اللي ليهم أرقام (مريض معرفة جابه المدير مثلًا)
                     : teamTab === 'sales'
                       ? (tabOf(r.role_code) === 'sales'
-                         || (['sales_manager', 'super_admin'].includes(r.role_code) && hasNumbers(r)))
+                         || (MANAGER_ROLES.includes(r.role_code) && hasNumbers(r)))
+                      // المديرين: كلهم دايمًا حتى لو أرقامهم صفر
                       : tabOf(r.role_code) === teamTab)
                   .sort((a, b) => Number(b.revenue) - Number(a.revenue))
                 const sum = (k) => list.reduce((t, r) => t + Number(r[k] ?? 0), 0)
