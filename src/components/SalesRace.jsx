@@ -90,7 +90,6 @@ export function RaceBanner() {
     <section className="card race-card" aria-label={t('race.title', { month: fmtMonth(race.month) })}>
       <div className="race-head">
         <h2>🏁 {t('race.title', { month: fmtMonth(race.month) })}</h2>
-        <small>{t('race.hint')}</small>
       </div>
       <div className="race-podium">
         <Spot place={1} who={race.first} isMe={myPos === 1} />

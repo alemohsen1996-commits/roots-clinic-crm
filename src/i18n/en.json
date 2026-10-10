@@ -1927,7 +1927,6 @@
   },
   "race": {
     "title": "Sales race — {{month}}",
-    "hint": "1st and 2nd place by operations completed this month · resets every month",
     "first": "1st place",
     "second": "2nd place",
     "you": "you",
