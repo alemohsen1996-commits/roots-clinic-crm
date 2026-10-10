@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import i18n from '../i18n'
-import { SALES_ROLES, sortSales } from '../lib/people'
+import { OWNER_ROLES, sortSales } from '../lib/people'
 
 export function useDealRefs() {
   const [procedures, setProcedures] = useState([])
@@ -24,7 +24,7 @@ export function useDealRefs() {
       supabase.from('profiles')
         .select('id, full_name, roles!inner(code)')
         .eq('status', 'active')
-        .in('roles.code', SALES_ROLES),
+        .in('roles.code', OWNER_ROLES),
     ]).then(([p, t, d, c, ag]) => {
       setProcedures(p.data ?? [])
       setTechniques(t.data ?? [])

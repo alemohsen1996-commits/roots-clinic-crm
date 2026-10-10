@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtNum, fmtDate, fmtDateTime, fmtMonth } from '../lib/format'
 import { exportCsv } from '../lib/exportCsv'
-import { salesLabel, sortSales } from '../lib/people'
+import { salesLabel, sortSales, OWNER_ROLES } from '../lib/people'
 import { useDealRefs } from '../deals/useDealRefs'
 import DealDrawer from '../deals/DealDrawer'
 import useT from '../i18n/useT'
@@ -62,7 +62,7 @@ export default function StatementsPage() {
       supabase.from('profiles')
         .select('id, full_name, roles!inner(code)')
         .eq('status', 'active')
-        .in('roles.code', ['agent', 'sales_manager', 'coordinator']),
+        .in('roles.code', [...OWNER_ROLES, 'coordinator']),
       supabase.from('deals').select(DEAL_SEL)
         .eq('status', 'done').gte('outcome_at', fromTs).lt('outcome_at', toTs)
         .order('outcome_at', { ascending: true }),
@@ -109,10 +109,14 @@ export default function StatementsPage() {
   const key = tab === 'sales' ? 'agent_id' : 'coordinator_id'
   const list = useMemo(() => {
     const staff = tab === 'sales'
-      ? sortSales(people.filter(p => ['agent', 'sales_manager'].includes(p.roles?.code)))
+      ? sortSales(people.filter(p => OWNER_ROLES.includes(p.roles?.code)))
       : people.filter(p => p.roles?.code === 'coordinator')
           .sort((a, b) => a.full_name.localeCompare(b.full_name, 'ar'))
-    return staff.map(p => {
+    return staff
+      // المدير العام بيظهر في الكشف بس في الشهر اللي ليه فيه عمليات أو تحصيلات
+      .filter(p => p.roles?.code !== 'super_admin'
+        || deals.some(d => d[key] === p.id) || pays.some(x => x.deals?.[key] === p.id))
+      .map(p => {
       const ops = deals.filter(d => d[key] === p.id)
       const myPays = pays.filter(x => x.deals?.[key] === p.id)
       return {
@@ -197,7 +201,7 @@ export default function StatementsPage() {
             <button key={p.id} type="button" className="emp-card" onClick={() => setSelId(p.id)}>
               <div className="emp-card-head">
                 <strong>{p.full_name}</strong>
-                {p.roles?.code === 'sales_manager' && <span className="badge badge-pending">{t('roles.sales_manager')}</span>}
+                {['sales_manager', 'super_admin'].includes(p.roles?.code) && <span className="badge badge-pending">{t(`roles.${p.roles.code}`)}</span>}
               </div>
               <div className="emp-card-stats">
                 <div><span>{t('common.operations')}</span>{fmtNum(p.count)}</div>

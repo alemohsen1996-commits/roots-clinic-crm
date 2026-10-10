@@ -336,7 +336,11 @@ export default function Dashboard() {
                   .filter(r => isAll
                     // الكل: السيلز والمنسقات دايمًا، وأي وظيفة تانية لو ليها أرقام
                     ? (tabOf(r.role_code) !== 'other' || hasNumbers(r))
-                    : tabOf(r.role_code) === teamTab)
+                    // السيلز: + المديرين اللي ليهم أرقام (مريض معرفة جابه المدير مثلًا)
+                    : teamTab === 'sales'
+                      ? (tabOf(r.role_code) === 'sales'
+                         || (['sales_manager', 'super_admin'].includes(r.role_code) && hasNumbers(r)))
+                      : tabOf(r.role_code) === teamTab)
                   .sort((a, b) => Number(b.revenue) - Number(a.revenue))
                 const sum = (k) => list.reduce((t, r) => t + Number(r[k] ?? 0), 0)
                 const hasOther = rows.some(r => Number(r.other_count ?? 0) > 0)   // عمود الجلسات/المنتجات لو فيه
