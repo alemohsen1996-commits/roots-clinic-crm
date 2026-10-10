@@ -1926,7 +1926,7 @@
     "tipPhoneEx": "Full, any format, or last 4 digits"
   },
   "race": {
-    "title": "Sales race — {{month}}",
+    "title": "{{month}} leaderboard",
     "first": "1st place",
     "second": "2nd place",
     "you": "you",
@@ -1943,6 +1943,7 @@
     "meNeed": "{{ops}} more to reach 2nd place 🥈",
     "startHint": "No operations closed yet this month — the first one takes 1st place 🥇",
     "medal1": "Sales 1st place — {{month}}",
-    "medal2": "Sales 2nd place — {{month}}"
+    "medal2": "Sales 2nd place — {{month}}",
+    "ofTarget": "{{n}} of {{target}}"
   }
 }
