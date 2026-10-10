@@ -1944,6 +1944,7 @@
     "startHint": "No operations closed yet this month — the first one takes 1st place 🥇",
     "medal1": "Sales 1st place — {{month}}",
     "medal2": "Sales 2nd place — {{month}}",
-    "ofTarget": "{{n}} of {{target}}"
+    "ofTarget": "{{n}} of {{target}}",
+    "party": "👑 Congrats! You're #1 on the {{month}} leaderboard"
   }
 }

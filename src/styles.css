@@ -2828,6 +2828,56 @@ button.mcard-main:active { background: var(--surface); }
   border: 1px solid rgba(201, 162, 75, .35);
   background: linear-gradient(135deg, rgba(227, 197, 118, .16), rgba(227, 197, 118, .04));
 }
+.race-champ { position: relative; }
+/* لمعة خفيفة بتعدّي على كارت الأول كل كام ثانية */
+.race-shine { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.race-shine::before {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 45%;
+  inset-inline-start: -50%;
+  background: linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, .7) 50%, transparent 100%);
+  animation: race-shine 5.5s ease-in-out infinite;
+}
+[data-theme="dark"] .race-shine::before { background: linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, .12) 50%, transparent 100%); }
+@keyframes race-shine {
+  0% { transform: translateX(0); }
+  22%, 100% { transform: translateX(-340%); }
+}
+[dir="ltr"] .race-shine::before, html[lang="en"] .race-shine::before { animation-name: race-shine-ltr; }
+@keyframes race-shine-ltr {
+  0% { transform: translateX(0); }
+  22%, 100% { transform: translateX(340%); }
+}
+.race-champ > :not(.race-shine) { position: relative; }
+
+/* احتفال المركز الأول */
+.celebrate { position: fixed; inset: 0; z-index: 9999; pointer-events: none; overflow: hidden; }
+.celebrate-bit {
+  position: absolute; top: -20px; display: block; opacity: 0;
+  animation-name: celebrate-fall; animation-timing-function: cubic-bezier(.25, .6, .4, 1); animation-fill-mode: forwards;
+  will-change: transform, opacity;
+}
+@keyframes celebrate-fall {
+  0% { opacity: 1; transform: translate3d(0, 0, 0) rotate(0); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(var(--drift), 85vh, 0) rotate(var(--spin)); }
+}
+.celebrate-msg {
+  position: absolute; top: 18%; left: 50%; transform: translateX(-50%);
+  padding: 12px 22px; border-radius: 999px; white-space: nowrap;
+  background: var(--card); color: var(--ink); border: 1px solid rgba(201, 162, 75, .45);
+  box-shadow: 0 12px 32px rgba(15, 27, 45, .18);
+  font-family: var(--font-display); font-weight: 800; font-size: 17px;
+  animation: celebrate-msg 3s ease forwards;
+}
+@keyframes celebrate-msg {
+  0% { opacity: 0; transform: translate(-50%, -12px) scale(.92); }
+  12%, 80% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -8px) scale(.98); }
+}
+@media (max-width: 560px) { .celebrate-msg { font-size: 15px; padding: 10px 18px; top: 14%; } }
+@media (prefers-reduced-motion: reduce) {
+  .race-shine::before { animation: none; display: none; }
+}
 .race-champ.is-silver { border-color: rgba(170, 178, 189, .45); background: linear-gradient(135deg, rgba(170, 178, 189, .16), rgba(170, 178, 189, .04)); }
 .race-champ.is-me { box-shadow: 0 0 0 2px rgba(201, 162, 75, .25); }
 .race-champ.is-silver.is-me { box-shadow: 0 0 0 2px rgba(170, 178, 189, .35); }

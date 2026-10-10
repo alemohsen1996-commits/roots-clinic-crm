@@ -1,6 +1,8 @@
 // الصدارة (سباق السيلز): ميدالية 🥇/🥈 جنب الاسم + بطاقة «صدارة الشهر» في لوحة التحكم
 // الترتيب بعدد العمليات الجراحية اللي تمت في الشهر الحالي (السيلز بس)، والتعادل لصاحب المركز الحالي
+import { useEffect, useRef, useState } from 'react'
 import useT from '../i18n/useT'
+import Celebration from './Celebration'
 import { fmtMonth } from '../lib/format'
 import { useSalesRace, medalOf } from '../lib/salesRace'
 
@@ -30,6 +32,7 @@ function Champ({ place, who, isMe }) {
   const { t } = useT()
   return (
     <div className={'race-champ ' + (place === 1 ? 'is-gold' : 'is-silver') + (isMe ? ' is-me' : '')}>
+      {place === 1 && who && <span className="race-shine" aria-hidden="true" />}
       <span className="race-av" aria-hidden="true">
         {place === 1 && who && <span className="race-crown">👑</span>}
         {who ? initial(who.name) : '؟'}
@@ -109,8 +112,17 @@ function MyLine({ race }) {
 export function RaceBanner() {
   const { t, lang } = useT()
   const race = useSalesRace()
+  const myPos = race.ready && race.me?.in_race ? race.me.pos : null
+
+  // احتفال لصاحب المركز الأول: مع كل فتح للوحة التحكم، أو لحظة ما ياخد المركز وهو فاتحها
+  const [party, setParty] = useState(false)
+  const fired = useRef(false)
+  useEffect(() => {
+    if (myPos === 1 && !fired.current) { fired.current = true; setParty(true) }
+    if (myPos !== 1) fired.current = false
+  }, [myPos])
+
   if (!race.ready) return null
-  const myPos = race.me?.in_race ? race.me.pos : null
   const title = t('race.title', { month: monthName(race.month, lang) })
 
   return (
@@ -121,6 +133,7 @@ export function RaceBanner() {
         <Champ place={2} who={race.second} isMe={myPos === 2} />
       </div>
       {race.me?.in_race && <MyLine race={race} />}
+      {party && <Celebration message={t('race.party', { month: monthName(race.month, lang) })} onDone={() => setParty(false)} />}
     </section>
   )
 }
