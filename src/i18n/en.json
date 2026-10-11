@@ -1942,7 +1942,7 @@
     "ops_other": "{{count}} operations",
     "me1": "🎉 You're in 1st place!",
     "me1Alone": "Nobody behind you yet — keep going",
-    "me1Tie": "{{name}} has the same count — one more operation secures your spot",
+    "me1Tie": "{{name}} has the same number of operations, but you're ahead on revenue — one more operation secures your spot",
     "me1Gap": "You're {{ops}} ahead of {{name}} — hold your spot",
     "me2": "🥈 You're in 2nd place!",
     "me2Gap": "{{ops}} more to pass {{name}} for 1st place",
@@ -1951,6 +1951,9 @@
     "medal1": "Sales 1st place — {{month}}",
     "medal2": "Sales 2nd place — {{month}}",
     "ofTarget": "{{n}} of {{target}}",
-    "party": "👑 Congrats! You're #1 on the {{month}} leaderboard"
+    "party": "👑 Congrats! You're #1 on the {{month}} leaderboard",
+    "me2Tie": "Tied with {{name}} on operations, but they're ahead on revenue — one more operation takes 1st place",
+    "meNeedTie": "Tied with 2nd place on operations, revenue breaks the tie — one more operation takes it 🥈",
+    "rule": "By operations · ties go to revenue"
   }
 }

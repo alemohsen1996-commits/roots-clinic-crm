@@ -1,5 +1,6 @@
 // الصدارة (سباق السيلز): ميدالية 🥇/🥈 جنب الاسم + بطاقة «صدارة الشهر» في لوحة التحكم
-// الترتيب بعدد العمليات الجراحية اللي تمت في الشهر الحالي (السيلز بس)، والتعادل لصاحب المركز الحالي
+// الترتيب بعدد العمليات الجراحية اللي تمت في الشهر الحالي (السيلز بس)
+// التعادل في العدد → الإيراد الأعلى (محسوب في الداتابيز ومش بيوصل للواجهة)، ولو اتساووا كمان → صاحب المركز الحالي
 import { useEffect, useRef, useState } from 'react'
 import useT from '../i18n/useT'
 import Celebration from './Celebration'
@@ -91,7 +92,11 @@ function MyLine({ race }) {
     return (
       <div className="race-mine">
         <strong>{t('race.me2')}</strong>
-        <span>{t('race.me2Gap', { name: first.name, ops: ops(target - me.ops) })}</span>
+        <span>
+          {me.ops === first.ops
+            ? t('race.me2Tie', { name: first.name })
+            : t('race.me2Gap', { name: first.name, ops: ops(target - me.ops) })}
+        </span>
         <Progress value={me.ops} target={target} />
       </div>
     )
@@ -99,11 +104,15 @@ function MyLine({ race }) {
   if (!first) {
     return <div className="race-mine"><span>{t('race.startHint')}</span></div>
   }
-  // عشان تاخد التاني لازم تعدّيه (التعادل لصاحب المركز)
+  // عملية زيادة عن التاني = مركزه أكيد (لو متعادلين في العدد، الإيراد هو اللي مرجّحه)
   const target = (second ? second.ops : 0) + 1
   return (
     <div className="race-mine">
-      <span>{t('race.meNeed', { ops: ops(target - me.ops) })}</span>
+      <span>
+        {second && me.ops === second.ops
+          ? t('race.meNeedTie')
+          : t('race.meNeed', { ops: ops(target - me.ops) })}
+      </span>
       <Progress value={me.ops} target={target} />
     </div>
   )
@@ -127,7 +136,12 @@ export function RaceBanner() {
 
   return (
     <section className="race-hero" aria-label={title}>
-      <div className="race-title"><span aria-hidden="true">🏆</span>{title}</div>
+      <div className="race-title">
+        <span aria-hidden="true">🏆</span>{title}
+        <small style={{ fontFamily: 'var(--font-body, inherit)', fontWeight: 500, fontSize: 11.5, color: 'var(--ink-soft)', marginInlineStart: 'auto' }}>
+          {t('race.rule')}
+        </small>
+      </div>
       <div className="race-row">
         <Champ place={1} who={race.first} isMe={myPos === 1} />
         <Champ place={2} who={race.second} isMe={myPos === 2} />
