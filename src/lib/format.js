@@ -105,3 +105,8 @@ export function timeAgo(d) {
   if (days < 30) return i18n.t('time.daysAgo', { n: days })
   return fmtDate(d)
 }
+
+// دفعة مسجّلة بأثر رجعي: يوم التحصيل (بتوقيت السعودية) أقدم من يوم الإدخال الفعلي
+const ksaDay = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' })
+export const isBackdated = (p) =>
+  !!(p?.paid_at && p?.created_at && ksaDay(p.paid_at) < ksaDay(p.created_at))

@@ -1,7 +1,8 @@
 // تسجيل دفعة جديدة
 // يعرض المتبقي على الديل فور اختياره، ويقبل قسطًا محدد مسبقًا (من صفحة الأقساط)
-// التسجيل يتم عبر record_payment: الدفعة وتحديث القسط في عملية واحدة لا تتجزأ
+// التسجيل يتم عبر record_payment_at: الدفعة وتحديث القسط في عملية واحدة لا تتجزأ
 // صورة الإيصال إجبارية: بتترفع الأول، وبعدين الدفعة بتتسجل بمسارها
+// تاريخ التحصيل: افتراضيًا النهارده، ويتغيّر لتاريخ قديم عند إدخال دفعات العمليات القديمة
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
@@ -13,6 +14,9 @@ import { dbErr } from '../lib/dbErrors'
 // طرق الدفع للتسجيل الجديد ("شبكة" القديمة اتقسمت لمدى/فيزا/ماستركارد)
 // الأسماء في الترجمة: payMethod.*
 export const PAY_METHODS = ['cash', 'mada', 'visa', 'mastercard', 'transfer', 'tabby', 'tamara', 'other']
+
+// تاريخ اليوم بتوقيت السعودية (YYYY-MM-DD) — نفس المرجع اللي الداتابيز بتتحقق بيه
+const todayKSA = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' })
 
 export default function AddPaymentModal({ preset, onClose, onSaved }) {
   const { profile } = useAuth()
@@ -26,6 +30,7 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
     method: 'cash',
     reference: '',
     notes: '',
+    paid_at: todayKSA(),
   })
   const [fin, setFin] = useState(null)
   const [file, setFile] = useState(null)
@@ -71,6 +76,8 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
     if (fin && Number(form.amount) > Number(fin.remaining)) {
       setErr(t('payment.err.exceeds', { n: fmtNum(fin.remaining), cur: SAR })); return
     }
+    if (!form.paid_at) { setErr(t('payment.err.paidAt')); return }
+    if (form.paid_at > todayKSA()) { setErr(t('payment.err.paidAtFuture')); return }
     if (!file) { setErr(t('payment.err.receipt')); return }
     setErr(''); setBusy(true)
 
@@ -83,7 +90,7 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
     }
 
     // 2) دالة واحدة: تسجّل الدفعة (بمسار الإيصال) وتحدّث القسط معًا — أو لا يحدث شيء
-    const { error } = await supabase.rpc('record_payment', {
+    const { error } = await supabase.rpc('record_payment_at', {
       p_deal_id: Number(form.deal_id),
       p_amount: Number(form.amount),
       p_method: form.method,
@@ -91,6 +98,7 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
       p_notes: form.notes || null,
       p_installment_id: preset?.installment_id ?? null,
       p_receipt_path: path,
+      p_paid_at: form.paid_at,
     })
 
     setBusy(false)
@@ -155,6 +163,15 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
               {PAY_METHODS.map(m => <option key={m} value={m}>{t(`payMethod.${m}`)}</option>)}
             </select>
           </div>
+        </div>
+
+        <div className="field">
+          <label>{t('payment.paidAt')}</label>
+          <input type="date" value={form.paid_at} max={todayKSA()}
+            onChange={e => set('paid_at', e.target.value)} />
+          {form.paid_at && form.paid_at < todayKSA() && (
+            <small style={{ color: 'var(--warn)', fontSize: 12 }}>{t('payment.backdatedHint')}</small>
+          )}
         </div>
 
         {partial && (

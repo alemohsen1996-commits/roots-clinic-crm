@@ -5,14 +5,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
 import { dbErr } from '../lib/dbErrors'
-import { fmtNum, fmtDateTime } from '../lib/format'
+import { fmtNum, fmtDate, fmtDateTime, isBackdated } from '../lib/format'
 import { signedReceiptUrls, receiptKind } from '../finance/receipts'
 import ReceiptViewer from '../finance/ReceiptViewer'
 import useT from '../i18n/useT'
 
 const SELECT = `
   id, receipt_no, amount, method, paid_at, reference, notes, status, void_reason,
-  receipt_path, confirmed_at,
+  receipt_path, confirmed_at, created_at,
   received:profiles!payments_received_by_fkey(full_name),
   confirmer:profiles!payments_confirmed_by_fkey(full_name)
 `
@@ -191,7 +191,11 @@ export default function DealPaymentsModal({ deal, focusId = null, onClose, onCha
                     <div className="paydlg-meta">
                       <span>#{i + 1}</span>
                       <span dir="ltr">{p.receipt_no}</span>
-                      <span>{fmtDateTime(p.paid_at)}</span>
+                      {isBackdated(p) ? (
+                        <span title={t('payments.enteredAt', { d: fmtDateTime(p.created_at) })}>
+                          {fmtDate(p.paid_at)} · <b style={{ color: 'var(--warn)' }}>{t('payments.backdated')}</b>
+                        </span>
+                      ) : <span>{fmtDateTime(p.paid_at)}</span>}
                     </div>
                     <div className="paydlg-meta">
                       <span>{t('payments.method')}: <b>{methodLabel(p.method)}</b></span>

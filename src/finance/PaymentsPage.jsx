@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
-import { fmtNum, fmtDateTime, openWhatsApp } from '../lib/format'
+import { fmtNum, fmtDate, fmtDateTime, isBackdated, openWhatsApp } from '../lib/format'
 import { exportCsv } from '../lib/exportCsv'
 import { uploadReceipt, discardReceipt } from './receipts'
 import ReceiptViewer from './ReceiptViewer'
@@ -20,6 +20,20 @@ const shortDT = (d) => {
   const x = new Date(d)
   return x.toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'short' })
        + ' · ' + x.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })
+}
+
+// تاريخ الدفعة للعرض: المسجّلة بأثر رجعي تظهر بالتاريخ فقط (الساعة فيها مش حقيقية) + شارة
+function PaidAt({ p, t, short }) {
+  if (!isBackdated(p)) return <>{short ? shortDT(p.paid_at) : fmtDateTime(p.paid_at)}</>
+  return (
+    <>
+      {fmtDate(p.paid_at)}{' '}
+      <span className="badge badge-pending" style={{ fontSize: 10.5 }}
+        title={t('payments.enteredAt', { d: fmtDateTime(p.created_at) })}>
+        {t('payments.backdated')}
+      </span>
+    </>
+  )
 }
 
 const METHODS = ['cash', 'mada', 'visa', 'mastercard', 'card', 'transfer', 'tabby', 'tamara', 'other']
@@ -355,7 +369,7 @@ export default function PaymentsPage() {
             <span className="mcard-amount">{fmtNum(p.amount)} {SAR}</span>
           </div>
           <div className="mcard-sub">
-            {shortDT(p.paid_at)} · {methodLabel(p.method)}{p.reference ? ` · ${p.reference}` : ''}
+            <PaidAt p={p} t={t} short /> · {methodLabel(p.method)}{p.reference ? ` · ${p.reference}` : ''}
           </div>
           <div className="mcard-meta">
             <span dir="ltr">{p.receipt_no}</span>
@@ -633,7 +647,7 @@ export default function PaymentsPage() {
                     )}
                     <td style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{page * PAGE + i + 1}</td>
                     <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }} title={fmtDateTime(p.paid_at)}>
-                      {shortDT(p.paid_at)}
+                      <PaidAt p={p} t={t} short />
                     </td>
                     <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {p.deals?.leads?.full_name}

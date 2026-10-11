@@ -749,7 +749,9 @@
       "checkPerm": "Check your permission on this deal",
       "tooBig": "File is larger than 5 MB",
       "uploadFailed": "Could not upload the receipt",
-      "openFailed": "Could not open the receipt"
+      "openFailed": "Could not open the receipt",
+      "paidAt": "Pick the collection date",
+      "paidAtFuture": "Collection date cannot be in the future"
     },
     "title": "Record payment",
     "sub": "A receipt number is generated automatically (RC-…)",
@@ -767,7 +769,9 @@
     "receiptHint": "Photo of the card slip, transfer or cash receipt — image or PDF (images are resized automatically)",
     "receiptPreview": "Receipt preview",
     "uploading": "Uploading and saving…",
-    "save": "Save payment"
+    "save": "Save payment",
+    "paidAt": "Collection date",
+    "backdatedHint": "Backdated payment — it will appear in that month's statement; the actual entry time is kept for the accountant"
   },
   "schedule": {
     "err": {
@@ -887,7 +891,9 @@
     "sendRequest": "Send request",
     "amountPh": "Amount",
     "amountHint": "Exact amount (5000) or a range (5000-8000)",
-    "amountFilter": "Search by amount"
+    "amountFilter": "Search by amount",
+    "backdated": "Backdated",
+    "enteredAt": "Entered in the system: {{d}}"
   },
   "installments": {
     "dayUnit": "days",
