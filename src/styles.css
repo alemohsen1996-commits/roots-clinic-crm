@@ -997,11 +997,6 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing:
   .main { padding: 14px 14px 40px; padding-top: calc(68px + env(safe-area-inset-top, 0px)); }
   /* القائمة خارج الشاشة يجب ألا تُنشئ تمريرًا أفقيًا للصفحة */
   html, body { overflow-x: hidden; max-width: 100vw; }
-  /* شريط الساعة/البطارية فوق (iOS 26): الآيفون بيرسم فوقه تدرّج بلون خلفية الصفحة نفسها
-     — لو الخلفية فاتحة بيطلع «ضوء أبيض» فوق الشريط الغامق. نخلّي لون الصفحة الأساسي = لون الشريط،
-     والمحتوى الفاتح يتحمل على .shell (بيكبر مع المحتوى) */
-  html, body { background: var(--side); }
-  .shell { background: var(--surface); }
 
   /* ---------- الشريط العلوي ---------- */
   .topbar {
