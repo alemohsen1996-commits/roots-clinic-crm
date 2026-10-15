@@ -8,6 +8,7 @@ import { exportCsv } from '../lib/exportCsv'
 import { uploadReceipt, discardReceipt } from './receipts'
 import ReceiptViewer from './ReceiptViewer'
 import AddPaymentModal from './AddPaymentModal'
+import { InvoiceAction, pickInvoice } from './InvoiceModal'
 import useT from '../i18n/useT'
 import { useIsMobile } from '../lib/useIsMobile'
 import { onCrm } from '../lib/crmRealtime'
@@ -73,8 +74,9 @@ const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(
   .toISOString().slice(0, 10)
 
 const SELECT = `
-  id, receipt_no, amount, method, paid_at, reference, notes, confirmed_at,
+  id, receipt_no, amount, vat_amount, method, paid_at, reference, notes, confirmed_at,
   status, void_reason, receipt_path, created_at,
+  invoices(id, invoice_no, status),
   deals(id, total_amount, tax_amount, net_amount, status,
         leads(file_no, full_name, phone,
               branch:branches!leads_branch_id_fkey(id, name, name_en)),
@@ -329,6 +331,7 @@ export default function PaymentsPage() {
         p.received?.full_name ?? '',
         ST(p.status), p.confirmed_at ? t('payments.confirmedBadge') : t('payments.unconfirmedBadge'),
         p.receipt_path ? t('payments.attachedBadge') : t('payments.notAttached'),
+        p.vat_amount ?? '', pickInvoice(p.invoices)?.invoice_no ?? '',
       ])
     )
   }
@@ -389,6 +392,7 @@ export default function PaymentsPage() {
         </div>
         <div className="mcard-actions">
           <ContactButtons phone={lead?.phone} />
+          <InvoiceAction payment={p} compact onChanged={() => load({ silent: true })} />
           {p.receipt_path ? (
             <button type="button" className="mact" title={t('payments.viewReceipt')} aria-label={t('payments.viewReceipt')}
               onClick={() => viewReceipt(rows, p)}>📎</button>
@@ -697,8 +701,12 @@ export default function PaymentsPage() {
                     <td style={{ color: 'var(--gold)', fontWeight: 700, whiteSpace: 'nowrap' }}>
                       {fmtNum(p.amount)} {SAR}
                     </td>
-                    <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: 'var(--ink-soft)' }}>
-                      {Number(p.deals?.tax_amount) > 0 ? fmtNum(p.deals.tax_amount) + ' ' + SAR : '—'}
+                    <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+                      {p.vat_amount != null
+                        ? <span title={t('invoice.paymentVat')}>{fmtNum(p.vat_amount)} {SAR}</span>
+                        : <span style={{ color: 'var(--ink-soft)' }} title={t('invoice.dealTaxHint')}>
+                            {Number(p.deals?.tax_amount) > 0 ? fmtNum(p.deals.tax_amount) + ' ' + SAR : '—'}
+                          </span>}
                     </td>
                     <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', fontWeight: 600 }}
                       title={t('payments.opNetHint')}>
@@ -721,12 +729,15 @@ export default function PaymentsPage() {
                               : <span className="badge badge-pending">{t('payments.awaitingAccountant')}</span>}
                     </td>
                     <td>
-                      {p.status === 'active' && (
-                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
-                          onClick={() => { setVoidingId(p.id); setVoidReason('') }}>
-                          {t('payments.void')}
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <InvoiceAction payment={p} onChanged={() => load({ silent: true })} />
+                        {p.status === 'active' && (
+                          <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
+                            onClick={() => { setVoidingId(p.id); setVoidReason('') }}>
+                            {t('payments.void')}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )

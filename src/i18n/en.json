@@ -234,7 +234,17 @@
     "phoneCopied": "Number copied",
     "coordShort": "Coordinator",
     "language": "Language",
-    "budget": "Budget"
+    "budget": "Budget",
+    "invoiceData": "Invoice details",
+    "nationalId": "National ID / Iqama",
+    "nationality": "Nationality",
+    "nationalityPh": "e.g. Saudi Arabia",
+    "gender": "Gender",
+    "genders": {
+      "male": "Male",
+      "female": "Female"
+    },
+    "invoiceDataHint": "Optional — shown on the tax invoice when filled"
   },
   "leads": {
     "title": "Leads",
@@ -835,7 +845,9 @@
       "Recorded By",
       "Status",
       "Confirmation",
-      "Receipt Image"
+      "Receipt Image",
+      "Payment VAT",
+      "Invoice No."
     ],
     "confirmedBadge": "Confirmed",
     "unconfirmedBadge": "Unconfirmed",
@@ -1429,7 +1441,8 @@
       "sale_types": "Sale types",
       "general": "Limits & commissions",
       "teams": "Teams",
-      "wa_templates": "WhatsApp templates"
+      "wa_templates": "WhatsApp templates",
+      "invoice": "Invoice"
     },
     "hint": "Every change here applies immediately to the whole system — and is recorded in the audit log",
     "groupsLabel": "Settings groups",
@@ -1955,5 +1968,63 @@
     "me2Tie": "Tied with {{name}} on operations, but they're ahead on revenue — one more operation takes 1st place",
     "meNeedTie": "Tied with 2nd place on operations, revenue breaks the tie — one more operation takes it 🥈",
     "rule": "By operations · ties go to revenue"
+  },
+  "invoice": {
+    "title": "Tax Invoice",
+    "loadFailed": "Could not load the invoice",
+    "cancelFailed": "Could not void the invoice",
+    "cancelledBadge": "Voided invoice",
+    "print": "Print / PDF",
+    "openTab": "Open in new tab",
+    "cancel": "Void invoice",
+    "pdfHint": "To save as PDF: click \"Print / PDF\" and choose \"Save as PDF\" in the print dialog — then you can send it to the patient on WhatsApp",
+    "cancelTitle": "Void invoice",
+    "cancelSub": "The invoice stays on record marked \"voided\", and a new invoice can be issued for the payment",
+    "cancelPh": "e.g. wrong VAT amount",
+    "cancelConfirm": "Void invoice",
+    "vat": "Payment VAT",
+    "vat15Hint": "15% of a VAT-inclusive amount",
+    "vatHint": "Amount includes VAT — enter 0 if no VAT",
+    "beforeVat": "Before VAT",
+    "view": "View invoice",
+    "issue": "Issue invoice",
+    "reissue": "Issue new invoice",
+    "issueTitle": "Issue invoice for payment",
+    "issueSub": "This payment has no VAT recorded — enter it to issue the invoice",
+    "err": {
+      "vat": "Enter the payment VAT (0 is fine)",
+      "vatTooBig": "VAT must be less than the payment amount"
+    },
+    "paymentVat": "Payment VAT",
+    "dealTaxHint": "Older payment without recorded VAT — this is the whole deal tax",
+    "taxFromPayments": "Calculated automatically from payment VAT"
+  },
+  "invSet": {
+    "title": "Tax invoice details",
+    "hint": "Shown on every new invoice — invoices issued earlier keep the details they were issued with",
+    "err": {
+      "required": "Arabic name and a 15-digit VAT number are required",
+      "image": "Could not read the image"
+    },
+    "f": {
+      "name_ar": "Company name (Arabic)",
+      "name_en": "Company name (English)",
+      "vat_no": "VAT number",
+      "cr_no": "CR / Unified number",
+      "address_ar": "Address (Arabic)",
+      "address_en": "Address (English)",
+      "phone": "Phone",
+      "email": "Email",
+      "website": "Website",
+      "terms_ar": "Terms & refunds (Arabic)",
+      "terms_en": "Terms & refunds (English)",
+      "stamp": "Company stamp"
+    },
+    "uploadStamp": "Upload stamp image",
+    "changeStamp": "Change stamp",
+    "removeStamp": "Remove stamp",
+    "showStamp": "Show stamp on invoice",
+    "stampHint": "A PNG with a transparent background works best",
+    "preview": "Preview sample invoice"
   }
 }

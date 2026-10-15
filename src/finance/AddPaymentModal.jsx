@@ -3,6 +3,7 @@
 // التسجيل يتم عبر record_payment_at: الدفعة وتحديث القسط في عملية واحدة لا تتجزأ
 // صورة الإيصال إجبارية: بتترفع الأول، وبعدين الدفعة بتتسجل بمسارها
 // تاريخ التحصيل: افتراضيًا النهارده، ويتغيّر لتاريخ قديم عند إدخال دفعات العمليات القديمة
+// ضريبة الدفعة: المنسقة بتكتبها يدوي (المبلغ شامل الضريبة) — والفاتورة الضريبية بتطلع تلقائي وتتفتح بعد الحفظ
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthContext'
@@ -10,6 +11,7 @@ import { fmtNum } from '../lib/format'
 import { uploadReceipt, discardReceipt } from './receipts'
 import useT from '../i18n/useT'
 import { dbErr } from '../lib/dbErrors'
+import InvoiceModal, { VatField } from './InvoiceModal'
 
 // طرق الدفع للتسجيل الجديد ("شبكة" القديمة اتقسمت لمدى/فيزا/ماستركارد)
 // الأسماء في الترجمة: payMethod.*
@@ -31,7 +33,9 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
     reference: '',
     notes: '',
     paid_at: todayKSA(),
+    vat: '',
   })
+  const [invoiceId, setInvoiceId] = useState(null)   // الفاتورة اللي طلعت بعد الحفظ
   const [fin, setFin] = useState(null)
   const [file, setFile] = useState(null)
   const preview = useMemo(() => (file && file.type.startsWith('image/') ? URL.createObjectURL(file) : null), [file])
@@ -78,6 +82,8 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
     }
     if (!form.paid_at) { setErr(t('payment.err.paidAt')); return }
     if (form.paid_at > todayKSA()) { setErr(t('payment.err.paidAtFuture')); return }
+    if (form.vat === '' || Number(form.vat) < 0) { setErr(t('invoice.err.vat')); return }
+    if (Number(form.vat) >= Number(form.amount)) { setErr(t('invoice.err.vatTooBig')); return }
     if (!file) { setErr(t('payment.err.receipt')); return }
     setErr(''); setBusy(true)
 
@@ -89,11 +95,12 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
       setBusy(false); setErr(dbErr(e.message)); return
     }
 
-    // 2) دالة واحدة: تسجّل الدفعة (بمسار الإيصال) وتحدّث القسط معًا — أو لا يحدث شيء
-    const { error } = await supabase.rpc('record_payment_at', {
+    // 2) دالة واحدة: تسجّل الدفعة (بمسار الإيصال وضريبتها) وتحدّث القسط وتصدر الفاتورة — أو لا يحدث شيء
+    const { data: paymentId, error } = await supabase.rpc('record_payment_v2', {
       p_deal_id: Number(form.deal_id),
       p_amount: Number(form.amount),
       p_method: form.method,
+      p_vat: Number(form.vat),
       p_reference: form.reference || null,
       p_notes: form.notes || null,
       p_installment_id: preset?.installment_id ?? null,
@@ -109,8 +116,14 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
         : t('payment.err.saveFailed') + ' — ' + (error.message ? dbErr(error.message) : t('payment.err.checkPerm')))
       return
     }
-    onSaved()
+    // نفتح الفاتورة على طول عشان تتطبع للمريض — ولو ماطلعتش لأي سبب نقفل عادي
+    const { data: inv } = await supabase.from('invoices').select('id')
+      .eq('payment_id', paymentId).eq('status', 'issued').maybeSingle()
+    if (inv?.id) setInvoiceId(inv.id)
+    else onSaved()
   }
+
+  if (invoiceId) return <InvoiceModal invoiceId={invoiceId} onClose={onSaved} />
 
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -164,6 +177,8 @@ export default function AddPaymentModal({ preset, onClose, onSaved }) {
             </select>
           </div>
         </div>
+
+        <VatField amount={form.amount} value={form.vat} onChange={v => set('vat', v)} />
 
         <div className="field">
           <label>{t('payment.paidAt')}</label>

@@ -91,6 +91,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   const [edit, setEdit] = useState({
     full_name: '', phone: '', age: '', occupation: '',
     country: '', city: '', language: '',
+    national_id: '', nationality: '', gender: '',
     source_id: '', branch_id: '', procedure_interest: '', budget_range: '', notes: '',
   })
   const [savingEdit, setSavingEdit] = useState(false)
@@ -128,6 +129,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
       full_name: l?.full_name ?? '', phone: l?.phone ?? '',
       age: l?.age ?? '', occupation: l?.occupation ?? '',
       country: l?.country ?? '', city: l?.city ?? '', language: l?.language ?? '',
+      national_id: l?.national_id ?? '', nationality: l?.nationality ?? '', gender: l?.gender ?? '',
       source_id: l?.source_id ?? '', branch_id: l?.branch_id ?? '',
       procedure_interest: l?.procedure_interest ?? '', budget_range: l?.budget_range ?? '',
       notes: l?.notes ?? '',
@@ -423,6 +425,9 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
       country: edit.country?.trim() || null,
       city: edit.city?.trim() || null,
       language: edit.language?.trim() || null,
+      national_id: edit.national_id?.trim() || null,
+      nationality: edit.nationality?.trim() || null,
+      gender: edit.gender || null,
       source_id: edit.source_id ? Number(edit.source_id) : null,
       branch_id: edit.branch_id ? Number(edit.branch_id) : null,
       procedure_interest: edit.procedure_interest?.trim() || null,
@@ -770,6 +775,9 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                   <span><i>{t('lead.age')}</i>{lead.age ?? '—'}</span>
                   <span><i>{t('lead.job')}</i>{lead.occupation ?? '—'}</span>
                   <span><i>{t('lead.city')}</i>{lead.city ?? '—'}</span>
+                  {lead.nationality && <span><i>{t('lead.nationality')}</i>{lead.nationality}</span>}
+                  {lead.national_id && <span><i>{t('lead.nationalId')}</i><b dir="ltr" style={{ fontWeight: 600 }}>{lead.national_id}</b></span>}
+                  {lead.gender && <span><i>{t('lead.gender')}</i>{t(`lead.genders.${lead.gender}`)}</span>}
                   <span><i>{t('lead.branch')}</i>{dn(lead.branches) || '—'}</span>
                   <span><i>{t('lead.source')}</i>{dn(lead.lead_sources) || '—'}</span>
                   <span><i>{t('lead.interest')}</i>{lead.procedure_interest ? t(`interest.${lead.procedure_interest}`, { defaultValue: lead.procedure_interest }) : '—'}</span>
@@ -955,6 +963,31 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                   <input value={edit.language} onChange={e => setE('language', e.target.value)} />
                 </div>
               </div>
+            </div>
+
+            <div className="lead-edit-group">
+              <div className="grp-label">{t('lead.invoiceData')}</div>
+              <div className="lead-edit-grid">
+                <div className="field">
+                  <label>{t('lead.nationalId')}</label>
+                  <input dir="ltr" inputMode="numeric" value={edit.national_id}
+                    onChange={e => setE('national_id', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>{t('lead.nationality')}</label>
+                  <input value={edit.nationality} onChange={e => setE('nationality', e.target.value)}
+                    placeholder={t('lead.nationalityPh')} />
+                </div>
+                <div className="field">
+                  <label>{t('lead.gender')}</label>
+                  <select value={edit.gender} onChange={e => setE('gender', e.target.value)}>
+                    <option value="">{t('common.noneDash')}</option>
+                    <option value="male">{t('lead.genders.male')}</option>
+                    <option value="female">{t('lead.genders.female')}</option>
+                  </select>
+                </div>
+              </div>
+              <small style={{ color: 'var(--ink-soft)', fontSize: 12 }}>{t('lead.invoiceDataHint')}</small>
             </div>
 
             <div className="lead-edit-group">

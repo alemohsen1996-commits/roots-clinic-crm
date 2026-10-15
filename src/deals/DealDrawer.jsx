@@ -129,7 +129,8 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
       if (!tot || tot <= 0) { setErr(t('newDeal.err.amountRequired')); setSaving(false); return }
       if (x >= tot) { setErr(t('newDeal.err.taxTooBig')); setSaving(false); return }
       if (tot !== Number(deal.total_amount)) patch.total_amount = tot
-      if (x !== Number(deal.tax_amount ?? 0)) {
+      // الضريبة المحسوبة من ضرائب الدفعات ماتتعدلش من هنا
+      if (!deal.tax_from_payments && x !== Number(deal.tax_amount ?? 0)) {
         patch.tax_amount = x
         patch.tax_note = form.tax_note || null
       }
@@ -364,7 +365,12 @@ export default function DealDrawer({ dealId, refs, siblings, onNavigate, onClose
                   <div className="field">
                     <label>{t('deal.tax')} ({SAR})</label>
                     <input type="number" min={0} value={form.tax_amount}
+                      disabled={!!deal.tax_from_payments}
+                      title={deal.tax_from_payments ? t('invoice.taxFromPayments') : undefined}
                       onChange={e => setForm(f => ({ ...f, tax_amount: e.target.value }))} />
+                    {deal.tax_from_payments && (
+                      <small style={{ color: 'var(--ink-soft)', fontSize: 12 }}>{t('invoice.taxFromPayments')}</small>
+                    )}
                   </div>
                 </div>
                 <div className="field">

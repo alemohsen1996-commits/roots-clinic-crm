@@ -8,11 +8,13 @@ import { dbErr } from '../lib/dbErrors'
 import { fmtNum, fmtDate, fmtDateTime, isBackdated } from '../lib/format'
 import { signedReceiptUrls, receiptKind } from '../finance/receipts'
 import ReceiptViewer from '../finance/ReceiptViewer'
+import { InvoiceAction } from '../finance/InvoiceModal'
 import useT from '../i18n/useT'
 
 const SELECT = `
-  id, receipt_no, amount, method, paid_at, reference, notes, status, void_reason,
+  id, receipt_no, amount, vat_amount, method, paid_at, reference, notes, status, void_reason,
   receipt_path, confirmed_at, created_at,
+  invoices(id, invoice_no, status),
   received:profiles!payments_received_by_fkey(full_name),
   confirmer:profiles!payments_confirmed_by_fkey(full_name)
 `
@@ -200,6 +202,7 @@ export default function DealPaymentsModal({ deal, focusId = null, onClose, onCha
                     <div className="paydlg-meta">
                       <span>{t('payments.method')}: <b>{methodLabel(p.method)}</b></span>
                       {p.reference && <span>{t('dealPays.ref')}: <b dir="ltr">{p.reference}</b></span>}
+                      {p.vat_amount != null && <span>{t('invoice.vat')}: <b>{fmtNum(p.vat_amount)} {SAR}</b></span>}
                     </div>
                     <div className="paydlg-meta">
                       <span>{t('payments.recordedBy')}: {p.received?.full_name ?? '—'}</span>
@@ -210,6 +213,11 @@ export default function DealPaymentsModal({ deal, focusId = null, onClose, onCha
                     {p.notes && <div className="paydlg-note">{p.notes}</div>}
                     {(isVoid || isVoidReq) && p.void_reason && (
                       <div className="paydlg-note danger">{t('payments.voidReason')}: {p.void_reason}</div>
+                    )}
+                    {(p.invoices?.length > 0 || p.status === 'active') && (
+                      <div className="paydlg-acts">
+                        <InvoiceAction payment={p} onChanged={() => { loadRows(); onChanged?.() }} />
+                      </div>
                     )}
                     {canAct && !isVoid && (
                       <div className="paydlg-acts">

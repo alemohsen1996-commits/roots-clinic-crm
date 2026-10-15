@@ -16,6 +16,7 @@ import BranchesTab from './BranchesTab'
 import BranchHoursTab from './BranchHoursTab'
 import GeneralTab from './GeneralTab'
 import WaTemplatesTab from './WaTemplatesTab'
+import InvoiceTab from './InvoiceTab'
 import useT from '../i18n/useT'
 
 // الفروع وساعات عملها في تبويب واحد
@@ -42,6 +43,7 @@ const GROUPS = [
     { key: 'doctors',      el: DoctorsTab },
     { key: 'techniques',   el: TechniquesTab, manager: true },
     { key: 'sale_types',   el: SaleTypesTab },
+    { key: 'invoice',      el: InvoiceTab },
   ]},
   { key: 'team', tabs: [
     { key: 'general',      el: GeneralTab },
