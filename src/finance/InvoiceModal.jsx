@@ -146,10 +146,8 @@ export default function InvoiceModal({ invoiceId, onClose, onChanged }) {
   )
 }
 
-// ضريبة 15% من مبلغ شامل الضريبة
-export const vat15 = (amount) => Math.round((Number(amount) || 0) * 15 / 115 * 100) / 100
-
-// خانة الضريبة اليدوية + أزرار سريعة (0 / 15%) — مستخدمة في تسجيل الدفعة وإصدار فاتورة لدفعة قديمة
+// خانة مبلغ الضريبة (بالريال) — المنسقة بتكتب الرقم بإيدها
+// مستخدمة في تسجيل الدفعة وإصدار فاتورة لدفعة قديمة
 export function VatField({ amount, value, onChange, autoFocus }) {
   const { t } = useT()
   const SAR = t('common.currency')
@@ -158,13 +156,8 @@ export function VatField({ amount, value, onChange, autoFocus }) {
   return (
     <div className="field">
       <label>{t('invoice.vat')} ({SAR}) <span style={{ color: 'var(--danger)' }}>*</span></label>
-      <div style={{ display: 'flex', gap: 6 }}>
-        <input type="number" min={0} step="0.01" value={value ?? ''} autoFocus={autoFocus}
-          onChange={e => onChange(e.target.value)} style={{ flex: 1 }} />
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange('0')}>0</button>
-        <button type="button" className="btn btn-ghost btn-sm" disabled={!a} onClick={() => onChange(String(vat15(a)))}
-          title={t('invoice.vat15Hint')}>15%</button>
-      </div>
+      <input type="number" min={0} step="0.01" inputMode="decimal" value={value ?? ''} autoFocus={autoFocus}
+        placeholder={t('invoice.vatPh')} onChange={e => onChange(e.target.value)} />
       <small style={{ color: 'var(--ink-soft)', fontSize: 12 }}>
         {t('invoice.vatHint')}
         {a > 0 && v != null && v >= 0 && v < a && <> · {t('invoice.beforeVat')}: <b>{fmtNum(Math.round((a - v) * 100) / 100)} {SAR}</b></>}

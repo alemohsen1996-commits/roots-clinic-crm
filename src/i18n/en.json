@@ -1982,9 +1982,8 @@
     "cancelSub": "The invoice stays on record marked \"voided\", and a new invoice can be issued for the payment",
     "cancelPh": "e.g. wrong VAT amount",
     "cancelConfirm": "Void invoice",
-    "vat": "Payment VAT",
-    "vat15Hint": "15% of a VAT-inclusive amount",
-    "vatHint": "Amount includes VAT — enter 0 if no VAT",
+    "vat": "VAT amount",
+    "vatHint": "Enter the VAT amount in SAR (not a percentage) — the payment amount above includes it",
     "beforeVat": "Before VAT",
     "view": "View invoice",
     "issue": "Issue invoice",
@@ -1997,7 +1996,8 @@
     },
     "paymentVat": "Payment VAT",
     "dealTaxHint": "Older payment without recorded VAT — this is the whole deal tax",
-    "taxFromPayments": "Calculated automatically from payment VAT"
+    "taxFromPayments": "Calculated automatically from payment VAT",
+    "vatPh": "e.g. 500 — or 0"
   },
   "invSet": {
     "title": "Tax invoice details",
