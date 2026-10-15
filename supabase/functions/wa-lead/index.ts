@@ -1,6 +1,6 @@
 // Edge Function: استقبال ليد جديد من برنامج واتساب
 // يستدعيها برنامجك (WA Tracker) بدل Zoho
-// - يبحث بالرقم: لو موجود يرجّع بياناته، لو جديد ينشئ ليد ويسنده للموظف
+// - يبحث بالرقم (الأساسي أو الرقم التاني للمريض): لو موجود يرجّع بياناته، لو جديد ينشئ ليد ويسنده للموظف
 // - الحماية: مفتاح سري في الهيدر (x-api-key)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -49,12 +49,16 @@ Deno.serve(async (req) => {
     const phone = normalizePhone(phoneRaw)
     if (!phone || phone.length < 8) return json({ error: 'رقم غير صالح' }, 400)
 
-    // 3) هل الرقم موجود بالفعل؟
-    const { data: existing } = await admin
+    // 3) هل الرقم موجود بالفعل؟ (رقم أساسي أو رقم تاني للمريض)
+    const digits = phone.slice(1)
+    const { data: matches } = await admin
       .from('leads')
       .select('id, file_no, full_name, stage_id, owner_id, stages(name_ar), owner:profiles!leads_owner_id_fkey(full_name)')
-      .eq('phone', phone)
-      .maybeSingle()
+      .or(`phone_norm.eq.${digits},phone2_norm.eq.${digits}`)
+      .order('archived_at', { ascending: true, nullsFirst: true })
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const existing = matches?.[0] ?? null
 
     if (existing) {
       return json({

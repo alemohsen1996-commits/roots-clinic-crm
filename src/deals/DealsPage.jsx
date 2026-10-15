@@ -134,7 +134,7 @@ export default function DealsPage() {
   const [status, setStatus] = useState('')
   const [kind, setKind] = useState('')            // '' | surgery | treatment | product
   const [quick, setQuick] = useState('')          // overdue | remaining
-  const [period, setPeriod] = useState('all')     // all | this | last | custom
+  // فلتر تاريخ العملية: من/إلى ظاهرين دايمًا، والأزرار السريعة بتملاهم
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [branch, setBranch] = useState('')
@@ -162,13 +162,24 @@ export default function DealsPage() {
       .then(({ data }) => setBranches(data ?? []))
   }, [])
 
-  // الفترة على تاريخ العملية
-  const range = useMemo(() => {
-    if (period === 'this') return monthRange(0)
-    if (period === 'last') return monthRange(-1)
-    if (period === 'custom') return { from, to }
-    return { from: '', to: '' }
-  }, [period, from, to])
+  // الفترة على تاريخ العملية (لو اتكتبت معكوسة نعدلها)
+  const range = useMemo(() => (
+    from && to && from > to ? { from: to, to: from } : { from, to }
+  ), [from, to])
+  const PRESETS = [
+    { id: 'last', offset: -1 },
+    { id: 'this', offset: 0 },
+    { id: 'next', offset: 1 },
+  ]
+  const presetOn = (offset) => {
+    const r = monthRange(offset)
+    return from === r.from && to === r.to
+  }
+  const pickPreset = (offset) => {
+    if (presetOn(offset)) { setFrom(''); setTo(''); return }
+    const r = monthRange(offset)
+    setFrom(r.from); setTo(r.to)
+  }
 
   // فلاتر الكروت/التبويبات (من غير الحالة والفلتر السريع)
   const baseFilters = useMemo(() => ({
@@ -197,10 +208,10 @@ export default function DealsPage() {
   useEffect(() => { if (preloadLead) setShowNew(true) }, [preloadLead])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const hasFilters = status || quick || kind || period !== 'all' || branch || agentId || coordId || search
+  const hasFilters = status || quick || kind || from || to || branch || agentId || coordId || search
 
   function clearAll() {
-    setStatus(''); setQuick(''); setKind(''); setPeriod('all'); setFrom(''); setTo('')
+    setStatus(''); setQuick(''); setKind(''); setFrom(''); setTo('')
     setBranch(''); setAgentId(''); setCoordId(''); setSearch('')
   }
 
@@ -337,23 +348,24 @@ export default function DealsPage() {
 
           <div className="deals-period">
             <span>{t('deals.dateOperation')}:</span>
-            {[
-              { id: 'this', label: monthName(0) },
-              { id: 'last', label: monthName(-1) },
-              { id: 'custom', label: t('deals.custom') },
-              { id: 'all', label: t('common.all') },
-            ].map(p => (
-              <button key={p.id} type="button" aria-pressed={period === p.id}
-                className={'chip' + (period === p.id ? ' on' : '')}
-                onClick={() => setPeriod(p.id)}>
-                {p.label}
+            <label className="deals-date">
+              <span>{t('drawer.from')}</span>
+              <input type="date" value={from} onChange={e => setFrom(e.target.value)} />
+            </label>
+            <label className="deals-date">
+              <span>{t('leads.f.to')}</span>
+              <input type="date" value={to} onChange={e => setTo(e.target.value)} />
+            </label>
+            {PRESETS.map(p => (
+              <button key={p.id} type="button" aria-pressed={presetOn(p.offset)}
+                className={'chip' + (presetOn(p.offset) ? ' on' : '')}
+                onClick={() => pickPreset(p.offset)}>
+                {monthName(p.offset)}
               </button>
             ))}
-            {period === 'custom' && (
-              <>
-                <input type="date" aria-label={t('drawer.from')} value={from} onChange={e => setFrom(e.target.value)} />
-                <input type="date" aria-label={t('leads.f.to')} value={to} onChange={e => setTo(e.target.value)} />
-              </>
+            {(from || to) && (
+              <button type="button" className="chip" onClick={() => { setFrom(''); setTo('') }}
+                title={t('deals.clearDates')}>✕ {t('common.all')}</button>
             )}
           </div>
         </div>

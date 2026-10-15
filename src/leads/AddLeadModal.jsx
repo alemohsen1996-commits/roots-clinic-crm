@@ -22,12 +22,13 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
   const { profile } = useAuth()
   const { t, dn } = useT()
   const [form, setForm] = useState({
-    full_name: '', phone: '', country: '', city: '',
+    full_name: '', phone: '', phone2: '', country: '', city: '',
     age: '', occupation: '', branch_id: '', stage_id: '',
     source_id: '', procedure_interest: '', notes: '',
   })
   const [branches, setBranches] = useState([])
   const [dup, setDup] = useState(null)
+  const [dup2, setDup2] = useState(null)   // الرقم التاني مسجّل لمريض تاني
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -56,12 +57,24 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
     setDup(data?.length ? data[0] : null)
   }
 
+  async function checkDup2() {
+    if (!form.phone2.trim()) { setDup2(null); return }
+    const canon = canonSaudiPhone(form.phone2)
+    if (canon !== form.phone2) set('phone2', canon)
+    if (canon.replace(/\D/g, '').length < 8) { setDup2(null); return }
+    const { data } = await supabase.rpc('check_duplicate_phone', { p_phone: canon })
+    setDup2(data?.length ? data[0] : null)
+  }
+
   async function save() {
     const phone = canonSaudiPhone(form.phone)
     if (!form.full_name.trim() || !phone.trim()) {
       setErr(t('addLead.required')); return
     }
-    if (dup) { setErr(t('addLead.dupErr')); return }
+    if (dup || dup2) { setErr(t('addLead.dupErr')); return }
+    const phone2 = form.phone2.trim() ? canonSaudiPhone(form.phone2) : null
+    if (phone2 && phone2.replace(/\D/g, '').length < 8) { setErr(t('drawer.err.phone2Invalid')); return }
+    if (phone2 && phone2.replace(/\D/g, '') === phone.replace(/\D/g, '')) { setErr(t('drawer.err.phone2Same')); return }
     setErr(''); setBusy(true)
 
     const newStage = refs.stages.find(s => s.code === STAGE.NEW)
@@ -70,6 +83,7 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
     const { error } = await supabase.from('leads').insert({
       full_name: form.full_name.trim(),
       phone: phone,
+      phone2,
       country: form.country || null,
       city: form.city || null,
       age: form.age ? Number(form.age) : null,
@@ -119,6 +133,21 @@ export default function AddLeadModal({ refs, onClose, onSaved }) {
           <div className="alert alert-error">
             {t('addLead.dupRegisteredAs')} <b>{dup.full_name}</b> ({t('lead.fileNo')} {dup.file_no}) —
             {t('lead.stage')}: {dup.stage} · {t('lead.owner')}: {dup.owner ?? t('lead.unassigned')}
+          </div>
+        )}
+
+        <div className="field">
+          <label>{t('lead.phone2')}</label>
+          <input dir="ltr" value={form.phone2}
+            onChange={e => set('phone2', e.target.value)}
+            onBlur={checkDup2}
+            placeholder="+9665xxxxxxxx" />
+        </div>
+
+        {dup2 && (
+          <div className="alert alert-error">
+            {t('lead.phone2')}: {t('addLead.dupRegisteredAs')} <b>{dup2.full_name}</b> ({t('lead.fileNo')} {dup2.file_no}) —
+            {t('lead.stage')}: {dup2.stage} · {t('lead.owner')}: {dup2.owner ?? t('lead.unassigned')}
           </div>
         )}
 

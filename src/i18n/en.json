@@ -244,7 +244,9 @@
       "male": "Male",
       "female": "Female"
     },
-    "invoiceDataHint": "Optional — shown on the tax invoice when filled"
+    "invoiceDataHint": "Optional — shown on the tax invoice when filled",
+    "phone2": "Second mobile (optional)",
+    "phone2Short": "2nd number"
   },
   "leads": {
     "title": "Leads",
@@ -469,7 +471,10 @@
       "priceToGreater": "The \"to\" price must be greater than \"from\"",
       "noDeadStage": "The \"Not interested\" stage does not exist",
       "archiveFailed": "Could not archive",
-      "deleteFailed": "Could not delete — there may be linked data"
+      "deleteFailed": "Could not delete — there may be linked data",
+      "phone2Invalid": "The second number is incomplete",
+      "phone2Same": "The second number is the same as the main one",
+      "phone2Taken": "The second number belongs to another patient: {{name}} (file {{file}})"
     },
     "pausedBadge": "Paused",
     "noFollowup": "No follow-up",
@@ -653,7 +658,8 @@
     "copied": "Copied",
     "operationN": "Operation {{n}}",
     "graftUnit": "grafts",
-    "collectedPct": "{{pct}}% of amount due collected"
+    "collectedPct": "{{pct}}% of amount due collected",
+    "clearDates": "Clear date filter"
   },
   "deal": {
     "saleType": "Sale type",

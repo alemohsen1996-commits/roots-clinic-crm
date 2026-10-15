@@ -15,7 +15,8 @@ import { dbErr } from '../lib/dbErrors'
 import { activityText } from '../lib/activityText'
 import { useNavigate } from 'react-router-dom'
 import LeadDiscussions from '../chat/LeadDiscussions'
-import { PhoneIcon } from '../components/ContactButtons'
+import { PhoneIcon, WaIcon } from '../components/ContactButtons'
+import { canonSaudiPhone } from './AddLeadModal'
 import WaTemplatesMenu from '../chat/WaTemplatesMenu'
 import { startDirect, errText as chatErr } from '../chat/chatApi'
 import { Medal } from '../components/SalesRace'
@@ -89,7 +90,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
   // تعديل بيانات العميل الشامل (inline في الهيدر)
   const [editing, setEditing] = useState(false)
   const [edit, setEdit] = useState({
-    full_name: '', phone: '', age: '', occupation: '',
+    full_name: '', phone: '', phone2: '', age: '', occupation: '',
     country: '', city: '', language: '',
     national_id: '', nationality: '', gender: '',
     source_id: '', branch_id: '', procedure_interest: '', budget_range: '', notes: '',
@@ -126,7 +127,7 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
     setCoordinatorId(l?.coordinator_id ?? '')
     setApptBranch(l?.branch_id ? String(l.branch_id) : '')
     setEdit({
-      full_name: l?.full_name ?? '', phone: l?.phone ?? '',
+      full_name: l?.full_name ?? '', phone: l?.phone ?? '', phone2: l?.phone2 ?? '',
       age: l?.age ?? '', occupation: l?.occupation ?? '',
       country: l?.country ?? '', city: l?.city ?? '', language: l?.language ?? '',
       national_id: l?.national_id ?? '', nationality: l?.nationality ?? '', gender: l?.gender ?? '',
@@ -415,11 +416,22 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
 
   async function saveEdit() {
     if (!edit.full_name.trim() || !edit.phone.trim()) { setErr(t('addLead.required')); return }
+    // الرقم التاني: نفس صيغة الرقم الأساسي، ومايكونش مسجّل لمريض تاني
+    const phone2 = edit.phone2?.trim() ? canonSaudiPhone(edit.phone2) : ''
+    const digits2 = phone2.replace(/\D/g, '')
+    if (phone2 && digits2.length < 8) { setErr(t('drawer.err.phone2Invalid')); return }
+    if (phone2 && digits2 === edit.phone.replace(/\D/g, '')) { setErr(t('drawer.err.phone2Same')); return }
+    if (phone2 && digits2 !== (lead.phone2 ?? '').replace(/\D/g, '')) {
+      const { data: dups } = await supabase.rpc('check_duplicate_phone', { p_phone: phone2 })
+      const other = (dups ?? []).find(d => d.lead_id !== lead.id)
+      if (other) { setErr(t('drawer.err.phone2Taken', { name: other.full_name, file: other.file_no })); return }
+    }
     setErr(''); setSavingEdit(true)
     const st = lead.stage_id
     const { error } = await supabase.from('leads').update({
       full_name: edit.full_name.trim(),
       phone: edit.phone.trim(),
+      phone2: phone2 || null,
       age: edit.age ? Number(edit.age) : null,
       occupation: edit.occupation?.trim() || null,
       country: edit.country?.trim() || null,
@@ -738,6 +750,20 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
               })()}
             </div>
 
+            {/* الرقم التاني للمريض */}
+            {lead.phone2 && (
+              <div className="phone-cell" style={{ marginTop: -4, marginBottom: 8 }}>
+                <span style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>{t('lead.phone2Short')}:</span>
+                <span dir="ltr" style={{ fontSize: 13.5, color: 'var(--ink-soft)' }}>{lead.phone2}</span>
+                <a className="icon-btn" href={`tel:${lead.phone2}`} title={t('lead.call')} aria-label={t('lead.call')}><PhoneIcon /></a>
+                <button className="icon-btn" title="WhatsApp" aria-label="WhatsApp" onClick={() => openWhatsApp(lead.phone2)}>
+                  <WaIcon />
+                </button>
+                <button className="icon-btn" title={t('lead.copyPhone')}
+                  onClick={() => { navigator.clipboard?.writeText(lead.phone2); say(t('lead.phoneCopied')) }}>⧉</button>
+              </div>
+            )}
+
             {/* الحالة الحالية */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
               <span className="badge stage-pill" style={{ '--stage': lead.stages?.color ?? '#888' }}>
@@ -934,6 +960,11 @@ export default function LeadDrawer({ leadId, refs, onClose, onChanged, siblings,
                 <div className="field">
                   <label>{t('lead.phone')} *</label>
                   <input dir="ltr" value={edit.phone} onChange={e => setE('phone', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>{t('lead.phone2')}</label>
+                  <input dir="ltr" value={edit.phone2} placeholder="+9665xxxxxxxx"
+                    onChange={e => setE('phone2', e.target.value)} />
                 </div>
               </div>
             </div>
